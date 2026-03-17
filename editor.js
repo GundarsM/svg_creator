@@ -857,7 +857,10 @@
                     // Only update shapes within coin groups, NOT the text
                     object.forEachObject(function(innerObj) {
                         if (innerObj.type !== 'text' && innerObj.type !== 'i-text') {
-                            if (fillType === 'color') {
+                            if (innerObj.fill === 'transparent') {
+                                // Decorative border ring — preserve transparent fill, update stroke only
+                                innerObj.set('stroke', fillType === 'color' ? '#ffffff' : '#5c3316');
+                            } else if (fillType === 'color') {
                                 const fillColor = document.getElementById('fillColor').value;
                                 innerObj.set('fill', fillColor);
                                 innerObj.materialType = 'color';
@@ -1714,11 +1717,6 @@
                         originX: 'center',
                         originY: 'center'
                     });
-                    outerCircle.shapeType = 'circle';
-                    outerCircle.materialType = 'birch'; // Set to birch plywood
-                    outerCircle.realRadius = 133 / 2;
-                    elements.push(outerCircle);
-                    
                     // Inner circle outline (2mm offset, 2mm thickness, no fill)
                     const innerCircle = new fabric.Circle({
                         radius: ((133 / 2) - 2) * scale,
@@ -1731,10 +1729,23 @@
                         originX: 'center',
                         originY: 'center'
                     });
+
+                    // Set properties on individual circles before grouping
+                    outerCircle.shapeType = 'circle';
+                    outerCircle.materialType = 'birch';
                     innerCircle.shapeType = 'circle';
-                    innerCircle.materialType = 'color'; // Set default material type
-                    innerCircle.realRadius = (133 / 2) - 2;
-                    elements.push(innerCircle);
+                    innerCircle.materialType = 'color';
+
+                    const circleGroup = new fabric.Group([outerCircle, innerCircle], {
+                        left: baseX,
+                        top: baseY,
+                        originX: 'center',
+                        originY: 'center'
+                    });
+                    circleGroup.shapeType = 'circle';
+                    circleGroup.materialType = 'birch';
+                    circleGroup.realRadius = 133 / 2;
+                    elements.push(circleGroup);
                     
                     // UK outline (scaled down) - if pathData exists
                     const ukPathData = countryPaths['uk'];
