@@ -1133,7 +1133,7 @@
                     shape.set({
                         left: centerX,
                         top: centerY,
-                        fill: '#3498db',
+                        fill: '#5c3316',
                         stroke: '#5c3316',
                         strokeWidth: 0.1,
                         scaleX: scale,
