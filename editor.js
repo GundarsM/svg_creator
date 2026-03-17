@@ -528,7 +528,7 @@
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn">
                             <i class="fas fa-download"></i> Download Design
                         </button>
-                        <button class="btn btn-primary w-100" onclick="showQuoteForm().catch(function(err){ console.error('showQuoteForm error:', err); })">
+                        <button class="btn btn-primary w-100" id="quoteBtn">
                             <i class="fas fa-envelope"></i> Request Quote
                         </button>
                     </div>
@@ -3078,11 +3078,14 @@
                     
                     const blob = new Blob([svgData], { type: 'image/svg+xml' });
                     const file = new File([blob], 'design_' + Date.now() + '.svg', { type: 'image/svg+xml' });
-                    
+
                     // Create a DataTransfer to set the file input
                     const dataTransfer = new DataTransfer();
                     dataTransfer.items.add(file);
-                    document.getElementById('designFileInput').files = dataTransfer.files;
+                    const designFileInputEl = document.getElementById('designFileInput');
+                    if (designFileInputEl) {
+                        designFileInputEl.files = dataTransfer.files;
+                    }
                     
                 } catch (error) {
                     console.error('Error preparing design file:', error);
@@ -3249,7 +3252,15 @@
                         exportSVG().catch(function(err) { console.error('Unhandled exportSVG error:', err); });
                     });
                 }
-                
+
+                // Setup quote button
+                const quoteBtnEl = document.getElementById('quoteBtn');
+                if (quoteBtnEl) {
+                    quoteBtnEl.addEventListener('click', function() {
+                        showQuoteForm().catch(function(err) { console.error('showQuoteForm error:', err); });
+                    });
+                }
+
                 // Setup keyboard shortcuts
                 document.addEventListener('keydown', function(e) {
                     // Prevent actions if user is typing in an input field
