@@ -994,7 +994,15 @@
                 const scale = canvas.scale;
                 const centerX = canvas.width / 2;
                 const centerY = canvas.height / 2;
-                
+
+                if (!woodPatterns['birch']) {
+                    const patternCanvas = createWoodPattern('birch');
+                    woodPatterns['birch'] = new fabric.Pattern({
+                        source: patternCanvas,
+                        repeat: 'repeat'
+                    });
+                }
+
                 switch(type) {
                     case 'rectangle':
                         shape = new fabric.Rect({
@@ -1021,7 +1029,7 @@
                             left: centerX,
                             top: centerY,
                             radius: 40 * scale,
-                            fill: '#ffffff',
+                            fill: woodPatterns['birch'],
                             stroke: '#5c3316',
                             strokeWidth: 0.1,
                             strokeUniform: true,
@@ -1029,6 +1037,7 @@
                             originY: 'center'
                         });
                         shape.realRadius = 40;
+                        shape.materialType = 'birch';
                         break;
                         
                     case 'ellipse':
@@ -1037,7 +1046,7 @@
                             top: centerY,
                             rx: 60 * scale,
                             ry: 40 * scale,
-                            fill: '#ffffff',
+                            fill: woodPatterns['birch'],
                             stroke: '#5c3316',
                             strokeWidth: 0.1,
                             strokeUniform: true,
@@ -1046,6 +1055,7 @@
                         });
                         shape.realRx = 60;
                         shape.realRy = 40;
+                        shape.materialType = 'birch';
                         break;
                         
                     case 'rectangle-outline':
@@ -1102,7 +1112,9 @@
                 }
                 
                 shape.shapeType = type;
-                shape.materialType = 'color'; // Set default material type
+                if (!shape.materialType) {
+                    shape.materialType = 'color'; // Default for shapes that didn't set it in their case
+                }
                 shape.setCoords(); // Ensure coordinates are set
                 canvas.add(shape);
                 canvas.setActiveObject(shape);
