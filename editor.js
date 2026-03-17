@@ -341,29 +341,53 @@
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2£', 28.55)">2£</button>
                         </div>
                         
-                        <h3 class="mt-4">Country Outlines</h3>
+                        <h3 class="mt-4">Countries</h3>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('usa')">
                                 <i class="fas fa-map"></i> USA
                             </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('usa')">
+                                <i class="far fa-map"></i> Outline
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('uk')">
                                 <i class="fas fa-map"></i> UK
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('uk')">
+                                <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('australia')">
                                 <i class="fas fa-map"></i> Australia
                             </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('australia')">
+                                <i class="far fa-map"></i> Outline
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('canada')">
                                 <i class="fas fa-map"></i> Canada
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('canada')">
+                                <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('germany')">
                                 <i class="fas fa-map"></i> Germany
                             </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('germany')">
+                                <i class="far fa-map"></i> Outline
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('italy')">
                                 <i class="fas fa-map"></i> Italy
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('italy')">
+                                <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         
@@ -1153,7 +1177,40 @@
                     canvas.requestRenderAll();
                 });
             }
-            
+
+            // Add country outline (transparent fill, brown stroke)
+            function addCountryOutline(country) {
+                const pathData = countryPaths[country];
+                const scale = canvas.scale;
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+
+                fabric.loadSVGFromString(`<svg><path d="${pathData}" /></svg>`, function(objects, options) {
+                    const shape = fabric.util.groupSVGElements(objects, options);
+                    shape.set({
+                        left: centerX,
+                        top: centerY,
+                        fill: 'transparent',
+                        stroke: '#5c3316',
+                        strokeWidth: 3,
+                        scaleX: scale,
+                        scaleY: scale,
+                        strokeUniform: true,
+                        originX: 'center',
+                        originY: 'center'
+                    });
+                    shape.shapeType = 'country';
+                    shape.countryName = country;
+                    shape.materialType = 'color';
+                    shape.realWidth = shape.width;
+                    shape.realHeight = shape.height;
+                    shape.setCoords();
+                    canvas.add(shape);
+                    canvas.setActiveObject(shape);
+                    canvas.requestRenderAll();
+                });
+            }
+
             // Add currency coins
             function addCurrency(currency) {
                 const scale = canvas.scale;
