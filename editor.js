@@ -981,8 +981,11 @@
                     unit = 'inch';
                 }
                 
-                document.getElementById('canvasInfo').textContent = 
-                    `${currentCanvasSize.toUpperCase()} - ${width} x ${height} ${unit}`;
+                const canvasInfoEl = document.getElementById('canvasInfo');
+                if (canvasInfoEl) {
+                    canvasInfoEl.textContent =
+                        `${currentCanvasSize.toUpperCase()} - ${width} x ${height} ${unit}`;
+                }
             }
             
             // Add basic shapes
@@ -3086,8 +3089,11 @@
                 }
                 
                 // Show modal
-                const modal = new bootstrap.Modal(document.getElementById('quoteModal'));
-                modal.show();
+                const quoteModalEl = document.getElementById('quoteModal');
+                if (quoteModalEl) {
+                    const modal = new bootstrap.Modal(quoteModalEl);
+                    modal.show();
+                }
             }
             
             // Handle quote form submission
@@ -3234,7 +3240,7 @@
                 if (downloadBtn) {
                     downloadBtn.addEventListener('click', function(e) {
                         e.preventDefault();
-                        exportSVG();
+                        exportSVG().catch(function(err) { console.error('Unhandled exportSVG error:', err); });
                     });
                 }
                 
