@@ -1139,8 +1139,10 @@
                 }
                 
                 shape.shapeType = type;
+                // Default: 'color'. Cases that set their own materialType (e.g. circle/ellipse → 'birch')
+                // must do so before this line, since this guard does not overwrite existing values.
                 if (!shape.materialType) {
-                    shape.materialType = 'color'; // Default for shapes that didn't set it in their case
+                    shape.materialType = 'color';
                 }
                 shape.setCoords(); // Ensure coordinates are set
                 canvas.add(shape);
@@ -1736,6 +1738,9 @@
                     innerCircle.shapeType = 'circle';
                     innerCircle.materialType = 'color';
 
+                    // Both circles share the same centre (baseX, baseY) so Fabric computes child offsets as
+                    // (0,0) relative to the group centre — visually correct. If either circle's position ever
+                    // differs from baseX/baseY, the group layout will need to be revised.
                     const circleGroup = new fabric.Group([outerCircle, innerCircle], {
                         left: baseX,
                         top: baseY,
