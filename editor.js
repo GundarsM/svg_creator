@@ -528,7 +528,7 @@
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn">
                             <i class="fas fa-download"></i> Download Design
                         </button>
-                        <button class="btn btn-primary w-100" onclick="showQuoteForm()">
+                        <button class="btn btn-primary w-100" onclick="showQuoteForm().catch(function(err){ console.error('showQuoteForm error:', err); })">
                             <i class="fas fa-envelope"></i> Request Quote
                         </button>
                     </div>
@@ -3102,18 +3102,24 @@
                 if (form) {
                     form.addEventListener('submit', async function(e) {
                         e.preventDefault();
-                        
+
                         const submitBtn = document.getElementById('submitBtn');
                         const formMessages = document.getElementById('formMessages');
                         const infoMessage = document.getElementById('infoMessage');
-                        
+
+                        // Guard against missing elements
+                        if (!submitBtn || !formMessages) {
+                            console.error('Required form elements not found');
+                            return;
+                        }
+
                         // Disable submit button
                         submitBtn.disabled = true;
                         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-                        
+
                         // Hide info message
                         if (infoMessage) infoMessage.style.display = 'none';
-                        
+
                         try {
                             // Create FormData
                             const formData = new FormData();
@@ -3125,13 +3131,13 @@
                             formData.append('last_name', document.getElementById('lastName').value);
                             formData.append('email', document.getElementById('userEmail').value);
                             formData.append('notes', document.getElementById('userNotes').value);
-                            
+
                             // Add file if present
                             const fileInput = document.getElementById('designFileInput');
-                            if (fileInput.files.length > 0) {
+                            if (fileInput && fileInput.files.length > 0) {
                                 formData.append('attachment', fileInput.files[0]);
                             }
-                            
+
                             // Submit to FormSubmit
                             const response = await fetch('https://formsubmit.co/hillspringcrafts@gmail.com', {
                                 method: 'POST',
@@ -3140,12 +3146,12 @@
                                     'Accept': 'application/json'
                                 }
                             });
-                            
+
                             if (response.ok) {
                                 // Success
                                 formMessages.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Quote request sent successfully! We\'ll get back to you within 24 hours.</div>';
                                 form.reset();
-                                
+
                                 // Close modal after 3 seconds
                                 setTimeout(function() {
                                     const modal = bootstrap.Modal.getInstance(document.getElementById('quoteModal'));
@@ -3156,7 +3162,7 @@
                             } else {
                                 throw new Error('Submission failed');
                             }
-                            
+
                         } catch (error) {
                             console.error('Form submission error:', error);
                             formMessages.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> There was an error sending your request. Please try again or email us directly at hillspringcrafts@gmail.com</div>';
