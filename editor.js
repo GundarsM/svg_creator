@@ -847,6 +847,57 @@
                 return patternCanvas;
             }
             
+            // Cascade colour changes to objects spatially contained within the changed object.
+            // Non-circle/non-ellipse contained objects change fill to match the material's logical colour:
+            //   wood → brown #5c3316
+            //   plastic (non-white) → white #ffffff (visible against dark backgrounds)
+            //   white plastic → light grey #d3d3d3 (avoids invisible white-on-white)
+            function cascadeColorToContained(changedObject, fillType, plasticColor) {
+                const bounds = changedObject.getBoundingRect();
+
+                canvas.getObjects().forEach(function(obj) {
+                    if (obj === changedObject) return;
+
+                    // Check if this object's centre point is inside changedObject's bounding rect
+                    const center = obj.getCenterPoint();
+                    const inside = center.x >= bounds.left &&
+                                   center.x <= bounds.left + bounds.width &&
+                                   center.y >= bounds.top &&
+                                   center.y <= bounds.top + bounds.height;
+                    if (!inside) return;
+
+                    // Determine the cascade colour
+                    let cascadeColor;
+                    if (fillType === 'birch' || fillType === 'oak' || fillType === 'walnut') {
+                        cascadeColor = '#5c3316';
+                    } else {
+                        // plastic
+                        const isWhite = plasticColor === '#ffffff' || plasticColor === '#FFFFFF';
+                        cascadeColor = isWhite ? '#d3d3d3' : '#ffffff';
+                    }
+
+                    // Apply to this object if it is not a circle or ellipse
+                    function applyIfNotCircleOrEllipse(o) {
+                        const isCircle = o.shapeType === 'circle' || o.shapeType === 'ellipse' ||
+                                         o.type === 'circle' || o.type === 'ellipse';
+                        if (!isCircle) {
+                            o.set('fill', cascadeColor);
+                        }
+                    }
+
+                    if (obj.type === 'group') {
+                        // Also cascade into group members
+                        obj.forEachObject(function(innerObj) {
+                            applyIfNotCircleOrEllipse(innerObj);
+                        });
+                    } else {
+                        applyIfNotCircleOrEllipse(obj);
+                    }
+                });
+
+                canvas.requestRenderAll();
+            }
+
             // Function to apply fill (color or wood pattern) to an object
             function applyFill(object, fillType) {
                 // Determine text color based on material type
@@ -2410,10 +2461,13 @@
                             });
                         }
                     }
+                    // Cascade colour to contained objects
+                    const currentPlasticColor = document.getElementById('fillColor').value;
+                    cascadeColorToContained(obj, 'color', currentPlasticColor);
                     canvas.requestRenderAll();
                     saveState();
                 };
-                
+
                 document.getElementById('materialPreset').onchange = function() {
                     const fillType = this.value;
                     applyFill(obj, fillType);
@@ -2434,11 +2488,14 @@
                     } else {
                         document.getElementById('fillColorGroup').style.display = 'none';
                     }
-                    
+
+                    // Cascade colour to contained objects
+                    const currentPlasticColor = document.getElementById('fillColor').value;
+                    cascadeColorToContained(obj, fillType, currentPlasticColor);
                     canvas.requestRenderAll();
                     saveState();
                 };
-                
+
                 document.getElementById('strokeColor').oninput = function() {
                     const strokeValue = this.value;
                     
