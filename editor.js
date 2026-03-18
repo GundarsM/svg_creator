@@ -458,11 +458,11 @@
                         <div class="property-panel" id="objectProperties" style="display:none;">
                             <div class="control-group" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;">
-                                    <label>Horizontal Position:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Horizontal Position:</label>
                                     <input type="number" id="posX" step="0.1">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label>Vertical Position:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Vertical Position:</label>
                                     <input type="number" id="posY" step="0.1">
                                 </div>
                             </div>
@@ -478,11 +478,11 @@
                             </div>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
-                                    <label>Corner Radius:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner Radius:</label>
                                     <input type="number" id="cornerRadius" step="0.1" min="0">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label>Rotation (°):</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Rotation (°):</label>
                                     <input type="number" id="objRotation" step="1">
                                 </div>
                             </div>
@@ -495,7 +495,7 @@
                                     <option value="walnut">Walnut Wood</option>
                                 </select>
                             </div>
-                            <div class="control-group" style="display: flex; gap: 8px;">
+                            <div class="control-group" style="display: flex; gap: 8px; align-items: flex-start;">
                                 <div style="flex: 1;" id="fillColorGroup">
                                     <label>Plastic Color:</label>
                                     <select id="fillColor" class="form-select" style="font-family: monospace;">
