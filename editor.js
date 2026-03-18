@@ -521,17 +521,17 @@
                             <div class="control-group" id="textPropsGroup" style="display:none;">
                                 <label>Font:</label>
                                 <select id="fontFamily" class="form-select">
-                                    <option value="Roboto">Roboto (was Arial)</option>
-                                    <option value="Lora">Lora (was Times New Roman)</option>
-                                    <option value="Inconsolata">Inconsolata (was Courier New)</option>
-                                    <option value="Open Sans">Open Sans (was Verdana)</option>
-                                    <option value="Nunito">Nunito (was Calibri)</option>
-                                    <option value="Josefin Sans">Josefin Sans (was Century Gothic)</option>
-                                    <option value="Anton">Anton (was Impact)</option>
-                                    <option value="Patrick Hand">Patrick Hand (was Comic Sans)</option>
-                                    <option value="EB Garamond">EB Garamond (was Garamond)</option>
-                                    <option value="PT Sans">PT Sans (was Lucida Sans)</option>
-                                    <option value="Cormorant Garamond">Cormorant Garamond (was IvyMode)</option>
+                                    <option value="Roboto">Roboto</option>
+                                    <option value="Lora">Lora</option>
+                                    <option value="Inconsolata">Inconsolata</option>
+                                    <option value="Open Sans">Open Sans</option>
+                                    <option value="Nunito">Nunito</option>
+                                    <option value="Josefin Sans">Josefin Sans</option>
+                                    <option value="Anton">Anton</option>
+                                    <option value="Patrick Hand">Patrick Hand</option>
+                                    <option value="EB Garamond">EB Garamond</option>
+                                    <option value="PT Sans">PT Sans</option>
+                                    <option value="Cormorant Garamond">Cormorant Garamond</option>
                                 </select>
                                 <label class="mt-2">Font Size:</label>
                                 <input type="number" id="fontSize" min="8" max="200">
