@@ -18,9 +18,20 @@ In `addShape()`, `case 'rectangle':` currently sets `fill: '#3498db'` (blue).
 
 ## Item 2 — 20p and 50p Coin Slots: Match Circular Slots
 
-In `addTemplate()`, `uk-coins` branch, the 20p and 50p coin shapes are created as `fabric.Path` objects from SVG path data. Their fill is `#ffffff` (same as circular coin slots) but they render invisibly white-on-white due to a path fill-rule issue (heptagonal SVG paths with ambiguous winding direction do not reliably fill with Fabric.js defaults).
+The 20p and 50p coin shapes are created as `fabric.Path` objects from SVG path data. They render invisibly white-on-white due to a path fill-rule issue (heptagonal SVG paths with ambiguous winding direction do not reliably fill with Fabric.js defaults).
 
-**Change:** Add `fillRule: 'nonzero'` explicitly to the 20p and 50p `fabric.Path` constructor options. Keep `fill: '#ffffff'` and `stroke: '#5c3316'`. Result: white fill with brown outline, matching the circular coin slots.
+There are **three code sites** that create 20p/50p coin paths — all must be fixed:
+
+1. `addTemplate()` uk-coins layout branch (~line 1481) — currently `fill: '#ffffff'`, `stroke: '#ffffff'`
+2. `addSingleCoin()` function (~line 1569) — currently `fill: '#ffffff'`, `stroke: '#5c3316'`
+3. `addTemplate()` uk-coins ring template branch (~line 1893) — currently `fill: '#ffffff'`, `stroke: '#ffffff'` (if present)
+
+**Change at all three sites:**
+- Add `fillRule: 'nonzero'` to the `fabric.Path` constructor options
+- Ensure `fill: '#ffffff'` (white, matching circular coin slots)
+- Ensure `stroke: '#5c3316'` (brown outline — fix sites where stroke is currently `'#ffffff'`)
+
+Result: white fill with brown outline, matching the circular coin slots.
 
 ---
 
