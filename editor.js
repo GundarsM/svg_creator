@@ -1480,8 +1480,9 @@
                                 return parseFloat(match) * scale;
                             });
                             shape = new fabric.Path(scaledPath, {
-                                fill: '#ffffff', // White canvas background color
-                                stroke: '#ffffff',
+                                fill: '#ffffff',
+                                fillRule: 'nonzero',
+                                stroke: '#5c3316',
                                 strokeWidth: 0.1,
                                 strokeUniform: true,
                                 left: 0,
@@ -1569,6 +1570,7 @@
                     
                     shape = new fabric.Path(scaledPath, {
                         fill: coinColor,
+                        fillRule: 'nonzero',
                         stroke: '#5c3316',
                         strokeWidth: 0.1,
                         strokeUniform: true,
@@ -1893,6 +1895,7 @@
                                 
                                 coinShape = new fabric.Path(scaledPath, {
                                     fill: '#ffffff',
+                                    fillRule: 'nonzero',
                                     stroke: '#5c3316',
                                     strokeWidth: 0.1,
                                     strokeUniform: true,
