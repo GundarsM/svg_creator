@@ -2324,7 +2324,7 @@
                 // Text properties
                 if (obj.type === 'i-text' || obj.type === 'text') {
                     document.getElementById('textPropsGroup').style.display = 'block';
-                    document.getElementById('fontFamily').value = obj.fontFamily || 'Arial';
+                    document.getElementById('fontFamily').value = obj.fontFamily || 'Roboto';
                     document.getElementById('fontSize').value = Math.round(obj.fontSize / scale);
                     document.getElementById('textContent').value = obj.text;
                 } else {
