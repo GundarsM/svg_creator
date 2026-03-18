@@ -2461,9 +2461,15 @@
                             });
                         }
                     }
-                    // Cascade colour to contained objects
+                    // Cascade colour to contained objects (per selected item for multi-select)
                     const currentPlasticColor = document.getElementById('fillColor').value;
-                    cascadeColorToContained(obj, 'color', currentPlasticColor);
+                    if (obj.type === 'activeSelection') {
+                        obj.forEachObject(function(selectedObj) {
+                            cascadeColorToContained(selectedObj, 'color', currentPlasticColor);
+                        });
+                    } else {
+                        cascadeColorToContained(obj, 'color', currentPlasticColor);
+                    }
                     canvas.requestRenderAll();
                     saveState();
                 };
@@ -2489,9 +2495,15 @@
                         document.getElementById('fillColorGroup').style.display = 'none';
                     }
 
-                    // Cascade colour to contained objects
+                    // Cascade colour to contained objects (per selected item for multi-select)
                     const currentPlasticColor = document.getElementById('fillColor').value;
-                    cascadeColorToContained(obj, fillType, currentPlasticColor);
+                    if (obj.type === 'activeSelection') {
+                        obj.forEachObject(function(selectedObj) {
+                            cascadeColorToContained(selectedObj, fillType, currentPlasticColor);
+                        });
+                    } else {
+                        cascadeColorToContained(obj, fillType, currentPlasticColor);
+                    }
                     canvas.requestRenderAll();
                     saveState();
                 };
