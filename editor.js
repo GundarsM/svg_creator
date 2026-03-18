@@ -350,51 +350,57 @@
                         </div>
                         
                         <h3 class="mt-4">Countries</h3>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('usa')">
-                                <i class="fas fa-map"></i> USA
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                            <span style="flex: 1; font-size: 0.9em;">USA</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('usa')">
+                                <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('usa')">
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('usa')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('uk')">
-                                <i class="fas fa-map"></i> UK
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                            <span style="flex: 1; font-size: 0.9em;">UK</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('uk')">
+                                <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('uk')">
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('uk')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('australia')">
-                                <i class="fas fa-map"></i> Australia
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                            <span style="flex: 1; font-size: 0.9em;">Australia</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('australia')">
+                                <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('australia')">
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('australia')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('canada')">
-                                <i class="fas fa-map"></i> Canada
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                            <span style="flex: 1; font-size: 0.9em;">Canada</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('canada')">
+                                <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('canada')">
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('canada')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('germany')">
-                                <i class="fas fa-map"></i> Germany
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                            <span style="flex: 1; font-size: 0.9em;">Germany</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('germany')">
+                                <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('germany')">
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('germany')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('italy')">
-                                <i class="fas fa-map"></i> Italy
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                            <span style="flex: 1; font-size: 0.9em;">Italy</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('italy')">
+                                <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('italy')">
+                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('italy')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
