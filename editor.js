@@ -3064,51 +3064,90 @@
             document.getElementById('customWidth').addEventListener('change', applyCustomSize);
             document.getElementById('customHeight').addEventListener('change', applyCustomSize);
             
-            // Convert text to path outlines
-            async function convertTextToPaths() {
+            // Load an opentype.Font object, using cache to avoid repeat fetches.
+            async function loadFont(fontFamily) {
+                const key = FONT_URLS[fontFamily] ? fontFamily : FONT_FALLBACK;
+                if (fontBinaryCache[key]) return fontBinaryCache[key];
+                if (!FONT_URLS[key]) {
+                    console.warn('No font URL for', fontFamily, '- using fallback');
+                    return loadFont(FONT_FALLBACK);
+                }
+                const font = await opentype.load(FONT_URLS[key]);
+                fontBinaryCache[key] = font;
+                return font;
+            }
+
+            // Convert all text objects on the canvas to fabric.Path vector objects.
+            // Returns array of { original, converted } - converted is null for non-text objects.
+            async function convertTextToPathObjects() {
                 const objects = canvas.getObjects();
-                const convertedObjects = [];
-                
+                const result = [];
+
                 for (let i = 0; i < objects.length; i++) {
                     const obj = objects[i];
-                    
+
                     if (obj.type === 'i-text' || obj.type === 'text') {
-                        // Convert text to image to preserve appearance
-                        const multiplier = 4; // High resolution multiplier
-                        const dataURL = obj.toDataURL({
-                            format: 'png',
-                            quality: 1,
-                            multiplier: multiplier
-                        });
-                        
-                        // Create an image object from the text
-                        await new Promise((resolve) => {
-                            fabric.Image.fromURL(dataURL, function(img) {
-                                // Calculate proper scaling to maintain size
-                                // toDataURL with multiplier renders at multiplier times the visual size
-                                // So we just need to scale down by the multiplier to get back to original size
-                                const scaleAdjustment = 1 / multiplier;
-                                
-                                img.set({
-                                    left: obj.left,
-                                    top: obj.top,
-                                    angle: obj.angle,
-                                    scaleX: scaleAdjustment,
-                                    scaleY: scaleAdjustment,
-                                    opacity: obj.opacity,
-                                    originX: obj.originX,
-                                    originY: obj.originY
-                                });
-                                convertedObjects.push({ original: obj, converted: img });
-                                resolve();
+                        const font = await loadFont(obj.fontFamily || 'Roboto');
+                        const scale = canvas.scale;
+                        const fontSize = (obj.realFontSize || (obj.fontSize / scale));
+                        const lines = (obj.text || '').split('\n');
+
+                        // Full line height: ascender + descender magnitude + lineGap
+                        const lineHeightPx = (font.ascender - font.descender + (font.lineGap || 0))
+                                              / font.unitsPerEm * fontSize * scale;
+
+                        const pathObjects = [];
+                        lines.forEach(function(line, lineIndex) {
+                            const pathData = font.getPath(line, 0, 0, fontSize * scale).toPathData(2);
+                            if (!pathData) return;
+
+                            // Use relative coordinates (0, offset) - the group carries the absolute position.
+                            // Do NOT set left/top to obj.left/obj.top here; that would double-offset when
+                            // fabric.Group recomputes child positions relative to the group's own centre.
+                            const fabricPath = new fabric.Path(pathData, {
+                                left: 0,
+                                top: lineIndex * lineHeightPx,
+                                fill: obj.fill || '#000000',
+                                stroke: obj.stroke || null,
+                                strokeWidth: obj.strokeWidth || 0,
+                                opacity: 1,
+                                originX: 'center',
+                                originY: 'top',
+                                scaleX: 1,
+                                scaleY: 1
                             });
+                            pathObjects.push(fabricPath);
                         });
+
+                        // Wrap all lines in a group (or use the single path directly)
+                        // The group carries the absolute canvas position from the original text object.
+                        if (pathObjects.length === 1) {
+                            pathObjects[0].set({
+                                left: obj.left,
+                                top: obj.top,
+                                angle: obj.angle,
+                                opacity: obj.opacity,
+                                originX: obj.originX,
+                                originY: obj.originY
+                            });
+                            result.push({ original: obj, converted: pathObjects[0] });
+                        } else if (pathObjects.length > 1) {
+                            const group = new fabric.Group(pathObjects, {
+                                left: obj.left,
+                                top: obj.top,
+                                originX: obj.originX,
+                                originY: obj.originY,
+                                angle: obj.angle,
+                                opacity: obj.opacity
+                            });
+                            result.push({ original: obj, converted: group });
+                        }
                     } else {
-                        convertedObjects.push({ original: obj, converted: null });
+                        result.push({ original: obj, converted: null });
                     }
                 }
-                
-                return convertedObjects;
+
+                return result;
             }
             
             // Export SVG with text converted to paths
@@ -3127,7 +3166,7 @@
                     });
                     
                     // Convert text to images (preserves fonts perfectly)
-                    const convertedObjects = await convertTextToPaths();
+                    const convertedObjects = await convertTextToPathObjects();
                     
                     // Add all objects to temp canvas
                     for (let item of convertedObjects) {
@@ -3225,7 +3264,7 @@
                     });
                     
                     // Convert text to images (preserves fonts perfectly)
-                    const convertedObjects = await convertTextToPaths();
+                    const convertedObjects = await convertTextToPathObjects();
                     
                     // Add all objects to temp canvas
                     for (let item of convertedObjects) {
