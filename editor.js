@@ -9,7 +9,12 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        
+
+        <!-- Google Fonts replacement for system fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Anton&family=Cormorant+Garamond:wght@400;700&family=EB+Garamond:wght@400;700&family=Inconsolata:wght@400;700&family=Josefin+Sans:wght@400;700&family=Lora:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Patrick+Hand&family=PT+Sans:wght@400;700&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+
         <style>
             /* Prevent Bootstrap from affecting Squarespace sections */
             body > *:not(#design-tool-wrapper) .container,
@@ -228,6 +233,9 @@
                 margin: 10px 0;
             }
         </style>
+
+        <!-- opentype.js for text-to-path export -->
+        <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
     </head>
     <body>
         <div id="design-tool-wrapper">
@@ -513,24 +521,17 @@
                             <div class="control-group" id="textPropsGroup" style="display:none;">
                                 <label>Font:</label>
                                 <select id="fontFamily" class="form-select">
-                                    <option value="Arial">Arial</option>
-                                    <option value="Arial Black">Arial Black</option>
-                                    <option value="Times New Roman">Times New Roman</option>
-                                    <option value="Courier New">Courier New</option>
-                                    <option value="Verdana">Verdana</option>
-                                    <option value="Tahoma">Tahoma</option>
-                                    <option value="Trebuchet MS">Trebuchet MS</option>
-                                    <option value="Century Gothic">Century Gothic</option>
-                                    <option value="Impact">Impact</option>
-                                    <option value="Comic Sans MS">Comic Sans MS</option>
-                                    <option value="Calibri">Calibri</option>
-                                    <option value="Cambria">Cambria</option>
-                                    <option value="Consolas">Consolas</option>
-                                    <option value="Segoe UI">Segoe UI</option>
-                                    <option value="Book Antiqua">Book Antiqua</option>
-                                    <option value="Lucida Sans Unicode">Lucida Sans</option>
-                                    <option value="Garamond">Garamond</option>
-                                    <option value="IvyMode">IvyMode</option>
+                                    <option value="Roboto">Roboto (was Arial)</option>
+                                    <option value="Lora">Lora (was Times New Roman)</option>
+                                    <option value="Inconsolata">Inconsolata (was Courier New)</option>
+                                    <option value="Open Sans">Open Sans (was Verdana)</option>
+                                    <option value="Nunito">Nunito (was Calibri)</option>
+                                    <option value="Josefin Sans">Josefin Sans (was Century Gothic)</option>
+                                    <option value="Anton">Anton (was Impact)</option>
+                                    <option value="Patrick Hand">Patrick Hand (was Comic Sans)</option>
+                                    <option value="EB Garamond">EB Garamond (was Garamond)</option>
+                                    <option value="PT Sans">PT Sans (was Lucida Sans)</option>
+                                    <option value="Cormorant Garamond">Cormorant Garamond (was IvyMode)</option>
                                 </select>
                                 <label class="mt-2">Font Size:</label>
                                 <input type="number" id="fontSize" min="8" max="200">
@@ -1316,7 +1317,7 @@
                         const text = new fabric.Text(coin.value, {
                             fontSize: 5 * scale,
                             fill: '#000000',
-                            fontFamily: 'Arial',
+                            fontFamily: 'Roboto',
                             fontWeight: 'bold',
                             originX: 'center',
                             originY: 'center'
@@ -1383,7 +1384,7 @@
                         const text = new fabric.Text(coin.value, {
                             fontSize: 5 * scale,
                             fill: '#000000',
-                            fontFamily: 'Arial',
+                            fontFamily: 'Roboto',
                             fontWeight: 'bold',
                             originX: 'center',
                             originY: 'center'
@@ -1476,7 +1477,7 @@
                         const text = new fabric.Text(coin.value, {
                             fontSize: 5 * scale,
                             fill: '#000000',
-                            fontFamily: 'Arial',
+                            fontFamily: 'Roboto',
                             fontWeight: 'bold',
                             originX: 'center',
                             originY: 'center'
@@ -1575,7 +1576,7 @@
                 const text = new fabric.Text(value, {
                     fontSize: 5 * scale,
                     fill: '#000000',
-                    fontFamily: 'Arial',
+                    fontFamily: 'Roboto',
                     fontWeight: 'bold',
                     originX: 'center',
                     originY: 'center'
@@ -1704,7 +1705,7 @@
                         const coinText = new fabric.Text(coin.value, {
                             fontSize: 5 * scale,
                             fill: '#000000', // Black text for coins
-                            fontFamily: 'Arial',
+                            fontFamily: 'Roboto',
                             fontWeight: 'bold',
                             left: startX + (col * coinSpacingX),
                             top: startY + (row * coinSpacingY),
@@ -1735,7 +1736,7 @@
                 const countryText = new fabric.Text('Germany', {
                     fontSize: 5 * scale,
                     fill: '#5c3316',
-                    fontFamily: 'Century Gothic',
+                    fontFamily: 'Josefin Sans',
                     fontWeight: 'bold',
                     left: baseX,
                     top: baseY + 28 * scale, // Moved 2mm higher
@@ -1897,7 +1898,7 @@
                             const coinText = new fabric.Text(coin.value, {
                                 fontSize: 5 * scale,
                                 fill: '#000000', // Black text for coins
-                                fontFamily: 'Arial',
+                                fontFamily: 'Roboto',
                                 fontWeight: 'bold',
                                 left: 0,
                                 top: 0,
@@ -1928,7 +1929,7 @@
                         const countryText = new fabric.Text('United Kingdom', {
                             fontSize: 3.5 * scale,
                             fill: '#5c3316',
-                            fontFamily: 'Century Gothic',
+                            fontFamily: 'Josefin Sans',
                             fontWeight: 'bold',
                             left: baseX,
                             top: baseY - 58 * scale, // 8mm higher than before
@@ -2050,7 +2051,7 @@
                 const memoryText = new fabric.Text('Precious memories', {
                     fontSize: 5 * scale,
                     fill: '#5c3316',
-                    fontFamily: 'Century Gothic',
+                    fontFamily: 'Josefin Sans',
                     fontWeight: 'bold',
                     left: baseX,
                     top: baseY + (rectHeight / 2 - 6) * scale, // 6mm from bottom
@@ -2088,7 +2089,7 @@
                     top: centerY,
                     fontSize: 24 * scale,
                     fill: '#000000',
-                    fontFamily: 'Arial',
+                    fontFamily: 'Roboto',
                     originX: 'center',
                     originY: 'center'
                 });
