@@ -1111,7 +1111,7 @@
                             top: centerY,
                             width: 100 * scale,
                             height: 60 * scale,
-                            fill: '#3498db',
+                            fill: woodPatterns['birch'],
                             stroke: '#5c3316',
                             strokeWidth: 0.1,
                             strokeUniform: true,
@@ -1123,6 +1123,7 @@
                         shape.realWidth = 100;
                         shape.realHeight = 60;
                         shape.realCornerRadius = 3;
+                        shape.materialType = 'birch';
                         break;
                         
                     case 'circle':
