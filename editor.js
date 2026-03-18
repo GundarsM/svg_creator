@@ -538,9 +538,20 @@
                                 <label class="mt-2">Text Content:</label>
                                 <input type="text" id="textContent">
                             </div>
-                            <button class="btn w-100 mt-3" onclick="duplicateSelected()">
+                            <button class="btn btn-success w-100 mt-3" onclick="duplicateSelected()">
                                 <i class="fas fa-copy"></i> Duplicate Selected
                             </button>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorHorizontal()">
+                                    <i class="fas fa-arrows-alt-h"></i> Mirror H
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorVertical()">
+                                    <i class="fas fa-arrows-alt-v"></i> Mirror V
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="rotate90()">
+                                    <i class="fas fa-redo"></i> 90°
+                                </button>
+                            </div>
                             <button class="btn btn-danger w-100 mt-2" onclick="deleteSelected()">
                                 <i class="fas fa-trash"></i> Delete Selected
                             </button>
@@ -2660,7 +2671,37 @@
                     saveState(); // Save state after deletion
                 }
             }
-            
+
+            // Mirror selected object(s) horizontally (flip on vertical axis)
+            function mirrorHorizontal() {
+                const obj = canvas.getActiveObject();
+                if (!obj) return;
+                obj.set('scaleX', obj.scaleX * -1);
+                obj.setCoords();
+                canvas.requestRenderAll();
+                saveState();
+            }
+
+            // Mirror selected object(s) vertically (flip on horizontal axis)
+            function mirrorVertical() {
+                const obj = canvas.getActiveObject();
+                if (!obj) return;
+                obj.set('scaleY', obj.scaleY * -1);
+                obj.setCoords();
+                canvas.requestRenderAll();
+                saveState();
+            }
+
+            // Rotate selected object(s) 90 degrees clockwise
+            function rotate90() {
+                const obj = canvas.getActiveObject();
+                if (!obj) return;
+                obj.rotate((obj.angle + 90) % 360);
+                obj.setCoords();
+                canvas.requestRenderAll();
+                saveState();
+            }
+
             // Duplicate selected object(s)
             function duplicateSelected() {
                 const activeObject = canvas.getActiveObject();
