@@ -3175,7 +3175,7 @@
                     // Add all objects to temp canvas
                     for (let item of convertedObjects) {
                         if (item.converted) {
-                            // Add converted image instead of text
+                            // Add converted vector path instead of text
                             tempCanvas.add(item.converted);
                         } else {
                             // Clone and add non-text objects
