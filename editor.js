@@ -3069,8 +3069,10 @@
                 const key = FONT_URLS[fontFamily] ? fontFamily : FONT_FALLBACK;
                 if (fontBinaryCache[key]) return fontBinaryCache[key];
                 if (!FONT_URLS[key]) {
-                    console.warn('No font URL for', fontFamily, '- using fallback');
-                    return loadFont(FONT_FALLBACK);
+                    throw new Error('Font not found and fallback missing: ' + key);
+                }
+                if (key !== fontFamily) {
+                    console.warn('No font URL for "' + fontFamily + '" - using fallback "' + key + '"');
                 }
                 const font = await opentype.load(FONT_URLS[key]);
                 fontBinaryCache[key] = font;
@@ -3097,8 +3099,10 @@
                                               / font.unitsPerEm * fontSize * scale;
 
                         const pathObjects = [];
+                        const ascenderPx = font.ascender / font.unitsPerEm * fontSize * scale;
                         lines.forEach(function(line, lineIndex) {
-                            const pathData = font.getPath(line, 0, 0, fontSize * scale).toPathData(2);
+                            const baselineY = ascenderPx + lineIndex * lineHeightPx;
+                            const pathData = font.getPath(line, 0, baselineY, fontSize * scale).toPathData(2);
                             if (!pathData) return;
 
                             // Use relative coordinates (0, offset) - the group carries the absolute position.
@@ -3165,9 +3169,9 @@
                         height: canvas.height
                     });
                     
-                    // Convert text to images (preserves fonts perfectly)
+                    // Convert text objects to vector paths for font-independent SVG export
                     const convertedObjects = await convertTextToPathObjects();
-                    
+
                     // Add all objects to temp canvas
                     for (let item of convertedObjects) {
                         if (item.converted) {
@@ -3183,8 +3187,7 @@
                             tempCanvas.add(cloned);
                         }
                     }
-                    
-                    const scale = canvas.scale;
+
                     const svgData = tempCanvas.toSVG({
                         width: canvas.realWidth + 'mm',
                         height: canvas.realHeight + 'mm',
@@ -3195,7 +3198,7 @@
                             height: canvas.height
                         }
                     });
-                    
+
                     const fileName = 'design_' + Date.now() + '.svg';
                     
                     // Open SVG in new window with download interface
@@ -3263,9 +3266,9 @@
                         height: canvas.height
                     });
                     
-                    // Convert text to images (preserves fonts perfectly)
+                    // Convert text objects to vector paths for font-independent SVG export
                     const convertedObjects = await convertTextToPathObjects();
-                    
+
                     // Add all objects to temp canvas
                     for (let item of convertedObjects) {
                         if (item.converted) {
@@ -3279,8 +3282,7 @@
                             tempCanvas.add(cloned);
                         }
                     }
-                    
-                    const scale = canvas.scale;
+
                     const svgData = tempCanvas.toSVG({
                         width: canvas.realWidth + 'mm',
                         height: canvas.realHeight + 'mm',
@@ -3291,7 +3293,7 @@
                             height: canvas.height
                         }
                     });
-                    
+
                     const blob = new Blob([svgData], { type: 'image/svg+xml' });
                     const file = new File([blob], 'design_' + Date.now() + '.svg', { type: 'image/svg+xml' });
 
