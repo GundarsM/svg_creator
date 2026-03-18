@@ -612,6 +612,28 @@
         
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
+            // Font binary URLs for opentype.js text-to-path conversion at export time.
+            // Source: @fontsource packages on jsDelivr (WOFF format, natively supported by opentype.js).
+            const FONT_URLS = {
+                'Roboto':               'https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-400-normal.woff',
+                'Lora':                 'https://cdn.jsdelivr.net/npm/@fontsource/lora@5.0.8/files/lora-latin-400-normal.woff',
+                'Inconsolata':          'https://cdn.jsdelivr.net/npm/@fontsource/inconsolata@5.0.8/files/inconsolata-latin-400-normal.woff',
+                'Open Sans':            'https://cdn.jsdelivr.net/npm/@fontsource/open-sans@5.0.12/files/open-sans-latin-400-normal.woff',
+                'Nunito':               'https://cdn.jsdelivr.net/npm/@fontsource/nunito@5.0.8/files/nunito-latin-400-normal.woff',
+                'Josefin Sans':         'https://cdn.jsdelivr.net/npm/@fontsource/josefin-sans@5.0.8/files/josefin-sans-latin-400-normal.woff',
+                'Anton':                'https://cdn.jsdelivr.net/npm/@fontsource/anton@5.0.8/files/anton-latin-400-normal.woff',
+                'Patrick Hand':         'https://cdn.jsdelivr.net/npm/@fontsource/patrick-hand@5.0.8/files/patrick-hand-latin-400-normal.woff',
+                'EB Garamond':          'https://cdn.jsdelivr.net/npm/@fontsource/eb-garamond@5.0.8/files/eb-garamond-latin-400-normal.woff',
+                'PT Sans':              'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.woff',
+                'Cormorant Garamond':   'https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5.0.8/files/cormorant-garamond-latin-400-normal.woff'
+            };
+
+            // Cache of loaded opentype.Font objects — avoids re-fetching per export session
+            const fontBinaryCache = {};
+
+            // Fallback font key used when an unknown fontFamily is encountered
+            const FONT_FALLBACK = 'Open Sans';
+
             // Global variables
             let canvas;
             let currentUnit = 'mm'; // 'mm' or 'inch'
