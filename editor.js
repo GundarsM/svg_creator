@@ -1292,15 +1292,38 @@
                 // Save state when objects are added or removed
                 canvas.on('object:added', function(e) {
                     saveState();
+                    updateCanvasHint();
+
+                    // Auto-center viewport on newly added object
+                    var obj = e.target;
+                    if (obj) {
+                        var objCenter = obj.getCenterPoint();
+                        var zoom = canvas.getZoom();
+                        var vpt = canvas.viewportTransform;
+                        var margin = 50;
+                        var visibleLeft = -vpt[4] / zoom + margin;
+                        var visibleTop = -vpt[5] / zoom + margin;
+                        var visibleRight = visibleLeft + (canvas.getWidth() / zoom) - 2 * margin;
+                        var visibleBottom = visibleTop + (canvas.getHeight() / zoom) - 2 * margin;
+
+                        if (objCenter.x < visibleLeft || objCenter.x > visibleRight ||
+                            objCenter.y < visibleTop || objCenter.y > visibleBottom) {
+                            canvas.viewportTransform[4] = -(objCenter.x * zoom - canvas.getWidth() / 2);
+                            canvas.viewportTransform[5] = -(objCenter.y * zoom - canvas.getHeight() / 2);
+                            canvas.requestRenderAll();
+                        }
+                    }
                 });
                 canvas.on('object:removed', function(e) {
                     saveState();
+                    updateCanvasHint();
                 });
                 
                 updateCanvasInfo();
-                
+
                 // Save initial empty state
                 saveState();
+                updateCanvasHint();
             }
             
             // Update canvas info badge
@@ -3016,12 +3039,59 @@
             
             // Clear canvas
             function clearCanvas() {
-                if (confirm('Are you sure you want to clear all objects?')) {
-                    canvas.clear();
-                    canvas.backgroundColor = '#ffffff';
-                    canvas.requestRenderAll();
-                    saveState(); // Save state after clearing
+                // Temporarily suppress auto-save during bulk removal
+                isRedoing = true;
+                canvas.clear();
+                canvas.backgroundColor = '#ffffff';
+                canvas.requestRenderAll();
+                isRedoing = false;
+                saveState();
+                updateCanvasHint();
+            }
+
+            // Toggle settings dropdown
+            function toggleSettingsDropdown() {
+                const dropdown = document.getElementById('settingsDropdown');
+                dropdown.classList.toggle('show');
+            }
+
+            // Show/hide canvas onboarding hint
+            function updateCanvasHint() {
+                const hint = document.getElementById('canvasHint');
+                if (!hint) return;
+                hint.style.display = canvas.getObjects().length === 0 ? 'block' : 'none';
+            }
+
+            // Set unit (mm or inch) - segmented control handler
+            function setUnit(unit) {
+                const customWidth = parseFloat(document.getElementById('customWidthToolbar').value);
+                const customHeight = parseFloat(document.getElementById('customHeightToolbar').value);
+
+                if (unit === 'mm' && currentUnit === 'inch' && customWidth && customHeight) {
+                    document.getElementById('customWidthToolbar').value = (customWidth / mmToInch).toFixed(2);
+                    document.getElementById('customHeightToolbar').value = (customHeight / mmToInch).toFixed(2);
+                } else if (unit === 'inch' && currentUnit === 'mm' && customWidth && customHeight) {
+                    document.getElementById('customWidthToolbar').value = (customWidth * mmToInch).toFixed(2);
+                    document.getElementById('customHeightToolbar').value = (customHeight * mmToInch).toFixed(2);
                 }
+
+                currentUnit = unit;
+
+                document.getElementById('unitMMToolbar').classList.toggle('active', unit === 'mm');
+                document.getElementById('unitInchToolbar').classList.toggle('active', unit === 'inch');
+
+                if (unit === 'inch') {
+                    document.getElementById('customSizeLabelToolbar').textContent = 'Enter dimensions in inch:';
+                    document.getElementById('customWidthToolbar').placeholder = 'Width (inch)';
+                    document.getElementById('customHeightToolbar').placeholder = 'Height (inch)';
+                } else {
+                    document.getElementById('customSizeLabelToolbar').textContent = 'Enter dimensions in mm:';
+                    document.getElementById('customWidthToolbar').placeholder = 'Width (mm)';
+                    document.getElementById('customHeightToolbar').placeholder = 'Height (mm)';
+                }
+
+                updateCanvasInfo();
+                updatePropertiesPanel();
             }
             
             // History functions
@@ -3577,6 +3647,14 @@
                     console.error('Error preparing design file:', error);
                 }
                 
+                // Update design summary
+                var summaryDetails = document.getElementById('designSummaryDetails');
+                if (summaryDetails) {
+                    var objCount = canvas.getObjects().length;
+                    var sizeText = canvas.realWidth + ' x ' + canvas.realHeight + ' mm';
+                    summaryDetails.textContent = 'Canvas: ' + sizeText + ' | Objects: ' + objCount;
+                }
+
                 // Show modal
                 const quoteModalEl = document.getElementById('quoteModal');
                 if (quoteModalEl) {
@@ -3620,6 +3698,7 @@
                             formData.append('last_name', document.getElementById('lastName').value);
                             formData.append('email', document.getElementById('userEmail').value);
                             formData.append('notes', document.getElementById('userNotes').value);
+                            formData.append('preferred_material', document.getElementById('preferredMaterial').value);
 
                             // Add file if present
                             const fileInput = document.getElementById('designFileInput');
@@ -3665,6 +3744,73 @@
             }
             
             // Initialize on page load
+            // Close settings dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                var dropdown = document.getElementById('settingsDropdown');
+                var settingsBtn = e.target.closest('.settings-dropdown');
+                if (!settingsBtn && dropdown) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Wire up toolbar canvas size controls
+            document.getElementById('canvasSizeToolbar').addEventListener('change', function() {
+                var val = this.value;
+                // Sync with the existing canvasSize change handler logic
+                document.getElementById('canvasSize') && (document.getElementById('canvasSize').value = val);
+                currentCanvasSize = val;
+                if (val === 'custom') {
+                    document.getElementById('customSizeInputsToolbar').style.display = 'block';
+                } else {
+                    document.getElementById('customSizeInputsToolbar').style.display = 'none';
+                    // Trigger the canvas resize
+                    var size = canvasSizes[val];
+                    var targetPixelHeight = 840;
+                    var newScale = targetPixelHeight / 420;
+                    var newPixelWidth = size.width * newScale;
+                    var newPixelHeight = size.height * newScale;
+                    var oldScale = canvas.scale;
+                    var objects = canvas.getObjects().slice();
+                    var scaleRatio = newScale / oldScale;
+                    isRedoing = true;
+                    canvas.clear();
+                    canvas.setWidth(newPixelWidth);
+                    canvas.setHeight(newPixelHeight);
+                    canvas.backgroundColor = '#ffffff';
+                    canvas.realWidth = size.width;
+                    canvas.realHeight = size.height;
+                    canvas.scale = newScale;
+                    objects.forEach(function(obj) {
+                        obj.set({ left: obj.left * scaleRatio, top: obj.top * scaleRatio, scaleX: obj.scaleX * scaleRatio, scaleY: obj.scaleY * scaleRatio });
+                        obj.setCoords();
+                        canvas.add(obj);
+                    });
+                    isRedoing = false;
+                    canvas.requestRenderAll();
+                    updateCanvasInfo();
+                    saveState();
+                }
+            });
+
+            document.getElementById('customWidthToolbar').addEventListener('change', function() {
+                var w = parseFloat(this.value);
+                var h = parseFloat(document.getElementById('customHeightToolbar').value);
+                if (!w || !h || w <= 0 || h <= 0) return;
+                if (currentUnit === 'inch') { w = w / mmToInch; h = h / mmToInch; }
+                canvasSizes.custom = { width: w, height: h };
+                currentCanvasSize = 'custom';
+                applyCustomSize();
+            });
+            document.getElementById('customHeightToolbar').addEventListener('change', function() {
+                var w = parseFloat(document.getElementById('customWidthToolbar').value);
+                var h = parseFloat(this.value);
+                if (!w || !h || w <= 0 || h <= 0) return;
+                if (currentUnit === 'inch') { w = w / mmToInch; h = h / mmToInch; }
+                canvasSizes.custom = { width: w, height: h };
+                currentCanvasSize = 'custom';
+                applyCustomSize();
+            });
+
             window.addEventListener('load', function() {
                 initCanvas();
                 
