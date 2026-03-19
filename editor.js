@@ -210,28 +210,11 @@
             
             #design-tool-wrapper .header-title {
                 text-align: center;
-                padding: 20px 0;
-                margin-top: 80px;
-                margin-bottom: 20px;
+                padding: 8px 0;
+                margin-top: 0;
+                margin-bottom: 0;
             }
             
-            #design-tool-wrapper .info-badge {
-                position: absolute;
-                top: 10px;
-                right: 10px;
-                background: rgba(52, 71, 52, 0.9);
-                color: white;
-                padding: 5px 10px;
-                border-radius: 5px;
-                font-size: 12px;
-            }
-            
-            #design-tool-wrapper .unit-toggle {
-                display: flex;
-                gap: 10px;
-                justify-content: center;
-                margin: 10px 0;
-            }
             /* Sticky 3-column layout: sidebars scroll, canvas stays fixed */
             #design-tool-wrapper .main-layout {
                 display: flex;
