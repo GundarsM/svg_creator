@@ -13,11 +13,11 @@ The current layout presents a technical interface: canvas settings first, jargon
 
 ### 1.1 Section order (top to bottom)
 
-1. **Start with a Template** (currently "Templates", currently 4th section)
-2. **Add Coins** (currently "Common Currencies", currently 5th section)
-3. **Add Country Outlines** (currently "Countries", currently 6th section)
+1. **Start with a Template** (currently "Templates", currently 3rd section)
+2. **Add Coins** (currently "Common Currencies", currently 4th section)
+3. **Add Country Outlines** (currently "Countries", currently 5th section)
 4. **Add Shapes** (currently "Basic Shapes", currently 2nd section)
-5. **Add Text & Images** (currently "Add Content", currently 7th section)
+5. **Add Text & Images** (currently "Add Content", currently 6th section)
 
 Canvas Settings moves out of the sidebar entirely (see Section 3).
 
@@ -72,15 +72,29 @@ Move to canvas toolbar (see Section 3):
 |---------|-----|
 | Horizontal Position | X |
 | Vertical Position | Y |
+| Width | Width (unchanged) |
+| Height | Height (unchanged) |
 | Fill Material | Material |
 | Plastic Color | Color |
 | Line Color | Outline |
 | Corner Radius | Corner Roundness |
 | Rotation (°) | Rotation |
-| Duplicate Selected | Duplicate |
-| Delete Selected | Delete |
+| Duplicate Selected | Duplicate (Ctrl+D) |
+| Delete Selected | Delete (Del) |
 
-### 2.3 Bottom actions renames
+### 2.3 Transform buttons
+
+Keep the existing Mirror H, Mirror V, and Rotate 90 buttons in their current position below the Duplicate button. No label changes needed — these are already concise.
+
+### 2.4 Text properties
+
+Keep the existing text properties panel (Font selector, Font Size, Text Content) that appears when a text object is selected. No label changes needed — these are already clear. The 11 Google Fonts loaded via CDN remain unchanged.
+
+### 2.5 Font properties note
+
+The Font selector dropdown contains 11 Google Fonts (Roboto, Lora, Inconsolata, Open Sans, Nunito, Josefin Sans, Anton, Patrick Hand, EB Garamond, PT Sans, Cormorant Garamond). These are loaded via Google Fonts CDN and used by opentype.js for text-to-path conversion on SVG export. This must be preserved during the restructuring.
+
+### 2.6 Bottom actions renames
 
 | Current | New |
 |---------|-----|
@@ -88,9 +102,9 @@ Move to canvas toolbar (see Section 3):
 | Download Design | Download as SVG |
 | Request Quote | Request Quote (moved to sticky footer, see Section 5) |
 
-### 2.4 "Start Over" behavior
+### 2.7 "Start Over" behavior
 
-No confirmation dialog. Clears the canvas immediately.
+No confirmation dialog. Clears the canvas immediately. However, the undo history must be preserved so that the user can undo the clear and recover their work. Currently `canvas.clear()` followed by `saveState()` leaves only one undo step (back to blank). Fix: save the pre-clear state to history before clearing, so undo after "Start Over" restores the previous design.
 
 ## 3. Canvas Area & Toolbar
 
@@ -117,17 +131,21 @@ Add a compact horizontal toolbar above the canvas containing:
 - **Settings gear icon**: opens a dropdown/popover containing:
   - Canvas size preset dropdown (A4, A3, A2, A1, Custom)
   - Custom width/height inputs (when Custom is selected)
-  - Unit toggle (mm / inch) — **segmented control style** (see Section 6.4)
+  - Unit toggle (mm / inch) — **segmented control style** (see Section 6.3)
+
+**DOM placement:** The toolbar sits inside the center column, above the `canvas-container-wrapper` div. It is part of the non-scrolling canvas column so it remains visible at all times alongside the canvas.
 
 ### 3.4 Sticky canvas
 
 **The canvas column stays fixed in the viewport** while the left and right sidebars scroll independently. This prevents the canvas from scrolling away when the user scrolls a sidebar to find tools.
 
-Implementation: CSS `position: sticky` on the canvas column, or a flex layout where sidebars have `overflow-y: auto` and the canvas column does not scroll.
+Implementation: Replace the current Bootstrap grid row with a custom flex layout. The outer container uses `display: flex` with `height: 100vh` (or available height minus header/footer). The left and right sidebar columns get `overflow-y: auto` to scroll independently. The center canvas column does not scroll — it fills the available height and centers the canvas within it.
+
+Note: The current `#design-tool-wrapper` has `overflow: hidden` which must be adjusted. The Bootstrap `col-lg-*` classes can be kept for width sizing but the scrolling behavior needs custom CSS. This is a non-trivial structural change to the HTML layout.
 
 ### 3.5 Auto-center on object add
 
-When any object is added to the canvas (shape, coin, text, template, country), reset the viewport to center on the canvas. This prevents the situation where a user is zoomed/panned to a different area and the new object appears off-screen.
+When any object is added to the canvas (shape, coin, text, template, country), center the viewport on the newly added object. If the user has not manually panned/zoomed, this is a no-op since objects are added at center by default. If the user has panned/zoomed away, the viewport scrolls to show the new object without resetting zoom level. This prevents the situation where a new object appears off-screen without being disruptive to users who have deliberately zoomed into a specific area.
 
 ## 4. Canvas Onboarding Hint
 
@@ -152,7 +170,7 @@ Pin the "Request Quote" button to the bottom of the viewport as a sticky footer 
 | Last Name | Last Name | (unchanged) |
 | Email | Email | (unchanged) |
 | Additional Notes | Anything else we should know? | Placeholder: "e.g. Quantity needed, deadline, special requests..." |
-| (none) | Preferred Material | New dropdown: Birch Plywood, Oak Wood, Walnut Wood, Acrylic/Plastic, Other, Not Sure |
+| (none) | Preferred Material | New dropdown: Birch Plywood, Oak Wood, Walnut Wood, Acrylic/Plastic, Other, Not Sure. This is the overall project material preference — it may differ from per-object materials set on the canvas. Helps HillSpring understand the customer's intent even if the canvas material settings are incomplete or exploratory. |
 | Design File upload | Upload your own design (optional) | Clarify text: "Already have a design file? Upload it here (SVG format). Otherwise, your design from the canvas will be included automatically." |
 
 ### 5.3 Design summary in modal
@@ -173,6 +191,7 @@ Add a section below the main tool area (below the sticky footer) with:
 - Keyboard shortcuts table:
   - `Delete` — Remove selected objects
   - `Ctrl + D` — Duplicate selected objects
+  - `Ctrl + S` — Download design (shown in the download dialog)
 - Mouse controls:
   - Scroll wheel — Zoom in/out
   - Right-click drag — Pan the canvas
@@ -215,12 +234,14 @@ Use CSS `clip-path` to create a rounded heptagon shape for the 20p and 50p indiv
 ### Before (right sidebar):
 1. History (Undo/Redo)
 2. Zoom Controls
-3. Object Properties
-4. Actions (Clear All, Download, Request Quote)
+3. Object Properties (position, size, rotation, material, colors, text props)
+4. Transform buttons (Duplicate, Mirror H/V, Rotate 90, Delete)
+5. Actions (Clear All, Download, Request Quote)
 
 ### After (right sidebar):
-1. Object Properties (with simplified labels)
-2. Actions (Start Over, Download as SVG)
+1. Object Properties (simplified labels, same fields)
+2. Transform buttons (Duplicate, Mirror H/V, Rotate 90, Delete — unchanged)
+3. Actions (Start Over, Download as SVG)
 
 ### New elements:
 - Canvas toolbar (Undo, Redo, Zoom, Settings gear)
@@ -228,3 +249,12 @@ Use CSS `clip-path` to create a rounded heptagon shape for the 20p and 50p indiv
 - Canvas onboarding hint
 - Tips & Shortcuts section below the tool
 - Settings dropdown (canvas size, units)
+
+## 7. Responsive Behavior
+
+The tool is PC-optimized. On screens below `lg` breakpoint (< 992px):
+- The current Bootstrap grid stacks columns vertically (`col-md-4`, `col-md-8`, `col-md-12`)
+- The sticky canvas behavior should degrade gracefully — canvas becomes a normal scrolling element on smaller screens
+- The sticky footer (Request Quote) should remain sticky on all screen sizes
+- The canvas toolbar stays above the canvas regardless of screen size
+- Sidebar scrolling is only relevant on desktop; on mobile the full page scrolls naturally
