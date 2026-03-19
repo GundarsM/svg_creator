@@ -410,15 +410,13 @@
     </head>
     <body>
         <div id="design-tool-wrapper">
-        <div class="container-fluid">
-            <div class="header-title">
-                <h1>Design Tool</h1>
-                <p>Create custom designs with shapes, text, and images</p>
+            <div class="header-title" style="padding: 8px 0; margin-top: 0; margin-bottom: 0;">
+                <h1 style="font-size: 1.4em; margin: 0;">Design Your Custom Product</h1>
             </div>
-            
-            <div class="row">
+
+            <div class="main-layout">
                 <!-- Left Sidebar - Tools -->
-                <div class="col-lg-3 col-md-4">
+                <div class="sidebar-left">
                     <div class="tool-panel">
                         <h3>Canvas Settings</h3>
                         <div class="control-group">
@@ -592,42 +590,66 @@
                 </div>
                 
                 <!-- Center - Canvas -->
-                <div class="col-lg-6 col-md-8">
-                    <div class="canvas-container-wrapper">
+                <div class="canvas-column">
+                    <!-- Canvas Toolbar -->
+                    <div class="canvas-toolbar">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="undo()" id="undoBtn" title="Undo">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="redo()" id="redoBtn" title="Redo">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <div class="toolbar-separator"></div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="zoomIn()" title="Zoom In">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="zoomOut()" title="Zoom Out">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="resetZoom()" title="Reset View">
+                            <i class="fas fa-compress-arrows-alt"></i>
+                        </button>
+                        <div class="toolbar-separator"></div>
+                        <div class="settings-dropdown">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleSettingsDropdown()" title="Board Size Settings">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <div class="settings-dropdown-content" id="settingsDropdown">
+                                <label class="form-label" style="font-weight: bold;">Board Size</label>
+                                <select id="canvasSizeToolbar" class="form-select mb-2">
+                                    <option value="a4">A4 (210 x 297 mm)</option>
+                                    <option value="a3">A3 (297 x 420 mm)</option>
+                                    <option value="a2">A2 (420 x 594 mm)</option>
+                                    <option value="a1">A1 (594 x 841 mm)</option>
+                                    <option value="custom" selected>Custom Size</option>
+                                </select>
+                                <div id="customSizeInputsToolbar" style="display:block; margin-top:8px;">
+                                    <label class="form-label" style="color: #333; font-size: 12px;" id="customSizeLabelToolbar">Enter dimensions in mm:</label>
+                                    <input type="number" id="customWidthToolbar" placeholder="Width (mm)" class="form-control mb-2" min="0.1" step="0.01" value="390">
+                                    <input type="number" id="customHeightToolbar" placeholder="Height (mm)" class="form-control mb-2" min="0.1" step="0.01" value="390">
+                                </div>
+                                <label class="form-label" style="font-weight: bold; margin-top: 8px;">Units</label>
+                                <div class="segmented-control">
+                                    <button class="active" id="unitMMToolbar" onclick="setUnit('mm')">MM</button>
+                                    <button id="unitInchToolbar" onclick="setUnit('inch')">INCH</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="canvas-container-wrapper" style="border-radius: 0 0 10px 10px;">
                         <div class="canvas-wrapper" id="canvasWrapper">
-                            <div class="info-badge" id="canvasInfo">A3 - 297 x 420 mm</div>
                             <canvas id="designCanvas"></canvas>
+                            <div class="canvas-hint" id="canvasHint">
+                                Choose a template to get started,<br>or add shapes from the left panel
+                            </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Right Sidebar - Properties -->
-                <div class="col-lg-3 col-md-12">
+                <div class="sidebar-right">
                     <div class="tool-panel">
-                        <h3>History</h3>
-                        <div class="zoom-controls">
-                            <button class="btn btn-info w-100 mb-2" onclick="undo()" id="undoBtn">
-                                <i class="fas fa-undo"></i> Undo
-                            </button>
-                            <button class="btn btn-info w-100 mb-2" onclick="redo()" id="redoBtn">
-                                <i class="fas fa-redo"></i> Redo
-                            </button>
-                        </div>
-                        
-                        <h3 class="mt-4">Zoom Controls</h3>
-                        <div class="zoom-controls">
-                            <button class="btn btn-secondary w-100 mb-2" onclick="zoomIn()">
-                                <i class="fas fa-search-plus"></i> Zoom In
-                            </button>
-                            <button class="btn btn-secondary w-100 mb-2" onclick="zoomOut()">
-                                <i class="fas fa-search-minus"></i> Zoom Out
-                            </button>
-                            <button class="btn btn-secondary w-100" onclick="resetZoom()">
-                                <i class="fas fa-compress-arrows-alt"></i> Reset View
-                            </button>
-                        </div>
-                        
-                        <h3 class="mt-4">Object Properties</h3>
+                        <h3>Object Properties</h3>
                         <div id="propertiesPanel">
                             <p class="text-muted">Select an object to edit its properties</p>
                         </div>
@@ -747,7 +769,33 @@
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Tips & Shortcuts -->
+            <!-- 80px top padding clears the 60px sticky footer + breathing room -->
+            <div style="max-width: 1800px; margin: 0 auto; padding: 80px 20px 20px;">
+                <div class="tool-panel">
+                    <h3>Tips & Shortcuts</h3>
+                    <div style="display: flex; gap: 40px; flex-wrap: wrap;">
+                        <div>
+                            <h5 style="font-size: 0.95em;">Keyboard Shortcuts</h5>
+                            <table style="font-size: 0.85em;">
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd></td><td>Remove selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + S</kbd></td><td>Download design</td></tr>
+                            </table>
+                        </div>
+                        <div>
+                            <h5 style="font-size: 0.95em;">Mouse Controls</h5>
+                            <table style="font-size: 0.85em;">
+                                <tr><td style="padding: 2px 12px 2px 0;">Scroll wheel</td><td>Zoom in/out</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;">Right-click drag</td><td>Pan the canvas</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;">Alt/Ctrl + drag</td><td>Pan the canvas</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Quote Form Modal -->
             <div class="modal fade" id="quoteModal" tabindex="-1">
                 <div class="modal-dialog modal-lg">
@@ -795,9 +843,14 @@
                     </div>
                 </div>
             </div>
+            <!-- Sticky Footer: Request Quote -->
+            <div class="sticky-footer">
+                <button class="btn btn-light" id="quoteBtnFooter" onclick="showQuoteForm()">
+                    <i class="fas fa-envelope"></i> Request Quote
+                </button>
+            </div>
         </div>
-        </div>
-        
+
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             // Font binary URLs for opentype.js text-to-path conversion at export time.
