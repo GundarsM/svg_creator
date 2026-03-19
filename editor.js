@@ -637,11 +637,11 @@
                         <div class="property-panel" id="objectProperties" style="display:none;">
                             <div class="control-group" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Horizontal Position:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">X:</label>
                                     <input type="number" id="posX" step="0.1">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Vertical Position:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Y:</label>
                                     <input type="number" id="posY" step="0.1">
                                 </div>
                             </div>
@@ -657,16 +657,16 @@
                             </div>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner Radius:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner Roundness:</label>
                                     <input type="number" id="cornerRadius" step="0.1" min="0">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Rotation (°):</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Rotation:</label>
                                     <input type="number" id="objRotation" step="1">
                                 </div>
                             </div>
                             <div class="control-group" id="materialPresetGroup">
-                                <label>Fill Material:</label>
+                                <label>Material:</label>
                                 <select id="materialPreset" class="form-select">
                                     <option value="color">Plastic</option>
                                     <option value="birch">Birch Plywood</option>
@@ -676,7 +676,7 @@
                             </div>
                             <div class="control-group" style="display: flex; gap: 8px; align-items: flex-start;">
                                 <div style="flex: 1;" id="fillColorGroup">
-                                    <label>Plastic Color:</label>
+                                    <label>Color:</label>
                                     <select id="fillColor" class="form-select" style="font-family: monospace;">
                                         <option value="#000000" style="background: #000000; color: white;">⬛ Black</option>
                                         <option value="#FFFFFF" style="background: #FFFFFF; color: black; border: 1px solid #ccc;">⬜ White</option>
@@ -690,7 +690,7 @@
                                     </select>
                                 </div>
                                 <div style="flex: 1;" id="strokeColorGroup">
-                                    <label>Line Color:</label>
+                                    <label>Outline:</label>
                                     <div class="color-picker-group">
                                         <input type="color" id="strokeColor">
                                         <input type="number" id="strokeWidth" min="0" max="20" step="0.1" placeholder="Width">
@@ -718,7 +718,7 @@
                                 <input type="text" id="textContent">
                             </div>
                             <button class="btn btn-success w-100 mt-3" onclick="duplicateSelected()">
-                                <i class="fas fa-copy"></i> Duplicate Selected
+                                <i class="fas fa-copy"></i> Duplicate (Ctrl+D)
                             </button>
                             <div style="display: flex; gap: 4px; margin-top: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorHorizontal()">
@@ -732,19 +732,16 @@
                                 </button>
                             </div>
                             <button class="btn btn-danger w-100 mt-2" onclick="deleteSelected()">
-                                <i class="fas fa-trash"></i> Delete Selected
+                                <i class="fas fa-trash"></i> Delete (Del)
                             </button>
                         </div>
                         
                         <h3 class="mt-4">Actions</h3>
                         <button class="btn btn-warning w-100 mb-2" onclick="clearCanvas()">
-                            <i class="fas fa-eraser"></i> Clear All
+                            <i class="fas fa-sync-alt"></i> Start Over
                         </button>
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn">
-                            <i class="fas fa-download"></i> Download Design
-                        </button>
-                        <button class="btn btn-primary w-100" id="quoteBtn">
-                            <i class="fas fa-envelope"></i> Request Quote
+                            <i class="fas fa-download"></i> Download as SVG
                         </button>
                     </div>
                 </div>
