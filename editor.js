@@ -784,8 +784,8 @@
                         <div class="modal-body">
                             <form id="quoteForm" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3">
-                                    <label class="form-label">Project Name *</label>
-                                    <input type="text" class="form-control" id="projectName" name="project_name" required>
+                                    <label class="form-label">Design Name *</label>
+                                    <input type="text" class="form-control" id="projectName" name="project_name" required placeholder="e.g. Anniversary coin holder">
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">First Name *</label>
@@ -800,13 +800,29 @@
                                     <input type="email" class="form-control" id="userEmail" name="email" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Additional Notes</label>
-                                    <textarea class="form-control" id="userNotes" name="notes" rows="4" placeholder="Any additional information about your project..."></textarea>
+                                    <label class="form-label">Preferred Material</label>
+                                    <select class="form-select" id="preferredMaterial" name="preferred_material">
+                                        <option value="">-- Select --</option>
+                                        <option value="birch">Birch Plywood</option>
+                                        <option value="oak">Oak Wood</option>
+                                        <option value="walnut">Walnut Wood</option>
+                                        <option value="acrylic">Acrylic / Plastic</option>
+                                        <option value="other">Other</option>
+                                        <option value="not-sure">Not Sure</option>
+                                    </select>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Design File</label>
-                                    <p class="text-muted small">Your design file (SVG format) will be automatically attached when you submit the form.</p>
+                                    <label class="form-label">Anything else we should know?</label>
+                                    <textarea class="form-control" id="userNotes" name="notes" rows="4" placeholder="e.g. Quantity needed, deadline, special requests..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Upload your own design (optional)</label>
+                                    <p class="text-muted small">Already have a design file? Upload it here (SVG format). Otherwise, your design from the canvas will be included automatically.</p>
                                     <input type="file" class="form-control" id="designFileInput" name="attachment" accept=".svg">
+                                </div>
+                                <div class="mb-3 p-3" style="background: #f0f8f0; border-radius: 8px;" id="designSummary">
+                                    <p class="mb-1" style="font-weight: bold; font-size: 0.9em;"><i class="fas fa-check-circle" style="color: var(--lunar-green);"></i> Your design will be included automatically</p>
+                                    <p class="mb-0 text-muted small" id="designSummaryDetails"></p>
                                 </div>
                                 <div id="formMessages"></div>
                                 <div class="alert alert-info" id="infoMessage">
