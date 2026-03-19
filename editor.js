@@ -7,7 +7,8 @@
         
         <!-- External Libraries -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <!-- Bootstrap loaded inside a CSS layer so Squarespace's own (unlayered) styles always win -->
+        <style>@import url("https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css") layer(bootstrap);</style>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
         <!-- Google Fonts replacement for system fonts -->
@@ -29,9 +30,9 @@
                 padding-left: 0 !important;
                 padding-right: 0 !important;
                 margin-left: auto !important;
-                margin-right: auto !important;  
+                margin-right: auto !important;
             }
-            
+
             :root {
                 --lunar-green: #344734;
                 --light-bg: #f8f9fa;
@@ -50,12 +51,13 @@
             }
 
             #design-tool-wrapper h1, 
-            #design-tool-wrapper h2, 
-            #design-tool-wrapper h3, 
-            #design-tool-wrapper h4, 
-            #design-tool-wrapper h5, 
+            #design-tool-wrapper h2,
+            #design-tool-wrapper h3,
+            #design-tool-wrapper h4,
+            #design-tool-wrapper h5,
             #design-tool-wrapper h6 {
                 font-family: 'IvyMode', 'Times New Roman', serif;
+                color: #333;
             }
             
             #design-tool-wrapper .container-fluid {
@@ -170,17 +172,19 @@
                 padding: 15px;
                 border-radius: 8px;
                 margin-top: 10px;
+                color: #333;
             }
             
-            #design-tool-wrapper input[type="number"], 
-            #design-tool-wrapper input[type="text"], 
-            #design-tool-wrapper input[type="email"], 
+            #design-tool-wrapper input[type="number"],
+            #design-tool-wrapper input[type="text"],
+            #design-tool-wrapper input[type="email"],
             #design-tool-wrapper select {
                 width: 100%;
                 padding: 8px;
                 border: 1px solid var(--border-color);
                 border-radius: 4px;
                 margin-top: 5px;
+                color: #333;
             }
             
             #design-tool-wrapper .form-label {
@@ -211,7 +215,7 @@
             #design-tool-wrapper .header-title {
                 text-align: center;
                 padding: 8px 0;
-                margin-top: 0;
+                margin-top: 80px;
                 margin-bottom: 0;
             }
             
@@ -263,6 +267,7 @@
                 background: #dbdbdb;
                 border-radius: 10px 10px 0 0;
                 margin-bottom: 0;
+                color: #333;
             }
 
             #design-tool-wrapper .canvas-toolbar .toolbar-separator {
@@ -393,8 +398,8 @@
     </head>
     <body>
         <div id="design-tool-wrapper">
-            <div class="header-title" style="padding: 8px 0; margin-top: 0; margin-bottom: 0;">
-                <h1 style="font-size: 1.4em; margin: 0;">Design Your Custom Product</h1>
+            <div class="header-title" style="padding: 8px 0; margin-bottom: 0;">
+                <h1 style="font-size: 1.4em; margin: 0; color: white;">Design Your Custom Product</h1>
             </div>
 
             <div class="main-layout">
@@ -741,7 +746,6 @@
                             <table style="font-size: 0.85em;">
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd></td><td>Remove selected objects</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
-                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + S</kbd></td><td>Download design</td></tr>
                             </table>
                         </div>
                         <div>
@@ -3141,148 +3145,15 @@
                 }
             }
             
-            // Unit toggle
-            document.getElementById('unitMM').addEventListener('click', function() {
-                // Convert custom size inputs from inch to mm
-                const customWidth = parseFloat(document.getElementById('customWidth').value);
-                const customHeight = parseFloat(document.getElementById('customHeight').value);
-                
-                if (currentUnit === 'inch' && customWidth && customHeight) {
-                    document.getElementById('customWidth').value = (customWidth / mmToInch).toFixed(2);
-                    document.getElementById('customHeight').value = (customHeight / mmToInch).toFixed(2);
-                }
-                
-                currentUnit = 'mm';
-                this.classList.remove('btn-outline-primary');
-                this.classList.add('btn-primary');
-                document.getElementById('unitInch').classList.remove('btn-primary');
-                document.getElementById('unitInch').classList.add('btn-outline-primary');
-                
-                // Update labels and placeholders
-                document.getElementById('customSizeLabel').textContent = 'Enter dimensions in mm:';
-                document.getElementById('customWidth').placeholder = 'Width (mm)';
-                document.getElementById('customHeight').placeholder = 'Height (mm)';
-                
-                updateCanvasInfo();
-                updatePropertiesPanel();
-            });
-            
-            document.getElementById('unitInch').addEventListener('click', function() {
-                // Convert custom size inputs from mm to inch
-                const customWidth = parseFloat(document.getElementById('customWidth').value);
-                const customHeight = parseFloat(document.getElementById('customHeight').value);
-                
-                if (currentUnit === 'mm' && customWidth && customHeight) {
-                    document.getElementById('customWidth').value = (customWidth * mmToInch).toFixed(2);
-                    document.getElementById('customHeight').value = (customHeight * mmToInch).toFixed(2);
-                }
-                
-                currentUnit = 'inch';
-                this.classList.remove('btn-outline-primary');
-                this.classList.add('btn-primary');
-                document.getElementById('unitMM').classList.remove('btn-primary');
-                document.getElementById('unitMM').classList.add('btn-outline-primary');
-                
-                // Update labels and placeholders
-                document.getElementById('customSizeLabel').textContent = 'Enter dimensions in inch:';
-                document.getElementById('customWidth').placeholder = 'Width (inch)';
-                document.getElementById('customHeight').placeholder = 'Height (inch)';
-                
-                updateCanvasInfo();
-                updatePropertiesPanel();
-            });
-            
-            // Canvas size change
-            document.getElementById('canvasSize').addEventListener('change', function() {
-                currentCanvasSize = this.value;
-                
-                if (this.value === 'custom') {
-                    document.getElementById('customSizeInputs').style.display = 'block';
-                    // Update inputs to show current canvas dimensions
-                    updateCustomSizeInputs();
-                    // Apply default custom size immediately
-                    applyCustomSize();
-                } else {
-                    document.getElementById('customSizeInputs').style.display = 'none';
-                    // Update custom inputs to reflect the new canvas size
-                    updateCustomSizeInputs();
-                    
-                    // Get new canvas size
-                    const size = canvasSizes[currentCanvasSize];
-                    const targetPixelHeight = 840;
-                    const newScale = targetPixelHeight / 420;
-                    const newPixelWidth = size.width * newScale;
-                    const newPixelHeight = size.height * newScale;
-                    
-                    // Store old scale and objects
-                    const oldScale = canvas.scale;
-                    const objects = canvas.getObjects().slice(); // Create a copy of objects array
-                    
-                    // Calculate scale ratio
-                    const scaleRatio = newScale / oldScale;
-                    
-                    // Clear the canvas
-                    canvas.clear();
-                    
-                    // Resize the canvas
-                    canvas.setWidth(newPixelWidth);
-                    canvas.setHeight(newPixelHeight);
-                    canvas.backgroundColor = '#ffffff';
-                    
-                    // Update stored dimensions
-                    canvas.realWidth = size.width;
-                    canvas.realHeight = size.height;
-                    canvas.scale = newScale;
-                    
-                    // Re-add objects with adjusted scale to maintain physical dimensions
-                    objects.forEach(obj => {
-                        // Rescale object dimensions
-                        obj.set({
-                            left: obj.left * scaleRatio,
-                            top: obj.top * scaleRatio,
-                            scaleX: obj.scaleX * scaleRatio,
-                            scaleY: obj.scaleY * scaleRatio
-                        });
-                        
-                        // Handle specific object types that store dimensions
-                        if (obj.type === 'circle') {
-                            obj.radius = obj.radius * scaleRatio;
-                        } else if (obj.type === 'ellipse') {
-                            obj.rx = obj.rx * scaleRatio;
-                            obj.ry = obj.ry * scaleRatio;
-                        } else if (obj.type === 'rect') {
-                            obj.width = obj.width * scaleRatio;
-                            obj.height = obj.height * scaleRatio;
-                            if (obj.rx) obj.rx = obj.rx * scaleRatio;
-                            if (obj.ry) obj.ry = obj.ry * scaleRatio;
-                        } else if (obj.type === 'i-text' || obj.type === 'text') {
-                            obj.fontSize = obj.fontSize * scaleRatio;
-                        } else if (obj.type === 'group') {
-                            // For groups (like coins), recursively update child objects
-                            obj.getObjects().forEach(child => {
-                                if (child.type === 'circle') {
-                                    child.radius = child.radius * scaleRatio;
-                                } else if (child.type === 'text') {
-                                    child.fontSize = child.fontSize * scaleRatio;
-                                }
-                            });
-                        }
-                        
-                        obj.setCoords();
-                        canvas.add(obj);
-                    });
-                    
-                    canvas.requestRenderAll();
-                    updateCanvasInfo();
-                }
-            });
+            // Unit toggle and canvas size change are handled by toolbar controls
+            // (setUnit() function and canvasSizeToolbar event listener)
             
             // Update custom size inputs to show current canvas dimensions
             function updateCustomSizeInputs() {
                 const size = canvasSizes[currentCanvasSize];
                 let width = size.width;
                 let height = size.height;
-                
+
                 // Convert to current unit
                 if (currentUnit === 'inch') {
                     width = (width * mmToInch).toFixed(2);
@@ -3291,15 +3162,15 @@
                     width = width.toFixed(2);
                     height = height.toFixed(2);
                 }
-                
-                document.getElementById('customWidth').value = width;
-                document.getElementById('customHeight').value = height;
+
+                document.getElementById('customWidthToolbar').value = width;
+                document.getElementById('customHeightToolbar').value = height;
             }
             
             // Apply custom canvas size
             function applyCustomSize() {
-                let customWidth = parseFloat(document.getElementById('customWidth').value);
-                let customHeight = parseFloat(document.getElementById('customHeight').value);
+                let customWidth = parseFloat(document.getElementById('customWidthToolbar').value);
+                let customHeight = parseFloat(document.getElementById('customHeightToolbar').value);
                 
                 if (!customWidth || !customHeight || customWidth <= 0 || customHeight <= 0) {
                     alert('Please enter valid width and height values');
@@ -3381,9 +3252,7 @@
                 updateCanvasInfo();
             }
             
-            // Add event listeners for custom size inputs
-            document.getElementById('customWidth').addEventListener('change', applyCustomSize);
-            document.getElementById('customHeight').addEventListener('change', applyCustomSize);
+            // Custom size input listeners are on toolbar elements (customWidthToolbar, customHeightToolbar)
             
             // Load an opentype.Font object, using cache to avoid repeat fetches.
             async function loadFont(fontFamily) {
@@ -3739,8 +3608,6 @@
             // Wire up toolbar canvas size controls
             document.getElementById('canvasSizeToolbar').addEventListener('change', function() {
                 var val = this.value;
-                // Sync with the existing canvasSize change handler logic
-                document.getElementById('canvasSize') && (document.getElementById('canvasSize').value = val);
                 currentCanvasSize = val;
                 if (val === 'custom') {
                     document.getElementById('customSizeInputsToolbar').style.display = 'block';
@@ -3776,21 +3643,13 @@
             });
 
             document.getElementById('customWidthToolbar').addEventListener('change', function() {
-                var w = parseFloat(this.value);
-                var h = parseFloat(document.getElementById('customHeightToolbar').value);
-                if (!w || !h || w <= 0 || h <= 0) return;
-                if (currentUnit === 'inch') { w = w / mmToInch; h = h / mmToInch; }
-                canvasSizes.custom = { width: w, height: h };
                 currentCanvasSize = 'custom';
+                document.getElementById('canvasSizeToolbar').value = 'custom';
                 applyCustomSize();
             });
             document.getElementById('customHeightToolbar').addEventListener('change', function() {
-                var w = parseFloat(document.getElementById('customWidthToolbar').value);
-                var h = parseFloat(this.value);
-                if (!w || !h || w <= 0 || h <= 0) return;
-                if (currentUnit === 'inch') { w = w / mmToInch; h = h / mmToInch; }
-                canvasSizes.custom = { width: w, height: h };
                 currentCanvasSize = 'custom';
+                document.getElementById('canvasSizeToolbar').value = 'custom';
                 applyCustomSize();
             });
 

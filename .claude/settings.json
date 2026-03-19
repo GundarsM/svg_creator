@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c editor.js)",
+      "Bash(where node:*)",
+      "Bash(grep -v \"//\")"
+    ]
+  }
+}
