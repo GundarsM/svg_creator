@@ -46,9 +46,9 @@
                 min-height: 100vh;
                 margin: 0;
                 clear: both;
-                overflow: hidden;
+                overflow: visible;
             }
-            
+
             #design-tool-wrapper h1, 
             #design-tool-wrapper h2, 
             #design-tool-wrapper h3, 
@@ -232,6 +232,177 @@
                 justify-content: center;
                 margin: 10px 0;
             }
+            /* Sticky 3-column layout: sidebars scroll, canvas stays fixed */
+            #design-tool-wrapper .main-layout {
+                display: flex;
+                gap: 20px;
+                height: calc(100vh - 60px);
+                max-width: 1800px;
+                margin: 0 auto;
+                padding: 10px 20px;
+            }
+
+            #design-tool-wrapper .sidebar-left,
+            #design-tool-wrapper .sidebar-right {
+                flex: 0 0 25%;
+                max-width: 25%;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+
+            #design-tool-wrapper .canvas-column {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            @media (max-width: 991.98px) {
+                #design-tool-wrapper .main-layout {
+                    flex-direction: column;
+                    height: auto;
+                    overflow: visible;
+                }
+                #design-tool-wrapper .sidebar-left,
+                #design-tool-wrapper .sidebar-right {
+                    flex: none;
+                    max-width: 100%;
+                    overflow-y: visible;
+                }
+            }
+
+            /* Canvas toolbar */
+            #design-tool-wrapper .canvas-toolbar {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                padding: 6px 10px;
+                background: #dbdbdb;
+                border-radius: 10px 10px 0 0;
+                margin-bottom: 0;
+            }
+
+            #design-tool-wrapper .canvas-toolbar .toolbar-separator {
+                width: 1px;
+                height: 24px;
+                background: #aaa;
+                margin: 0 6px;
+            }
+
+            #design-tool-wrapper .canvas-toolbar .btn {
+                padding: 4px 8px;
+                font-size: 14px;
+                line-height: 1;
+            }
+
+            /* Settings dropdown inside toolbar */
+            #design-tool-wrapper .settings-dropdown {
+                position: relative;
+                display: inline-block;
+            }
+
+            #design-tool-wrapper .settings-dropdown-content {
+                display: none;
+                position: absolute;
+                right: 0;
+                top: 100%;
+                background: white;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                padding: 15px;
+                min-width: 250px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 1000;
+                color: #333;
+            }
+
+            #design-tool-wrapper .settings-dropdown-content.show {
+                display: block;
+            }
+
+            /* Segmented control for unit toggle */
+            #design-tool-wrapper .segmented-control {
+                display: inline-flex;
+                border: 2px solid var(--lunar-green);
+                border-radius: 6px;
+                overflow: hidden;
+                margin: 8px 0;
+            }
+
+            #design-tool-wrapper .segmented-control button {
+                border: none;
+                padding: 4px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                cursor: pointer;
+                background: white;
+                color: var(--lunar-green);
+                transition: background 0.2s, color 0.2s;
+            }
+
+            #design-tool-wrapper .segmented-control button.active {
+                background: var(--lunar-green);
+                color: white;
+            }
+
+            #design-tool-wrapper .segmented-control button:not(.active):hover {
+                background: #e9ecef;
+            }
+
+            /* Sticky footer for Request Quote */
+            #design-tool-wrapper .sticky-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--lunar-green);
+                padding: 10px 20px;
+                text-align: center;
+                z-index: 1001;
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.2);
+            }
+
+            #design-tool-wrapper .sticky-footer .btn {
+                font-size: 18px;
+                padding: 10px 40px;
+                font-weight: bold;
+            }
+
+            /* Canvas onboarding hint */
+            #design-tool-wrapper .canvas-hint {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: #bbb;
+                font-size: 16px;
+                text-align: center;
+                pointer-events: none;
+                z-index: 1;
+            }
+
+            /* Heptagonal coin buttons for 20p and 50p */
+            #design-tool-wrapper .coin-buttons .btn.coin-heptagon {
+                border-radius: 0;
+                clip-path: polygon(50% 0%, 89% 19%, 100% 58%, 78% 91%, 33% 100%, 6% 70%, 11% 28%);
+                width: 46px;
+                height: 46px;
+            }
+
+            /* Larger coin buttons for legibility */
+            #design-tool-wrapper .coin-buttons .btn {
+                width: 46px;
+                height: 46px;
+                font-size: 11px;
+            }
+
+            /* Shape row labels */
+            #design-tool-wrapper .shape-row-label {
+                font-size: 0.8em;
+                font-weight: bold;
+                color: #666;
+                margin-bottom: 2px;
+            }
         </style>
 
         <!-- opentype.js for text-to-path export -->
@@ -352,55 +523,55 @@
                         <h3 class="mt-4">Countries</h3>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">USA</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('usa')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('usa')">
                                 <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('usa')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('usa')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">UK</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('uk')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('uk')">
                                 <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('uk')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('uk')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">Australia</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('australia')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('australia')">
                                 <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('australia')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('australia')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">Canada</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('canada')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('canada')">
                                 <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('canada')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('canada')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">Germany</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('germany')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('germany')">
                                 <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('germany')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('germany')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">Italy</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountry('italy')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('italy')">
                                 <i class="fas fa-map"></i> Solid
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="addCountryOutline('italy')">
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('italy')">
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
