@@ -418,68 +418,22 @@
                 <!-- Left Sidebar - Tools -->
                 <div class="sidebar-left">
                     <div class="tool-panel">
-                        <h3>Canvas Settings</h3>
-                        <div class="control-group">
-                            <label>Canvas Size:</label>
-                            <select id="canvasSize" class="form-select">
-                                <option value="a4">A4 (210 x 297 mm)</option>
-                                <option value="a3">A3 (297 x 420 mm)</option>
-                                <option value="a2">A2 (420 x 594 mm)</option>
-                                <option value="a1">A1 (594 x 841 mm)</option>
-                                <option value="custom" selected>Custom Size</option>
-                            </select>
-                            <div id="customSizeInputs" style="display:block; margin-top:10px;">
-                                <label class="form-label" style="color: #333; font-size: 12px;" id="customSizeLabel">Enter dimensions in mm:</label>
-                                <input type="number" id="customWidth" placeholder="Width (mm)" class="form-control mb-2" min="0.1" step="0.01" value="390">
-                                <input type="number" id="customHeight" placeholder="Height (mm)" class="form-control" min="0.1" step="0.01" value="390">
-                            </div>
-                        </div>
-                        
-                        <div class="unit-toggle">
-                            <button class="btn btn-sm btn-primary" id="unitMM">MM</button>
-                            <button class="btn btn-sm btn-outline-primary" id="unitInch">INCH</button>
-                        </div>
-                        
-                        <h3 class="mt-4">Basic Shapes</h3>
+                        <h3>Start with a Template</h3>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle')">
-                                <i class="fas fa-square"></i> Rectangle
+                            <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('germany-euro')">
+                                <i class="fas fa-layer-group"></i> Rectangle Coin Display
                             </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('circle')">
-                                <i class="fas fa-circle"></i> Circle
+                            <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('uk-coins')">
+                                <i class="fas fa-layer-group"></i> Circular Coin Display
                             </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('ellipse')">
-                                <i class="fas fa-circle"></i> Ellipse
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle-outline')">
-                                <i class="far fa-square"></i> Rectangle
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('circle-outline')">
-                                <i class="far fa-circle"></i> Circle
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('ellipse-outline')">
-                                <i class="far fa-circle"></i> Ellipse
+                            <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('memories')">
+                                <i class="fas fa-layer-group"></i> Pressed Penny Collection
                             </button>
                         </div>
-                        
-                    <h3 class="mt-4">Templates</h3>
-                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                        <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('germany-euro')">
-                            <i class="fas fa-layer-group"></i> Rectangle
-                        </button>
-                        <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('uk-coins')">
-                            <i class="fas fa-layer-group"></i> Circular
-                        </button>
-                        <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('memories')">
-                            <i class="fas fa-layer-group"></i> Pressed Pennies
-                        </button>
-                    </div>
-                        
-                        <h3 class="mt-4">Common Currencies</h3>
+
+                        <h3 class="mt-4">Add Coins</h3>
                         <button class="btn btn-outline-warning shape-btn" onclick="addCurrency('euro')">
-                            <i class="fas fa-coins"></i> Euro (All)
+                            <i class="fas fa-coins"></i> Add All Euro Coins
                         </button>
                         <div class="coin-buttons">
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.01 €', 16.4)">0.01 €</button>
@@ -491,9 +445,9 @@
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1 €', 23.4)">1 €</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2 €', 25.75)">2 €</button>
                         </div>
-                        
+
                         <button class="btn btn-outline-warning shape-btn mt-3" onclick="addCurrency('dollar')">
-                            <i class="fas fa-coins"></i> US Dollar (All)
+                            <i class="fas fa-coins"></i> Add All US Dollar Coins
                         </button>
                         <div class="coin-buttons">
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1 ¢', 19.25)">1 ¢</button>
@@ -503,22 +457,22 @@
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('50 ¢', 30.76)">50 ¢</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('$ 1', 26.65)">$ 1</button>
                         </div>
-                        
+
                         <button class="btn btn-outline-warning shape-btn mt-3" onclick="addCurrency('pound')">
-                            <i class="fas fa-coins"></i> UK Pound (All)
+                            <i class="fas fa-coins"></i> Add All UK Pound Coins
                         </button>
                         <div class="coin-buttons">
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1p', 20.47)">1p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2p', 26.06)">2p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('5p', 18.15)">5p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('10p', 24.65)">10p</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('20p', 21.55)">20p</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('50p', 27.45)">50p</button>
+                            <button class="btn btn-sm btn-outline-warning coin-heptagon" onclick="addSingleCoin('20p', 21.55)">20p</button>
+                            <button class="btn btn-sm btn-outline-warning coin-heptagon" onclick="addSingleCoin('50p', 27.45)">50p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1£', 23.18)">1£</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2£', 28.55)">2£</button>
                         </div>
-                        
-                        <h3 class="mt-4">Countries</h3>
+
+                        <h3 class="mt-4">Add Country Outlines</h3>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">USA</span>
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('usa')">
@@ -573,8 +527,34 @@
                                 <i class="far fa-map"></i> Outline
                             </button>
                         </div>
-                        
-                        <h3 class="mt-4">Add Content</h3>
+
+                        <h3 class="mt-4">Add Shapes</h3>
+                        <div class="shape-row-label">Filled:</div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle')">
+                                <i class="fas fa-square"></i> Rectangle
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('circle')">
+                                <i class="fas fa-circle"></i> Circle
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('ellipse')">
+                                <i class="fas fa-circle"></i> Ellipse
+                            </button>
+                        </div>
+                        <div class="shape-row-label">Outline:</div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle-outline')">
+                                <i class="far fa-square"></i> Rectangle
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('circle-outline')">
+                                <i class="far fa-circle"></i> Circle
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('ellipse-outline')">
+                                <i class="far fa-circle"></i> Ellipse
+                            </button>
+                        </div>
+
+                        <h3 class="mt-4">Add Text & Images</h3>
                         <button class="btn btn-outline-info shape-btn" onclick="addText()">
                             <i class="fas fa-font"></i> Add Text
                         </button>
@@ -583,7 +563,7 @@
                         </button>
                         <input type="file" id="imageUpload" accept="image/png,image/jpg,image/jpeg" style="display:none;">
                         <button class="btn btn-outline-info shape-btn" onclick="document.getElementById('fileImport').click()">
-                            <i class="fas fa-file-import"></i> Import SVG
+                            <i class="fas fa-file-import"></i> Import Design File
                         </button>
                         <input type="file" id="fileImport" accept=".svg" style="display:none;">
                     </div>
