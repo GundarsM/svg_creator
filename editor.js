@@ -38,6 +38,25 @@
                 --light-bg: #f8f9fa;
                 --border-color: #dee2e6;
             }
+
+            /* Custom scrollbars for sidebars */
+            #design-tool-wrapper .sidebar-left::-webkit-scrollbar,
+            #design-tool-wrapper .sidebar-right::-webkit-scrollbar {
+                width: 4px;
+            }
+            #design-tool-wrapper .sidebar-left::-webkit-scrollbar-track,
+            #design-tool-wrapper .sidebar-right::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            #design-tool-wrapper .sidebar-left::-webkit-scrollbar-thumb,
+            #design-tool-wrapper .sidebar-right::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,0.25);
+                border-radius: 2px;
+            }
+            #design-tool-wrapper .sidebar-left::-webkit-scrollbar-thumb:hover,
+            #design-tool-wrapper .sidebar-right::-webkit-scrollbar-thumb:hover {
+                background: rgba(255,255,255,0.45);
+            }
             
             #design-tool-wrapper {
                 font-family: 'Athelas', Georgia, serif;
@@ -219,11 +238,11 @@
                 margin-bottom: 0;
             }
             
-            /* Sticky 3-column layout: sidebars scroll, canvas stays fixed */
+            /* Sticky 3-column layout: sidebars scroll with page, canvas stays fixed */
             #design-tool-wrapper .main-layout {
                 display: flex;
+                align-items: flex-start;
                 gap: 20px;
-                height: calc(100vh - 60px);
                 max-width: 1800px;
                 margin: 0 auto;
                 padding: 10px 20px;
@@ -233,7 +252,6 @@
             #design-tool-wrapper .sidebar-right {
                 flex: 0 0 25%;
                 max-width: 25%;
-                overflow-y: auto;
                 overflow-x: hidden;
             }
 
@@ -241,7 +259,8 @@
                 flex: 1;
                 display: flex;
                 flex-direction: column;
-                overflow: hidden;
+                position: sticky;
+                top: 10px;
             }
 
             @media (max-width: 991.98px) {
@@ -369,12 +388,23 @@
                 z-index: 1;
             }
 
-            /* Heptagonal coin buttons for 20p and 50p */
-            #design-tool-wrapper .coin-buttons .btn.coin-heptagon {
+            /* Coin-shaped buttons for 20p and 50p using actual SVG path geometry */
+            #design-tool-wrapper .coin-buttons .coin-btn-wrap {
+                display: inline-block;
+                filter: url(#coin-outline);
+            }
+            #design-tool-wrapper .coin-buttons .btn.coin-20p,
+            #design-tool-wrapper .coin-buttons .btn.coin-50p {
                 border-radius: 0;
-                clip-path: polygon(50% 0%, 89% 19%, 100% 58%, 78% 91%, 33% 100%, 6% 70%, 11% 28%);
                 width: 46px;
                 height: 46px;
+                border: none !important;
+            }
+            #design-tool-wrapper .coin-buttons .btn.coin-20p {
+                clip-path: url(#clip20p);
+            }
+            #design-tool-wrapper .coin-buttons .btn.coin-50p {
+                clip-path: url(#clip50p);
             }
 
             /* Larger coin buttons for legibility */
@@ -382,6 +412,12 @@
                 width: 46px;
                 height: 46px;
                 font-size: 11px;
+            }
+
+            /* Compact buttons in the country outlines section */
+            #design-tool-wrapper .country-buttons .btn {
+                padding-top: 2px;
+                padding-bottom: 2px;
             }
 
             /* Shape row labels */
@@ -449,18 +485,38 @@
                         <button class="btn btn-outline-warning shape-btn mt-3" onclick="addCurrency('pound')">
                             <i class="fas fa-coins"></i> Add All UK Pound Coins
                         </button>
+                        <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+                            <defs>
+                                <clipPath id="clip20p" clipPathUnits="objectBoundingBox" transform="scale(0.047453,0.047610) translate(-0.17932,-0.31917)">
+                                    <path d="M17.81 18.42 c0.01 -0.01 0.12 -0.08 0.12 -0.09 l0.05 -0.06 c0.03 -0.04 0.03 -0.04 0.07 -0.09 0.52 -0.64 2.00 -2.40 2.35 -3.15 0.19 -0.41 0.54 -1.12 0.67 -1.51 0.52 -1.58 -0.18 -5.09 -0.75 -6.58 -0.84 -2.25 -1.00 -2.48 -2.35 -3.71 -0.59 -0.42 -0.94 -0.66 -1.58 -1.01 l-2.31 -1.06 c-2.74 -1.06 -4.13 -1.17 -6.76 -0.03 -1.26 0.55 -2.16 1.07 -3.23 1.73 -2.32 1.44 -2.97 3.41 -3.77 6.60 -0.30 3.59 -0.33 4.76 2.11 7.74 1.45 1.77 2.90 3.66 5.24 3.93 2.44 0.29 2.83 0.20 5.00 0.07 1.84 -0.11 2.56 -0.22 3.84 -1.46 0.26 -0.25 0.46 -0.43 0.67 -0.65 0.24 -0.25 0.45 -0.42 0.63 -0.69"/>
+                                </clipPath>
+                                <clipPath id="clip50p" clipPathUnits="objectBoundingBox" transform="scale(0.037179,0.037190) translate(-0.26668,-0.27966)">
+                                    <path d="M23.90 4.81 l-3.12 -1.89 c-1.27 -0.77 -5.67 -2.92 -7.31 -2.61 -3.35 0.63 -7.38 2.75 -10.11 4.93 -0.84 0.67 -1.10 2.56 -1.64 3.47 l-0.94 3.24 c-0.10 0.62 -0.20 1.13 -0.27 1.78 -0.32 2.98 -0.51 3.16 0.66 5.15 1.23 2.08 2.87 4.15 4.58 5.89 1.52 1.30 1.90 1.88 4.04 2.12 1.37 0.16 2.48 0.26 3.57 0.28 l0.85 0.00 c1.04 -0.02 2.12 -0.12 3.45 -0.33 1.91 -0.30 1.72 -0.24 2.92 -1.27 2.65 -2.27 4.05 -4.02 5.80 -6.98 1.13 -1.90 0.80 -2.35 0.48 -5.27 -0.38 -2.29 -1.31 -6.73 -2.96 -8.51 z"/>
+                                </clipPath>
+                                <filter id="coin-outline" x="-10%" y="-10%" width="120%" height="120%">
+                                    <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="expanded"/>
+                                    <feFlood flood-color="#ffc107" flood-opacity="1" result="color"/>
+                                    <feComposite in="color" in2="expanded" operator="in" result="border"/>
+                                    <feMerge>
+                                        <feMergeNode in="border"/>
+                                        <feMergeNode in="SourceGraphic"/>
+                                    </feMerge>
+                                </filter>
+                            </defs>
+                        </svg>
                         <div class="coin-buttons">
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1p', 20.47)">1p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2p', 26.06)">2p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('5p', 18.15)">5p</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('10p', 24.65)">10p</button>
-                            <button class="btn btn-sm btn-outline-warning coin-heptagon" onclick="addSingleCoin('20p', 21.55)">20p</button>
-                            <button class="btn btn-sm btn-outline-warning coin-heptagon" onclick="addSingleCoin('50p', 27.45)">50p</button>
+                            <span class="coin-btn-wrap"><button class="btn btn-sm btn-outline-warning coin-20p" onclick="addSingleCoin('20p', 21.55)">20p</button></span>
+                            <span class="coin-btn-wrap"><button class="btn btn-sm btn-outline-warning coin-50p" onclick="addSingleCoin('50p', 27.45)">50p</button></span>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1£', 23.18)">1£</button>
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2£', 28.55)">2£</button>
                         </div>
 
                         <h3 class="mt-4">Add Country Outlines</h3>
+                        <div class="country-buttons">
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">USA</span>
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('usa')">
@@ -514,6 +570,7 @@
                             <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('italy')">
                                 <i class="far fa-map"></i> Outline
                             </button>
+                        </div>
                         </div>
 
                         <h3 class="mt-4">Add Shapes</h3>
@@ -594,7 +651,7 @@
                                 <div id="customSizeInputsToolbar" style="display:block; margin-top:8px;">
                                     <label class="form-label" style="color: #333; font-size: 12px;" id="customSizeLabelToolbar">Enter dimensions in mm:</label>
                                     <input type="number" id="customWidthToolbar" placeholder="Width (mm)" class="form-control mb-2" min="0.1" step="0.01" value="390">
-                                    <input type="number" id="customHeightToolbar" placeholder="Height (mm)" class="form-control mb-2" min="0.1" step="0.01" value="390">
+                                    <input type="number" id="customHeightToolbar" placeholder="Height (mm)" class="form-control mb-2" min="0.1" step="0.01" value="300">
                                 </div>
                                 <label class="form-label" style="font-weight: bold; margin-top: 8px;">Units</label>
                                 <div class="segmented-control">
@@ -751,8 +808,7 @@
                         <div>
                             <h5 style="font-size: 0.95em;">Mouse Controls</h5>
                             <table style="font-size: 0.85em;">
-                                <tr><td style="padding: 2px 12px 2px 0;">Scroll wheel</td><td>Zoom in/out</td></tr>
-                                <tr><td style="padding: 2px 12px 2px 0;">Right-click drag</td><td>Pan the canvas</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;">Ctrl + Scroll wheel</td><td>Zoom in/out</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;">Alt/Ctrl + drag</td><td>Pan the canvas</td></tr>
                             </table>
                         </div>
@@ -864,7 +920,7 @@
                 a3: { width: 297, height: 420 },
                 a2: { width: 420, height: 594 },
                 a1: { width: 594, height: 841 },
-                custom: { width: 390, height: 390 }
+                custom: { width: 390, height: 300 }
             };
             let currentCanvasSize = 'custom';
             
@@ -2932,6 +2988,7 @@
                 obj.rotate((obj.angle + 90) % 360);
                 obj.setCoords();
                 canvas.requestRenderAll();
+                document.getElementById('objRotation').value = Math.round(obj.angle);
                 saveState();
             }
 
@@ -3658,12 +3715,13 @@
                 
                 // Setup mouse wheel zoom functionality
                 canvas.on('mouse:wheel', function(opt) {
+                    if (!opt.e.ctrlKey) return;
                     const delta = opt.e.deltaY;
                     let zoom = canvas.getZoom();
                     zoom *= 0.999 ** delta;
                     if (zoom > 20) zoom = 20;
                     if (zoom < 0.1) zoom = 0.1;
-                    
+
                     // Zoom to mouse position
                     canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
                     opt.e.preventDefault();
