@@ -14,8 +14,9 @@
   <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js"></script>
 
   <!-- potrace-wasm v1.0.4 — PINNED (verified 2026-03-23) -->
-  <!-- Factory: no factory — library exposes loadFromCanvas(canvas) directly as a named export -->
-  <!-- Trace: loadFromCanvas(HTMLCanvasElement) → Promise<svgString> -->
+  <!-- Module format: plain script (Emscripten output with CJS guard for Node; no ES module exports) -->
+  <!-- In browser: loadFromCanvas is a top-level async function declaration → accessible as window.loadFromCanvas -->
+  <!-- Trace: window.loadFromCanvas(HTMLCanvasElement) → Promise<svgString> -->
   <!-- Uses RGBA imagedata internally via getImageData; no Uint8Array input needed from caller -->
   <!-- CDN: https://cdn.jsdelivr.net/npm/potrace-wasm@1.0.4/index.js -->
   <!-- Single file in package: /index.js (no /dist/ subdirectory) -->
@@ -40,8 +41,6 @@
 
     :root {
       --lunar-green: #344734;
-      --light-bg: #f8f9fa;
-      --border-color: #dee2e6;
     }
 
     #converter-wrapper {
@@ -291,6 +290,10 @@ function initCanvas() {
   processingCtx = processingCanvas.getContext('2d');
 }
 
+/**
+ * Draw a File image onto the hidden canvas, downscaling if > MAX_PIXELS.
+ * Sets canvasWidth / canvasHeight. Returns true on success, false on failure.
+ */
 async function loadImageToCanvas(file) {
   let bitmap;
   try {
@@ -347,8 +350,9 @@ function isAcceptedType(file) {
 function showUploadError(msg) {
   const zone = document.getElementById('drop-zone');
   zone.classList.add('border-danger');
-  zone.querySelector('#drop-prompt').innerHTML =
-    `<i class="fa fa-exclamation-circle text-danger fa-2x mb-2 d-block"></i><div class="text-danger">${msg}</div>`;
+  const prompt = zone.querySelector('#drop-prompt');
+  prompt.innerHTML = '<i class="fa fa-exclamation-circle text-danger fa-2x mb-2 d-block"></i><div class="error-msg-text text-danger"></div>';
+  prompt.querySelector('.error-msg-text').textContent = msg;
   setTimeout(() => {
     zone.classList.remove('border-danger');
     resetDropPrompt();
