@@ -277,14 +277,15 @@
 </div><!-- /converter-wrapper -->
 
 <!-- Load wasm-potrace as a proper ES module so WASM initialises in the correct context.
-     The promise is awaited by initPotrace() in the main script. -->
+     The promise is awaited by initPotrace() in the main script.
+     esm.sh is used as CDN because it normalises module format and CORS for browser use. -->
 <script type="module">
-  import * as WasmPotrace from 'https://cdn.jsdelivr.net/npm/wasm-potrace@0.4.1/dist/index.mjs';
+  import * as WasmPotrace from 'https://esm.sh/wasm-potrace@0.4.1';
   window.__potraceLoading = (async () => {
     if (typeof WasmPotrace.init === 'function') await WasmPotrace.init();
     const fn = WasmPotrace.potrace ?? WasmPotrace.default?.potrace ?? WasmPotrace.default;
     if (typeof fn !== 'function') {
-      throw new Error('potrace export not found. Module keys: ' + Object.keys(WasmPotrace).join(', '));
+      throw new Error('potrace not found. Module keys: ' + Object.keys(WasmPotrace).join(', '));
     }
     return fn;
   })();
@@ -457,7 +458,13 @@ function traceWithImageTracer() {
  */
 async function initPotrace() {
   try {
-    potraceFn    = await window.__potraceLoading;
+    if (!(window.__potraceLoading instanceof Promise)) {
+      throw new Error('module script did not run (CSP or network blocked the import)');
+    }
+    potraceFn = await window.__potraceLoading;
+    if (typeof potraceFn !== 'function') {
+      throw new Error('potrace is not a function (got ' + typeof potraceFn + ')');
+    }
     potraceReady = true;
   } catch (e) {
     console.error('wasm-potrace failed to initialise:', e);
