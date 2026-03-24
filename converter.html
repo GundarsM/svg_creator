@@ -276,6 +276,15 @@
   </div><!-- /container-fluid -->
 </div><!-- /converter-wrapper -->
 
+<!-- Load wasm-potrace as a proper ES module so WASM initialises in the correct context.
+     The promise is awaited by initPotrace() in the main script. -->
+<script type="module">
+  import { potrace, init } from 'https://cdn.jsdelivr.net/npm/wasm-potrace@0.4.1/dist/index.mjs';
+  let resolve, reject;
+  window.__potraceLoading = new Promise((res, rej) => { resolve = res; reject = rej; });
+  init().then(() => resolve(potrace)).catch(reject);
+</script>
+
 <script>
 // === STATE ===
 let currentMode = 'color';       // 'color' | 'lineart'
@@ -443,14 +452,14 @@ function traceWithImageTracer() {
  */
 async function initPotrace() {
   try {
-    const mod = await import('https://cdn.jsdelivr.net/npm/wasm-potrace@0.4.1/dist/index.mjs');
-    await mod.init();
-    potraceFn    = mod.potrace;
+    potraceFn    = await window.__potraceLoading;
     potraceReady = true;
   } catch (e) {
     console.error('wasm-potrace failed to initialise:', e);
     potraceReady = false;
-    document.getElementById('lineart-engine-error').classList.remove('d-none');
+    const errEl = document.getElementById('lineart-engine-error');
+    errEl.classList.remove('d-none');
+    errEl.textContent = 'Line Art engine failed to load: ' + (e && e.message ? e.message : e);
   }
   updateConvertButtonState();
 }
