@@ -229,6 +229,10 @@
             </div>
           </div>
         </div>
+        <div class="mt-2 small" style="color: rgba(255,255,255,0.5); font-style: italic;">
+          <i class="fa fa-info-circle me-1"></i>
+          Threshold and curve controls are reserved for a future engine update and do not affect current output.
+        </div>
       </div>
 
     </div><!-- /control-panel -->
@@ -281,7 +285,6 @@ const MAX_PIXELS = 4_000_000;
 
 // Forward declarations — set by their respective engine init functions
 let potraceReady    = false;     // set to true by initPotrace() in Task 6
-let potraceInstance = null;      // set by initPotrace() in Task 6
 
 // === CANVAS / IMAGE LOADING ===
 
@@ -374,6 +377,7 @@ async function handleFile(file) {
   lastStemName = deriveStem(file.name);
 
   const preview = document.getElementById('preview-img');
+  if (preview.src && preview.src.startsWith('blob:')) URL.revokeObjectURL(preview.src);
   preview.src = URL.createObjectURL(file);
   preview.style.display = 'block';
   document.getElementById('drop-zone').classList.add('has-image');
@@ -431,7 +435,6 @@ async function initPotrace() {
     }
     // Mark engine as ready — loadFromCanvas is a plain global, no async init needed
     potraceReady = true;
-    potraceInstance = loadFromCanvas; // store reference
   } catch (e) {
     console.error('potrace-wasm failed to initialise:', e);
     potraceReady = false;
