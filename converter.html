@@ -1127,6 +1127,7 @@ function initConvertButton() {
     try {
       let svgStr;
       if (currentMode === 'color') {
+        await new Promise(r => requestAnimationFrame(r)); // yield so browser paints overlay
         svgStr = traceWithImageTracer();
       } else {
         svgStr = await traceWithPotrace();
