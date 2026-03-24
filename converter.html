@@ -498,6 +498,512 @@ async function traceWithPotrace() {
   return svgStr;
 }
 
+// === SVG → EPS ===
+
+/**
+ * Parse a raw SVG `d` attribute string into command objects: { cmd, args }.
+ */
+function parseSvgPathD(d) {
+  const commands = [];
+  const tokens = d.match(/[MmLlHhVvCcSsQqTtAaZz][^MmLlHhVvCcSsQqTtAaZz]*/g) || [];
+  for (const token of tokens) {
+    const cmd  = token[0];
+    const rest = token.slice(1).trim();
+    const args = rest.length
+      ? rest.split(/[\s,]+|(?=-)/).filter(s => s !== '').map(Number)
+      : [];
+    commands.push({ cmd, args });
+  }
+  return commands;
+}
+
+/**
+ * Convert SVG arc to 1–4 cubic Bézier segments.
+ * Based on W3C SVG spec appendix F.6.
+ * Returns array of [c1x, c1y, c2x, c2y, ex, ey].
+ */
+function arcToCubics(x1, y1, rx, ry, xRotDeg, largeArc, sweep, x2, y2) {
+  if (rx === 0 || ry === 0) return [[x1, y1, x2, y2, x2, y2]];
+
+  const phi = xRotDeg * Math.PI / 180;
+  const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi);
+
+  const dx2 = (x1 - x2) / 2, dy2 = (y1 - y2) / 2;
+  const x1p =  cosPhi * dx2 + sinPhi * dy2;
+  const y1p = -sinPhi * dx2 + cosPhi * dy2;
+
+  let rxSq = rx * rx, rySq = ry * ry;
+  const x1pSq = x1p * x1p, y1pSq = y1p * y1p;
+
+  const lambda = Math.sqrt(x1pSq / rxSq + y1pSq / rySq);
+  if (lambda > 1) { rx *= lambda; ry *= lambda; rxSq = rx*rx; rySq = ry*ry; }
+
+  const num = Math.max(0, rxSq * rySq - rxSq * y1pSq - rySq * x1pSq);
+  const den = rxSq * y1pSq + rySq * x1pSq;
+  const sq  = (largeArc !== sweep ? 1 : -1) * Math.sqrt(num / den);
+  const cxp =  sq * rx * y1p / ry;
+  const cyp = -sq * ry * x1p / rx;
+
+  const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+
+  const ux = (x1p - cxp) / rx, uy = (y1p - cyp) / ry;
+  const vx = (-x1p - cxp) / rx, vy = (-y1p - cyp) / ry;
+  let theta1 = Math.atan2(uy, ux);
+  let dTheta  = Math.atan2(vy, vx) - theta1;
+  if (!sweep && dTheta > 0) dTheta -= 2 * Math.PI;
+  if ( sweep && dTheta < 0) dTheta += 2 * Math.PI;
+
+  const n = Math.ceil(Math.abs(dTheta) / (Math.PI / 2));
+  const dt = dTheta / n;
+  const alpha = Math.sin(dt) * (Math.sqrt(4 + 3 * Math.tan(dt / 2) ** 2) - 1) / 3;
+
+  const cubics = [];
+  let t = theta1;
+  let px = x1, py = y1;
+  for (let i = 0; i < n; i++) {
+    const cosT = Math.cos(t), sinT = Math.sin(t);
+    const cosT2 = Math.cos(t + dt), sinT2 = Math.sin(t + dt);
+
+    const dx1 = -sinT,  dy1 = cosT;
+    const dx2b = -sinT2, dy2b = cosT2;
+
+    const ex = cx + rx * (cosPhi * cosT2 - sinPhi * sinT2);
+    const ey = cy + ry * (sinPhi * cosT2 + cosPhi * sinT2);
+
+    cubics.push([
+      px + alpha * (cosPhi * dx1 * rx - sinPhi * dy1 * ry),
+      py + alpha * (sinPhi * dx1 * rx + cosPhi * dy1 * ry),
+      ex - alpha * (cosPhi * dx2b * rx - sinPhi * dy2b * ry),
+      ey - alpha * (sinPhi * dx2b * rx + cosPhi * dy2b * ry),
+      ex, ey
+    ]);
+    t += dt;
+    px = ex; py = ey;
+  }
+  return cubics;
+}
+
+/** Parse a CSS/SVG colour string to [r,g,b] in 0..1 range using a temp canvas. */
+function parseColor(colorStr) {
+  if (!colorStr || colorStr === 'none') return [0, 0, 0];
+  const tmp = document.createElement('canvas');
+  tmp.width = tmp.height = 1;
+  const ctx = tmp.getContext('2d');
+  ctx.fillStyle = colorStr;
+  ctx.fillRect(0, 0, 1, 1);
+  const d = ctx.getImageData(0, 0, 1, 1).data;
+  return [d[0] / 255, d[1] / 255, d[2] / 255];
+}
+
+/** Convert SVG path d attribute to PostScript path commands, appended to lines[]. */
+function pathDtoPS(d, lines) {
+  const cmds = parseSvgPathD(d);
+  let cx = 0, cy = 0;
+  let lastC1x = 0, lastC1y = 0;
+  let lastQx  = 0, lastQy  = 0;
+
+  cmds.forEach(({ cmd, args }) => {
+    const abs = cmd === cmd.toUpperCase();
+    const rx = (x) => abs ? x : cx + x;
+    const ry = (y) => abs ? y : cy + y;
+
+    switch (cmd.toLowerCase()) {
+      case 'm': {
+        const x = rx(args[0]), y = ry(args[1]);
+        lines.push(`${x.toFixed(3)} ${y.toFixed(3)} moveto`);
+        cx = x; cy = y;
+        for (let i = 2; i < args.length; i += 2) {
+          const lx = abs ? args[i] : cx + args[i];
+          const ly = abs ? args[i+1] : cy + args[i+1];
+          lines.push(`${lx.toFixed(3)} ${ly.toFixed(3)} lineto`);
+          cx = lx; cy = ly;
+        }
+        break;
+      }
+      case 'l': {
+        for (let i = 0; i < args.length; i += 2) {
+          cx = rx(args[i]); cy = ry(args[i+1]);
+          lines.push(`${cx.toFixed(3)} ${cy.toFixed(3)} lineto`);
+        }
+        break;
+      }
+      case 'h': {
+        args.forEach(v => { cx = abs ? v : cx + v; lines.push(`${cx.toFixed(3)} ${cy.toFixed(3)} lineto`); });
+        break;
+      }
+      case 'v': {
+        args.forEach(v => { cy = abs ? v : cy + v; lines.push(`${cx.toFixed(3)} ${cy.toFixed(3)} lineto`); });
+        break;
+      }
+      case 'c': {
+        for (let i = 0; i < args.length; i += 6) {
+          const c1x = rx(args[i]),   c1y = ry(args[i+1]);
+          const c2x = rx(args[i+2]), c2y = ry(args[i+3]);
+          const ex  = rx(args[i+4]), ey  = ry(args[i+5]);
+          lines.push(`${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${ex.toFixed(3)} ${ey.toFixed(3)} curveto`);
+          lastC1x = c2x; lastC1y = c2y;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 's': {
+        for (let i = 0; i < args.length; i += 4) {
+          const c1x = 2*cx - lastC1x, c1y = 2*cy - lastC1y;
+          const c2x = rx(args[i]),    c2y = ry(args[i+1]);
+          const ex  = rx(args[i+2]),  ey  = ry(args[i+3]);
+          lines.push(`${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${ex.toFixed(3)} ${ey.toFixed(3)} curveto`);
+          lastC1x = c2x; lastC1y = c2y;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 'q': {
+        for (let i = 0; i < args.length; i += 4) {
+          const qx = rx(args[i]),   qy = ry(args[i+1]);
+          const ex = rx(args[i+2]), ey = ry(args[i+3]);
+          const c1x = cx + 2/3 * (qx - cx), c1y = cy + 2/3 * (qy - cy);
+          const c2x = ex + 2/3 * (qx - ex), c2y = ey + 2/3 * (qy - ey);
+          lines.push(`${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${ex.toFixed(3)} ${ey.toFixed(3)} curveto`);
+          lastQx = qx; lastQy = qy;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 't': {
+        for (let i = 0; i < args.length; i += 2) {
+          const qx = 2*cx - lastQx, qy = 2*cy - lastQy;
+          const ex = rx(args[i]),   ey = ry(args[i+1]);
+          const c1x = cx + 2/3 * (qx - cx), c1y = cy + 2/3 * (qy - cy);
+          const c2x = ex + 2/3 * (qx - ex), c2y = ey + 2/3 * (qy - ey);
+          lines.push(`${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${ex.toFixed(3)} ${ey.toFixed(3)} curveto`);
+          lastQx = qx; lastQy = qy;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 'a': {
+        for (let i = 0; i < args.length; i += 7) {
+          const [arcRx, arcRy, xRot, la, sw] = [
+            Math.abs(args[i]), Math.abs(args[i+1]),
+            args[i+2], args[i+3], args[i+4]
+          ];
+          const ex = abs ? args[i+5] : cx + args[i+5];
+          const ey = abs ? args[i+6] : cy + args[i+6];
+          const cubics = arcToCubics(cx, cy, arcRx, arcRy, xRot, la, sw, ex, ey);
+          cubics.forEach(([c1x, c1y, c2x, c2y, endX, endY]) => {
+            lines.push(`${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${endX.toFixed(3)} ${endY.toFixed(3)} curveto`);
+            lastC1x = c2x; lastC1y = c2y;
+            cx = endX; cy = endY;
+          });
+        }
+        break;
+      }
+      case 'z': {
+        lines.push('closepath');
+        break;
+      }
+    }
+  });
+}
+
+/**
+ * Convert an SVG string to EPS.
+ * Parses all <path> elements and converts to PostScript.
+ */
+function svgToEps(svgStr) {
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(svgStr, 'image/svg+xml');
+  const svgEl  = doc.querySelector('svg');
+  const vb     = svgEl ? svgEl.getAttribute('viewBox') : null;
+  let bbW = canvasWidth, bbH = canvasHeight;
+  if (vb) {
+    const parts = vb.trim().split(/[\s,]+/);
+    bbW = parseFloat(parts[2]) || bbW;
+    bbH = parseFloat(parts[3]) || bbH;
+  }
+
+  const lines = [
+    '%!PS-Adobe-3.0 EPSF-3.0',
+    `%%BoundingBox: 0 0 ${Math.ceil(bbW)} ${Math.ceil(bbH)}`,
+    '%%EndComments',
+    '%%BeginProlog',
+    '%%EndProlog',
+    '%%Page: 1 1',
+    'gsave',
+    `${bbH} 0 translate 1 -1 scale`,
+  ];
+
+  const paths = doc.querySelectorAll('path');
+  paths.forEach(pathEl => {
+    const d      = pathEl.getAttribute('d') || '';
+    const fill   = pathEl.getAttribute('fill');
+    const stroke = pathEl.getAttribute('stroke');
+    const sw     = parseFloat(pathEl.getAttribute('stroke-width') || '0');
+
+    lines.push('newpath');
+    pathDtoPS(d, lines);
+    // Note: closepath is emitted inside pathDtoPS for each Z command.
+    // Do NOT add an unconditional closepath here — open paths would be corrupted.
+
+    if (fill && fill !== 'none') {
+      const [r, g, b] = parseColor(fill);
+      lines.push(`${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} setrgbcolor`);
+      if (stroke && stroke !== 'none') {
+        lines.push('gsave fill grestore');
+      } else {
+        lines.push('fill');
+      }
+    }
+    if (stroke && stroke !== 'none') {
+      const [r, g, b] = parseColor(stroke);
+      lines.push(`${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} setrgbcolor`);
+      lines.push(`${sw || 1} setlinewidth`);
+      lines.push('stroke');
+    }
+  });
+
+  lines.push('grestore', '%%EOF');
+  return lines.join('\n');
+}
+
+// === SVG → DXF ===
+
+const DXF_FLATNESS = 0.5;
+
+/** Recursively flatten a cubic Bézier to line segments. Appends [x,y] to pts[]. */
+function flattenCubic(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, pts) {
+  const ux = 3*p1x - 2*p0x - p3x;
+  const uy = 3*p1y - 2*p0y - p3y;
+  const vx = 3*p2x - 2*p3x - p0x;
+  const vy = 3*p2y - 2*p3y - p0y;
+  const flatness = Math.max(ux*ux + uy*uy, vx*vx + vy*vy);
+  if (flatness <= 16 * DXF_FLATNESS * DXF_FLATNESS) {
+    pts.push([p3x, p3y]);
+    return;
+  }
+  const m01x=(p0x+p1x)/2, m01y=(p0y+p1y)/2;
+  const m12x=(p1x+p2x)/2, m12y=(p1y+p2y)/2;
+  const m23x=(p2x+p3x)/2, m23y=(p2y+p3y)/2;
+  const m012x=(m01x+m12x)/2, m012y=(m01y+m12y)/2;
+  const m123x=(m12x+m23x)/2, m123y=(m12y+m23y)/2;
+  const mx=(m012x+m123x)/2, my=(m012y+m123y)/2;
+  flattenCubic(p0x,p0y,m01x,m01y,m012x,m012y,mx,my,pts);
+  flattenCubic(mx,my,m123x,m123y,m23x,m23y,p3x,p3y,pts);
+}
+
+/** Flatten a quadratic Bézier by elevating to cubic. */
+function flattenQuadratic(p0x, p0y, cpx, cpy, p3x, p3y, pts) {
+  const c1x = p0x + 2/3*(cpx-p0x), c1y = p0y + 2/3*(cpy-p0y);
+  const c2x = p3x + 2/3*(cpx-p3x), c2y = p3y + 2/3*(cpy-p3y);
+  flattenCubic(p0x, p0y, c1x, c1y, c2x, c2y, p3x, p3y, pts);
+}
+
+/**
+ * Convert an SVG path d string to an array of polylines.
+ * Y is flipped: dxfY = svgHeight - svgY (SVG Y-down → DXF Y-up).
+ */
+function pathDtoPolylines(d, svgHeight) {
+  const polylines = [];
+  let currentPoly = [];
+  let cx = 0, cy = 0;
+  let lastC2x = 0, lastC2y = 0;
+  let lastQx  = 0, lastQy  = 0;
+  let subpathStartX = 0, subpathStartY = 0;
+
+  const flip = y => svgHeight - y;
+  const addPt = (x, y) => currentPoly.push([x, flip(y)]);
+
+  const cmds = parseSvgPathD(d);
+  cmds.forEach(({ cmd, args }) => {
+    const abs = cmd === cmd.toUpperCase();
+    const rx = (x) => abs ? x : cx + x;
+    const ry = (y) => abs ? y : cy + y;
+
+    switch (cmd.toLowerCase()) {
+      case 'm': {
+        if (currentPoly.length > 1) polylines.push(currentPoly);
+        currentPoly = [];
+        cx = rx(args[0]); cy = ry(args[1]);
+        subpathStartX = cx; subpathStartY = cy;
+        addPt(cx, cy);
+        for (let i = 2; i < args.length; i += 2) {
+          cx = abs ? args[i] : cx + args[i];
+          cy = abs ? args[i+1] : cy + args[i+1];
+          addPt(cx, cy);
+        }
+        break;
+      }
+      case 'l': {
+        for (let i = 0; i < args.length; i += 2) {
+          cx = rx(args[i]); cy = ry(args[i+1]);
+          addPt(cx, cy);
+        }
+        break;
+      }
+      case 'h': { args.forEach(v => { cx = abs ? v : cx+v; addPt(cx, cy); }); break; }
+      case 'v': { args.forEach(v => { cy = abs ? v : cy+v; addPt(cx, cy); }); break; }
+      case 'c': {
+        for (let i = 0; i < args.length; i += 6) {
+          const c1x = rx(args[i]),   c1y = ry(args[i+1]);
+          const c2x = rx(args[i+2]), c2y = ry(args[i+3]);
+          const ex  = rx(args[i+4]), ey  = ry(args[i+5]);
+          const pts = [];
+          flattenCubic(cx, cy, c1x, c1y, c2x, c2y, ex, ey, pts);
+          pts.forEach(([x, y]) => addPt(x, y));
+          lastC2x = c2x; lastC2y = c2y;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 's': {
+        for (let i = 0; i < args.length; i += 4) {
+          const c1x = 2*cx-lastC2x, c1y = 2*cy-lastC2y;
+          const c2x = rx(args[i]),  c2y = ry(args[i+1]);
+          const ex  = rx(args[i+2]),ey  = ry(args[i+3]);
+          const pts = [];
+          flattenCubic(cx, cy, c1x, c1y, c2x, c2y, ex, ey, pts);
+          pts.forEach(([x, y]) => addPt(x, y));
+          lastC2x = c2x; lastC2y = c2y;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 'q': {
+        for (let i = 0; i < args.length; i += 4) {
+          const qx = rx(args[i]),   qy = ry(args[i+1]);
+          const ex = rx(args[i+2]), ey = ry(args[i+3]);
+          const pts = [];
+          flattenQuadratic(cx, cy, qx, qy, ex, ey, pts);
+          pts.forEach(([x, y]) => addPt(x, y));
+          lastQx = qx; lastQy = qy;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 't': {
+        for (let i = 0; i < args.length; i += 2) {
+          const qx = 2*cx-lastQx, qy = 2*cy-lastQy;
+          const ex = rx(args[i]),  ey = ry(args[i+1]);
+          const pts = [];
+          flattenQuadratic(cx, cy, qx, qy, ex, ey, pts);
+          pts.forEach(([x, y]) => addPt(x, y));
+          lastQx = qx; lastQy = qy;
+          cx = ex; cy = ey;
+        }
+        break;
+      }
+      case 'a': {
+        for (let i = 0; i < args.length; i += 7) {
+          const arcRx = Math.abs(args[i]), arcRy = Math.abs(args[i+1]);
+          const xRot = args[i+2], la = args[i+3], sw = args[i+4];
+          const ex = abs ? args[i+5] : cx + args[i+5];
+          const ey = abs ? args[i+6] : cy + args[i+6];
+          const cubics = arcToCubics(cx, cy, arcRx, arcRy, xRot, la, sw, ex, ey);
+          cubics.forEach(([c1x, c1y, c2x, c2y, endX, endY]) => {
+            const pts = [];
+            flattenCubic(cx, cy, c1x, c1y, c2x, c2y, endX, endY, pts);
+            pts.forEach(([x, y]) => addPt(x, y));
+            cx = endX; cy = endY;
+          });
+        }
+        break;
+      }
+      case 'z': {
+        addPt(subpathStartX, subpathStartY);
+        polylines.push(currentPoly);
+        currentPoly = [];
+        cx = subpathStartX; cy = subpathStartY;
+        break;
+      }
+    }
+  });
+
+  if (currentPoly.length > 1) polylines.push(currentPoly);
+  return polylines;
+}
+
+/**
+ * Convert SVG string to DXF R2010.
+ * Coordinate system: 1 SVG user unit = 1 mm, Y flipped (dxfY = svgHeight - svgY).
+ */
+function svgToDxf(svgStr) {
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(svgStr, 'image/svg+xml');
+  const svgEl  = doc.querySelector('svg');
+  const vb     = svgEl ? svgEl.getAttribute('viewBox') : null;
+  let svgH = canvasHeight;
+  if (vb) {
+    const parts = vb.trim().split(/[\s,]+/);
+    svgH = parseFloat(parts[3]) || svgH;
+  }
+
+  const lines = [
+    '0', 'SECTION', '2', 'HEADER',
+    '9', '$ACADVER', '1', 'AC1024',
+    '0', 'ENDSEC',
+    '0', 'SECTION', '2', 'ENTITIES',
+  ];
+
+  const paths = doc.querySelectorAll('path');
+  paths.forEach(pathEl => {
+    const d = pathEl.getAttribute('d') || '';
+    const polylines = pathDtoPolylines(d, svgH);
+    polylines.forEach(pts => {
+      if (pts.length < 2) return;
+      const closed = pts.length > 2 &&
+        pts[0][0] === pts[pts.length-1][0] &&
+        pts[0][1] === pts[pts.length-1][1];
+      const drawPts = closed ? pts.slice(0, -1) : pts;
+      lines.push(
+        '0', 'LWPOLYLINE',
+        '8', '0',
+        '90', `${drawPts.length}`,
+        '70', closed ? '1' : '0',
+      );
+      drawPts.forEach(([x, y]) => {
+        lines.push('10', x.toFixed(4), '20', y.toFixed(4));
+      });
+    });
+  });
+
+  lines.push('0', 'ENDSEC', '0', 'EOF');
+  return lines.join('\n');
+}
+
+// === DOWNLOAD ===
+
+function triggerDownload(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function initDownloadButtons() {
+  document.getElementById('btn-dl-svg').addEventListener('click', () => {
+    if (!lastSvgResult) return;
+    triggerDownload(lastSvgResult, lastStemName + '.svg', 'image/svg+xml');
+  });
+
+  document.getElementById('btn-dl-eps').addEventListener('click', () => {
+    if (!lastSvgResult) return;
+    const eps = svgToEps(lastSvgResult);
+    triggerDownload(eps, lastStemName + '.eps', 'application/postscript');
+  });
+
+  document.getElementById('btn-dl-dxf').addEventListener('click', () => {
+    if (!lastSvgResult) return;
+    const dxf = svgToDxf(lastSvgResult);
+    triggerDownload(dxf, lastStemName + '.dxf', 'application/dxf');
+  });
+}
+
 // === UI BINDINGS ===
 
 function initModeSelector() {
@@ -646,6 +1152,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initModeSelector();
   initSliders();
   initConvertButton();
+  initDownloadButtons();
   initPotrace();
 });
 </script>
