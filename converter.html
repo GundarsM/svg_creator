@@ -473,8 +473,11 @@ async function traceWithPotrace() {
   const binary = new Uint8ClampedArray(src.length);
   for (let i = 0; i < src.length; i += 4) {
     const r = src[i], g = src[i + 1], b = src[i + 2], a = src[i + 3];
-    const isWhite = a < 128 || (0.299 * r + 0.587 * g + 0.114 * b) >= threshold;
-    const v = isWhite ? 255 : 0;
+    // Composite on white background before thresholding so semi-transparent
+    // edge pixels (anti-aliasing) are handled correctly, not forced to white.
+    const alpha = a / 255;
+    const lum = alpha * (0.299 * r + 0.587 * g + 0.114 * b) + (1 - alpha) * 255;
+    const v = lum >= threshold ? 255 : 0;
     binary[i] = v; binary[i + 1] = v; binary[i + 2] = v; binary[i + 3] = 255;
   }
 
