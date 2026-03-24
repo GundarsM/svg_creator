@@ -395,6 +395,41 @@ function clearSvgResult() {
 
 // === UI BINDINGS ===
 
+function initModeSelector() {
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentMode = btn.dataset.mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      document.getElementById('controls-color').classList.toggle('d-none', currentMode !== 'color');
+      document.getElementById('controls-lineart').classList.toggle('d-none', currentMode !== 'lineart');
+
+      updateConvertButtonState();
+      clearSvgResult();
+    });
+  });
+}
+
+function initSliders() {
+  const pairs = [
+    ['ctrl-colors',    'val-colors'],
+    ['ctrl-blur',      'val-blur'],
+    ['ctrl-stroke',    'val-stroke'],
+    ['ctrl-smooth',    'val-smooth'],
+    ['ctrl-threshold', 'val-threshold'],
+    ['ctrl-turdsize',  'val-turdsize'],
+    ['ctrl-alphamax',  'val-alphamax'],
+  ];
+  pairs.forEach(([ctrlId, valId]) => {
+    const ctrl = document.getElementById(ctrlId);
+    const val  = document.getElementById(valId);
+    if (ctrl && val) {
+      ctrl.addEventListener('input', () => { val.textContent = ctrl.value; });
+    }
+  });
+}
+
 function initUploadZone() {
   const zone   = document.getElementById('drop-zone');
   const input  = document.getElementById('file-input');
@@ -437,7 +472,9 @@ function updateConvertButtonState() {
 document.addEventListener('DOMContentLoaded', () => {
   initCanvas();
   initUploadZone();
-  // (other init calls added in later tasks)
+  initModeSelector();
+  initSliders();
+  // initConvertButton() and initPotrace() added in later tasks
 });
 </script>
 </body>
