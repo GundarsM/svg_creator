@@ -13,14 +13,6 @@
   <!-- npm package: imagetracerjs (not "imagetracer") -->
   <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js"></script>
 
-  <!-- potrace-wasm v1.0.4 — PINNED (verified 2026-03-23) -->
-  <!-- Module format: plain script (Emscripten output with CJS guard for Node; no ES module exports) -->
-  <!-- In browser: loadFromCanvas is a top-level async function declaration → accessible as window.loadFromCanvas -->
-  <!-- Trace: window.loadFromCanvas(HTMLCanvasElement) → Promise<svgString> -->
-  <!-- Uses RGBA imagedata internally via getImageData; no Uint8Array input needed from caller -->
-  <!-- CDN: https://cdn.jsdelivr.net/npm/potrace-wasm@1.0.4/index.js -->
-  <!-- Single file in package: /index.js (no /dist/ subdirectory) -->
-  <script src="https://cdn.jsdelivr.net/npm/potrace-wasm@1.0.4/index.js"></script>
 
   <style>
     /* Prevent Bootstrap from affecting Squarespace sections outside this tool */
@@ -119,6 +111,7 @@
 
     /* SVG preview */
     #svg-preview-container {
+      position: relative;
       background: white;
       border-radius: 8px;
       min-height: 200px;
@@ -135,6 +128,17 @@
       color: #aaa;
       font-style: italic;
     }
+    #convert-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.72);
+      border-radius: 8px;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #convert-overlay.active { display: flex; }
 
     /* Notice banner */
     #notice-banner {
@@ -229,10 +233,6 @@
             </div>
           </div>
         </div>
-        <div class="mt-2 small" style="color: rgba(255,255,255,0.5); font-style: italic;">
-          <i class="fa fa-info-circle me-1"></i>
-          Threshold and curve controls are reserved for a future engine update and do not affect current output.
-        </div>
       </div>
 
     </div><!-- /control-panel -->
@@ -249,6 +249,7 @@
 
     <!-- ZONE 5: SVG result preview -->
     <div id="svg-preview-container" class="mb-3">
+      <div id="convert-overlay"><div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Converting…</span></div></div>
       <span id="svg-preview-placeholder">SVG result will appear here after conversion</span>
     </div>
 
@@ -284,7 +285,8 @@ let lastStemName = 'converted';  // filename stem for downloads
 const MAX_PIXELS = 4_000_000;
 
 // Forward declarations — set by their respective engine init functions
-let potraceReady    = false;     // set to true by initPotrace() in Task 6
+let potraceReady    = false;     // set to true by initPotrace()
+let potraceFn       = null;      // assigned by initPotrace() on successful load
 
 // === CANVAS / IMAGE LOADING ===
 
@@ -392,8 +394,15 @@ async function handleFile(file) {
 
 function clearSvgResult() {
   lastSvgResult = null;
-  document.getElementById('svg-preview-container').innerHTML =
-    '<span id="svg-preview-placeholder">SVG result will appear here after conversion</span>';
+  const container = document.getElementById('svg-preview-container');
+  // Remove everything except the overlay
+  Array.from(container.children).forEach(child => {
+    if (child.id !== 'convert-overlay') child.remove();
+  });
+  const placeholder = document.createElement('span');
+  placeholder.id = 'svg-preview-placeholder';
+  placeholder.textContent = 'SVG result will appear here after conversion';
+  container.appendChild(placeholder);
   setDownloadButtonsEnabled(false);
 }
 
@@ -426,17 +435,16 @@ function traceWithImageTracer() {
 
 /**
  * Eager initialisation on page load.
- * loadFromCanvas is a plain global exposed by potrace-wasm — no async factory needed.
+ * Dynamically imports wasm-potrace and initialises the WASM module.
  */
 async function initPotrace() {
   try {
-    if (typeof loadFromCanvas !== 'function') {
-      throw new Error('loadFromCanvas not found');
-    }
-    // Mark engine as ready — loadFromCanvas is a plain global, no async init needed
+    const mod = await import('https://cdn.jsdelivr.net/npm/wasm-potrace@0.4.1/dist/index.mjs');
+    await mod.init();
+    potraceFn    = mod.potrace;
     potraceReady = true;
   } catch (e) {
-    console.error('potrace-wasm failed to initialise:', e);
+    console.error('wasm-potrace failed to initialise:', e);
     potraceReady = false;
     document.getElementById('lineart-engine-error').classList.remove('d-none');
   }
@@ -444,60 +452,36 @@ async function initPotrace() {
 }
 
 /**
- * Convert RGBA ImageData to single-channel grayscale Uint8Array.
- * Luminance-weighted formula: 0.299R + 0.587G + 0.114B. Alpha < 128 → white (255).
- * Reserved for future use if potrace-wasm exposes options that accept raw pixel data.
- */
-function rgbaToGray(imageData) {
-  const { data, width, height } = imageData;
-  const gray = new Uint8Array(width * height);
-  for (let i = 0; i < width * height; i++) {
-    const r = data[i * 4];
-    const g = data[i * 4 + 1];
-    const b = data[i * 4 + 2];
-    const a = data[i * 4 + 3];
-    gray[i] = a < 128 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-  }
-  return gray;
-}
-
-/**
- * Draw the current processing canvas in grayscale onto a temporary canvas.
- * Uses CSS filter so the resulting canvas is suitable for loadFromCanvas().
- */
-function makeGrayscaleCanvas() {
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width  = canvasWidth;
-  tmpCanvas.height = canvasHeight;
-  const tmpCtx = tmpCanvas.getContext('2d');
-
-  // Draw original image in grayscale using CSS filter
-  tmpCtx.filter = 'grayscale(100%)';
-  tmpCtx.drawImage(processingCanvas, 0, 0);
-  tmpCtx.filter = 'none';
-  return tmpCanvas;
-}
-
-/**
- * Trace using potrace-wasm (Logo/Line Art mode).
- * Note: loadFromCanvas(canvas) accepts no options argument — threshold/turdsize/
- * alphamax/opticurve controls are read for future use but cannot be passed to
- * the library (v1.0.4 does not expose a parameterised API).
+ * Trace using wasm-potrace (Logo/Line Art mode).
+ * Pre-binarises the image using the threshold slider, then passes the binary
+ * RGBA data along with turdsize, alphamax, and opticurve to potraceFn.
  * Returns a Promise<svgString>.
  */
 async function traceWithPotrace() {
   if (!potraceReady) throw new Error('Potrace engine not ready');
 
-  // Read control values (reserved for future API or pre-processing use)
   const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);
   const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);
   const alphamax  = parseFloat(document.getElementById('ctrl-alphamax').value);
-  const opticurve = document.getElementById('ctrl-opticurve').checked;
+  const opticurve = document.getElementById('ctrl-opticurve').checked ? 1 : 0;
 
-  const grayCanvas = makeGrayscaleCanvas();
+  // Pre-binarise: apply threshold to produce a binary RGBA Uint8ClampedArray.
+  // wasm-potrace expects RGBA (4 bytes/pixel). Because the image is already fully
+  // binarised here, potrace's internal threshold step is a no-op and the slider is exact.
+  const imageData = processingCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const src    = imageData.data;
+  const binary = new Uint8ClampedArray(src.length);
+  for (let i = 0; i < src.length; i += 4) {
+    const r = src[i], g = src[i + 1], b = src[i + 2], a = src[i + 3];
+    const isWhite = a < 128 || (0.299 * r + 0.587 * g + 0.114 * b) >= threshold;
+    const v = isWhite ? 255 : 0;
+    binary[i] = v; binary[i + 1] = v; binary[i + 2] = v; binary[i + 3] = 255;
+  }
 
-  // loadFromCanvas(canvas) — v1.0.4 accepts no second options argument
-  const svgStr = await loadFromCanvas(grayCanvas);
+  const svgStr = await potraceFn(
+    { data: binary, width: canvasWidth, height: canvasHeight },
+    { turdsize, alphamax, opticurve, opttolerance: 0.2 }
+  );
   return svgStr;
 }
 
@@ -986,15 +970,51 @@ function svgToDxf(svgStr) {
 // === DOWNLOAD ===
 
 function triggerDownload(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const newWindow = window.open('', '_blank');
+  if (!newWindow) {
+    alert('Please allow popups for this site to download files.');
+    return;
+  }
+
+  const isSvg = mimeType === 'image/svg+xml';
+  const previewSection = isSvg
+    ? '<div class="preview">' + content + '</div>'
+    : '<div class="preview"><pre>' + content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre></div>';
+
+  const htmlContent = '<!DOCTYPE html><html><head><title>' + filename + '</title>' +
+    '<style>body{margin:0;padding:20px;font-family:Arial,sans-serif;background:#f5f5f5;}' +
+    '.box{background:#344734;color:white;padding:20px;border-radius:8px;margin-bottom:20px;text-align:center;}' +
+    '.box h2{margin-top:0;}.box button{background:white;color:#344734;border:none;padding:12px 24px;' +
+    'font-size:16px;border-radius:5px;cursor:pointer;font-weight:bold;}' +
+    '.box button:hover{background:#e0e0e0;}' +
+    '.preview{background:white;padding:20px;border-radius:8px;}' +
+    '.preview svg{max-width:100%;height:auto;display:block;margin:0 auto;}' +
+    '.preview pre{font-size:12px;overflow:auto;max-height:300px;white-space:pre-wrap;}' +
+    '</style></head><body>' +
+    '<div class="box"><h2>' + filename + ' is ready</h2>' +
+    '<button id="dlBtn">Download ' + filename + '</button></div>' +
+    previewSection +
+    '</body></html>';
+
+  newWindow.document.write(htmlContent);
+  newWindow.document.close();
+
+  newWindow.addEventListener('load', () => {
+    const btn = newWindow.document.getElementById('dlBtn');
+    if (btn) {
+      btn.onclick = () => {
+        const blob = new Blob([content], { type: mimeType });
+        const url  = URL.createObjectURL(blob);
+        const a    = newWindow.document.createElement('a');
+        a.href     = url;
+        a.download = filename;
+        newWindow.document.body.appendChild(a);
+        a.click();
+        newWindow.document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      };
+    }
+  });
 }
 
 function initDownloadButtons() {
@@ -1048,7 +1068,14 @@ function initSliders() {
     const ctrl = document.getElementById(ctrlId);
     const val  = document.getElementById(valId);
     if (ctrl && val) {
+      // input: update displayed value while dragging
       ctrl.addEventListener('input', () => { val.textContent = ctrl.value; });
+      // change: trigger conversion only when drag is released
+      ctrl.addEventListener('change', () => {
+        if (!currentImageFile) return;
+        const btn = document.getElementById('btn-convert');
+        if (!btn.disabled) btn.click();
+      });
     }
   });
 }
@@ -1094,7 +1121,6 @@ function updateConvertButtonState() {
 function initConvertButton() {
   document.getElementById('btn-convert').addEventListener('click', async () => {
     setConvertLoading(true);
-
     try {
       let svgStr;
       if (currentMode === 'color') {
@@ -1133,21 +1159,33 @@ function setConvertLoading(loading) {
   btn.disabled   = loading;
   txtSpan.classList.toggle('d-none', loading);
   spinSpan.classList.toggle('d-none', !loading);
+
+  const overlay = document.getElementById('convert-overlay');
+  overlay.classList.toggle('active', loading);
+}
+
+function clearSvgContent() {
+  const container = document.getElementById('svg-preview-container');
+  Array.from(container.children).forEach(child => {
+    if (child.id !== 'convert-overlay') child.remove();
+  });
+  return container;
 }
 
 function displaySvgResult(svgStr) {
-  const container = document.getElementById('svg-preview-container');
-  container.innerHTML = svgStr;
-  const svgEl = container.querySelector('svg');
+  const container = clearSvgContent();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = svgStr;
+  const svgEl = tmp.querySelector('svg');
   if (svgEl) {
     svgEl.style.maxWidth  = '100%';
     svgEl.style.maxHeight = '500px';
+    container.appendChild(svgEl);
   }
 }
 
 function showSvgError(msg) {
-  const container = document.getElementById('svg-preview-container');
-  container.innerHTML = '';
+  const container = clearSvgContent();
   const errSpan = document.createElement('span');
   errSpan.className = 'text-danger';
   errSpan.innerHTML = '<i class="fa fa-exclamation-triangle me-1"></i>';
