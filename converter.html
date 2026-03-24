@@ -259,10 +259,14 @@
         <i class="fa fa-download me-1"></i> Download SVG
       </button>
       <button class="btn btn-outline-light flex-fill" id="btn-dl-eps" disabled>
-        <i class="fa fa-download me-1"></i> Download EPS
+        <span id="btn-dl-eps-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+        <span id="btn-dl-eps-icon"><i class="fa fa-download me-1"></i></span>
+        Download EPS
       </button>
       <button class="btn btn-outline-light flex-fill" id="btn-dl-dxf" disabled>
-        <i class="fa fa-download me-1"></i> Download DXF
+        <span id="btn-dl-dxf-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+        <span id="btn-dl-dxf-icon"><i class="fa fa-download me-1"></i></span>
+        Download DXF
       </button>
     </div>
 
@@ -1020,6 +1024,28 @@ function triggerDownload(content, filename, mimeType) {
   });
 }
 
+async function runDownload(btnId, spinnerId, iconId, buildFn, filename, mime) {
+  const btn     = document.getElementById(btnId);
+  const spinner = document.getElementById(spinnerId);
+  const icon    = document.getElementById(iconId);
+  btn.disabled = true;
+  spinner.classList.remove('d-none');
+  icon.classList.add('d-none');
+  await new Promise(r => requestAnimationFrame(r)); // yield so browser paints spinner
+  try {
+    const content = buildFn();
+    triggerDownload(content, filename, mime);
+  } catch (e) {
+    // Spec Error Handling table: "EPS/DXF conversion throws → alert() with error message"
+    alert('Download failed: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.add('d-none');
+    icon.classList.remove('d-none');
+  }
+}
+
 function initDownloadButtons() {
   document.getElementById('btn-dl-svg').addEventListener('click', () => {
     if (!lastSvgResult) return;
@@ -1028,14 +1054,14 @@ function initDownloadButtons() {
 
   document.getElementById('btn-dl-eps').addEventListener('click', () => {
     if (!lastSvgResult) return;
-    const eps = svgToEps(lastSvgResult);
-    triggerDownload(eps, lastStemName + '.eps', 'application/postscript');
+    runDownload('btn-dl-eps', 'btn-dl-eps-spinner', 'btn-dl-eps-icon',
+      () => svgToEps(lastSvgResult), lastStemName + '.eps', 'application/postscript');
   });
 
   document.getElementById('btn-dl-dxf').addEventListener('click', () => {
     if (!lastSvgResult) return;
-    const dxf = svgToDxf(lastSvgResult);
-    triggerDownload(dxf, lastStemName + '.dxf', 'application/dxf');
+    runDownload('btn-dl-dxf', 'btn-dl-dxf-spinner', 'btn-dl-dxf-icon',
+      () => svgToDxf(lastSvgResult), lastStemName + '.dxf', 'application/dxf');
   });
 }
 
