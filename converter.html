@@ -418,6 +418,86 @@ function traceWithImageTracer() {
   return ImageTracer.imagedataToSVG(imageData, options);
 }
 
+// === POTRACE ENGINE ===
+
+/**
+ * Eager initialisation on page load.
+ * loadFromCanvas is a plain global exposed by potrace-wasm — no async factory needed.
+ */
+async function initPotrace() {
+  try {
+    if (typeof loadFromCanvas !== 'function') {
+      throw new Error('loadFromCanvas not found');
+    }
+    // Mark engine as ready — loadFromCanvas is a plain global, no async init needed
+    potraceReady = true;
+    potraceInstance = loadFromCanvas; // store reference
+  } catch (e) {
+    console.error('potrace-wasm failed to initialise:', e);
+    potraceReady = false;
+    document.getElementById('lineart-engine-error').classList.remove('d-none');
+  }
+  updateConvertButtonState();
+}
+
+/**
+ * Convert RGBA imageData to a grayscale Uint8Array.
+ * Luminance-weighted: gray = 0.299*R + 0.587*G + 0.114*B.
+ * Transparent pixels (alpha < 128) are mapped to white (255).
+ */
+function rgbaToGray(imageData) {
+  const { data, width, height } = imageData;
+  const gray = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    const r = data[i * 4];
+    const g = data[i * 4 + 1];
+    const b = data[i * 4 + 2];
+    const a = data[i * 4 + 3];
+    gray[i] = a < 128 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  }
+  return gray;
+}
+
+/**
+ * Draw the current processing canvas in grayscale onto a temporary canvas.
+ * Uses CSS filter so the resulting canvas is suitable for loadFromCanvas().
+ */
+function makeGrayscaleCanvas() {
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width  = canvasWidth;
+  tmpCanvas.height = canvasHeight;
+  const tmpCtx = tmpCanvas.getContext('2d');
+
+  // Draw original image in grayscale using CSS filter
+  tmpCtx.filter = 'grayscale(100%)';
+  tmpCtx.drawImage(processingCanvas, 0, 0);
+  tmpCtx.filter = 'none';
+  return tmpCanvas;
+}
+
+/**
+ * Trace using potrace-wasm (Logo/Line Art mode).
+ * Note: loadFromCanvas(canvas) accepts no options argument — threshold/turdsize/
+ * alphamax/opticurve controls are read for future use but cannot be passed to
+ * the library (v1.0.4 does not expose a parameterised API).
+ * Returns a Promise<svgString>.
+ */
+async function traceWithPotrace() {
+  if (!potraceReady) throw new Error('Potrace engine not ready');
+
+  // Read control values (reserved for future API or pre-processing use)
+  const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);  // eslint-disable-line no-unused-vars
+  const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);   // eslint-disable-line no-unused-vars
+  const alphamax  = parseFloat(document.getElementById('ctrl-alphamax').value);     // eslint-disable-line no-unused-vars
+  const opticurve = document.getElementById('ctrl-opticurve').checked;              // eslint-disable-line no-unused-vars
+
+  const grayCanvas = makeGrayscaleCanvas();
+
+  // loadFromCanvas(canvas) — v1.0.4 accepts no second options argument
+  const svgStr = await loadFromCanvas(grayCanvas);
+  return svgStr;
+}
+
 // === UI BINDINGS ===
 
 function initModeSelector() {
@@ -499,7 +579,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initUploadZone();
   initModeSelector();
   initSliders();
-  // initConvertButton() and initPotrace() added in later tasks
+  // initConvertButton() added in Task 7
+  initPotrace();
 });
 </script>
 </body>
