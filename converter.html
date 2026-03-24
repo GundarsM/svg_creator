@@ -441,9 +441,9 @@ async function initPotrace() {
 }
 
 /**
- * Convert RGBA imageData to a grayscale Uint8Array.
- * Luminance-weighted: gray = 0.299*R + 0.587*G + 0.114*B.
- * Transparent pixels (alpha < 128) are mapped to white (255).
+ * Convert RGBA ImageData to single-channel grayscale Uint8Array.
+ * Luminance-weighted formula: 0.299R + 0.587G + 0.114B. Alpha < 128 → white (255).
+ * Reserved for future use if potrace-wasm exposes options that accept raw pixel data.
  */
 function rgbaToGray(imageData) {
   const { data, width, height } = imageData;
@@ -486,10 +486,10 @@ async function traceWithPotrace() {
   if (!potraceReady) throw new Error('Potrace engine not ready');
 
   // Read control values (reserved for future API or pre-processing use)
-  const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);  // eslint-disable-line no-unused-vars
-  const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);   // eslint-disable-line no-unused-vars
-  const alphamax  = parseFloat(document.getElementById('ctrl-alphamax').value);     // eslint-disable-line no-unused-vars
-  const opticurve = document.getElementById('ctrl-opticurve').checked;              // eslint-disable-line no-unused-vars
+  const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);
+  const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);
+  const alphamax  = parseFloat(document.getElementById('ctrl-alphamax').value);
+  const opticurve = document.getElementById('ctrl-opticurve').checked;
 
   const grayCanvas = makeGrayscaleCanvas();
 
