@@ -573,13 +573,79 @@ function updateConvertButtonState() {
   btn.disabled = !(hasImage && engineReady);
 }
 
+function initConvertButton() {
+  document.getElementById('btn-convert').addEventListener('click', async () => {
+    setConvertLoading(true);
+
+    try {
+      let svgStr;
+      if (currentMode === 'color') {
+        svgStr = traceWithImageTracer();
+      } else {
+        svgStr = await traceWithPotrace();
+      }
+
+      if (!svgStr || !svgStr.includes('<path')) {
+        throw new Error('no-paths');
+      }
+
+      lastSvgResult = svgStr;
+      displaySvgResult(svgStr);
+      setDownloadButtonsEnabled(true);
+
+    } catch (e) {
+      if (e.message === 'no-paths') {
+        showSvgError('No paths found — try adjusting the threshold or color count.');
+      } else {
+        showSvgError('Conversion failed: ' + e.message);
+        console.error(e);
+      }
+      setDownloadButtonsEnabled(false);
+    } finally {
+      setConvertLoading(false);
+      updateConvertButtonState(); // restore correct enabled state after loading
+    }
+  });
+}
+
+function setConvertLoading(loading) {
+  const btn      = document.getElementById('btn-convert');
+  const txtSpan  = document.getElementById('btn-convert-text');
+  const spinSpan = document.getElementById('btn-convert-spinner');
+  btn.disabled   = loading;
+  txtSpan.classList.toggle('d-none', loading);
+  spinSpan.classList.toggle('d-none', !loading);
+}
+
+function displaySvgResult(svgStr) {
+  const container = document.getElementById('svg-preview-container');
+  container.innerHTML = svgStr;
+  const svgEl = container.querySelector('svg');
+  if (svgEl) {
+    svgEl.style.maxWidth  = '100%';
+    svgEl.style.maxHeight = '500px';
+  }
+}
+
+function showSvgError(msg) {
+  const container = document.getElementById('svg-preview-container');
+  container.innerHTML = '';
+  const errSpan = document.createElement('span');
+  errSpan.className = 'text-danger';
+  errSpan.innerHTML = '<i class="fa fa-exclamation-triangle me-1"></i>';
+  const errText = document.createElement('span');
+  errText.textContent = msg;
+  errSpan.appendChild(errText);
+  container.appendChild(errSpan);
+}
+
 // === INIT ===
 document.addEventListener('DOMContentLoaded', () => {
   initCanvas();
   initUploadZone();
   initModeSelector();
   initSliders();
-  // initConvertButton() added in Task 7
+  initConvertButton();
   initPotrace();
 });
 </script>
