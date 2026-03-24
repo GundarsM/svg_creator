@@ -393,6 +393,31 @@ function clearSvgResult() {
   setDownloadButtonsEnabled(false);
 }
 
+// === IMAGETRACER ENGINE ===
+
+/**
+ * Trace using ImageTracer.js (Photo/Color mode).
+ * Reads current control values and returns an SVG string synchronously.
+ */
+function traceWithImageTracer() {
+  const colors = parseInt(document.getElementById('ctrl-colors').value, 10);
+  const blur   = parseInt(document.getElementById('ctrl-blur').value, 10);
+  const stroke = parseFloat(document.getElementById('ctrl-stroke').value);
+  const smooth = parseFloat(document.getElementById('ctrl-smooth').value);
+
+  const options = {
+    numberofcolors: colors,
+    blurradius:     blur,
+    strokewidth:    stroke,
+    roundcoords:    smooth,
+    viewbox:        true,
+    desc:           false,
+  };
+
+  const imageData = processingCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+  return ImageTracer.imagedataToSVG(imageData, options);
+}
+
 // === UI BINDINGS ===
 
 function initModeSelector() {
