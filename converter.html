@@ -279,10 +279,15 @@
 <!-- Load wasm-potrace as a proper ES module so WASM initialises in the correct context.
      The promise is awaited by initPotrace() in the main script. -->
 <script type="module">
-  import { potrace, init } from 'https://cdn.jsdelivr.net/npm/wasm-potrace@0.4.1/dist/index.mjs';
-  let resolve, reject;
-  window.__potraceLoading = new Promise((res, rej) => { resolve = res; reject = rej; });
-  init().then(() => resolve(potrace)).catch(reject);
+  import * as WasmPotrace from 'https://cdn.jsdelivr.net/npm/wasm-potrace@0.4.1/dist/index.mjs';
+  window.__potraceLoading = (async () => {
+    if (typeof WasmPotrace.init === 'function') await WasmPotrace.init();
+    const fn = WasmPotrace.potrace ?? WasmPotrace.default?.potrace ?? WasmPotrace.default;
+    if (typeof fn !== 'function') {
+      throw new Error('potrace export not found. Module keys: ' + Object.keys(WasmPotrace).join(', '));
+    }
+    return fn;
+  })();
 </script>
 
 <script>
