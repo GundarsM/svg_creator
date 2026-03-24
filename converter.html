@@ -704,6 +704,9 @@ function pathDtoPS(d, lines) {
         break;
       }
     }
+    // Reset smooth-curve tracking when command isn't C/S or Q/T
+    if (!'cCsS'.includes(cmd)) { lastC1x = cx; lastC1y = cy; }
+    if (!'qQtT'.includes(cmd)) { lastQx = cx;  lastQy = cy; }
   });
 }
 
@@ -917,6 +920,9 @@ function pathDtoPolylines(d, svgHeight) {
         break;
       }
     }
+    // Reset smooth-curve tracking when command isn't C/S or Q/T
+    if (!'cCsS'.includes(cmd)) { lastC2x = cx; lastC2y = cy; }
+    if (!'qQtT'.includes(cmd)) { lastQx = cx;  lastQy = cy; }
   });
 
   if (currentPoly.length > 1) polylines.push(currentPoly);
@@ -957,7 +963,10 @@ function svgToDxf(svgStr) {
       const drawPts = closed ? pts.slice(0, -1) : pts;
       lines.push(
         '0', 'LWPOLYLINE',
+        '5', Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0'),
+        '100', 'AcDbEntity',
         '8', '0',
+        '100', 'AcDbPolyline',
         '90', `${drawPts.length}`,
         '70', closed ? '1' : '0',
       );
