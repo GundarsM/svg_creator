@@ -14,34 +14,38 @@ Add zoom and pan to the SVG result preview in `converter.html`. The user can zoo
 
 ### DOM structure
 
-The SVG element is wrapped in an inner `#svg-viewport` div inside the existing `#svg-preview-container`:
+The SVG element is wrapped in an inner `#svg-viewport` div inside the existing `#svg-preview-container`. `#svg-viewport` is a normal flex child (not absolutely positioned):
 
 ```html
 <div id="svg-preview-container">
   <div id="convert-overlay">…</div>
+  <!-- #svg-preview-placeholder lives here when no result -->
+  <!-- #svg-viewport is created by displaySvgResult() and replaces the placeholder -->
   <div id="svg-viewport">
-    <!-- SVG element injected here by displaySvgResult() -->
+    <!-- SVG element injected here -->
   </div>
 </div>
 ```
 
-`transform: translate(Xpx, Ypx) scale(Z)` is applied to `#svg-viewport` on every zoom or pan change. The SVG element itself has no `max-width`/`max-height` constraints — it renders at its natural pixel dimensions (its own `width`/`height` attributes).
+`clearSvgContent()` (the existing low-level helper) already removes all non-overlay children, including the placeholder span, before `displaySvgResult()` creates `#svg-viewport`. So `#svg-viewport` is always the only non-overlay child after `displaySvgResult()` runs. No extra guard is needed.
 
-`#svg-preview-container` is `overflow: hidden` with a fixed `min-height: 300px` (unchanged from current 500px cap, but expressed as min-height so very small SVGs don't collapse the container).
+`transform: translate(Xpx, Ypx) scale(Z)` is applied to `#svg-viewport`. The SVG element itself has no `max-width`/`max-height` constraints — it renders at its natural pixel dimensions.
+
+`#svg-preview-container` keeps its existing `min-height: 200px` (unchanged), `overflow` changes from `auto` to `hidden`.
 
 ### State
 
-Three module-level variables:
+Three module-level variables (added alongside the existing `potraceReady`, `lastSvgResult` etc.):
 
 ```js
-let zoomLevel = 1.0;   // 0.25–4.0
-let panX      = 0;     // px offset, applied via translate
-let panY      = 0;     // px offset, applied via translate
+let zoomLevel = 1.0;   // 0.25–4.0; slider range 25–400
+let panX      = 0;     // px translate offset
+let panY      = 0;     // px translate offset
 ```
 
-**Persistence across conversions:** zoom and pan are kept when a new SVG result replaces the old one.
+**Persistence across conversions:** zoom and pan are kept when a new SVG result replaces the old one (do not reset in `displaySvgResult`).
 
-**Reset on image change:** when a new image is loaded (`loadImage()`), zoom/pan reset to `1.0 / 0 / 0`.
+**Reset on image change:** in `clearSvgResult()` — the function called when a new image is loaded — add `zoomLevel = 1.0; panX = 0; panY = 0;` and hide `#zoom-controls`. `clearSvgResult()` is the correct hook (not `clearSvgContent()`): it also resets `lastSvgResult`, re-adds the placeholder, and disables download buttons.
 
 ---
 
@@ -49,7 +53,7 @@ let panY      = 0;     // px offset, applied via translate
 
 ### HTML
 
-A `#zoom-controls` bar is placed between `#svg-preview-container` and the download bar. Hidden by default (`d-none`), shown when an SVG result exists (same lifecycle as download buttons).
+A `#zoom-controls` bar is placed immediately after `#svg-preview-container` and before the download bar. Hidden by default (`d-none`), shown when an SVG result exists.
 
 ```html
 <div id="zoom-controls" class="d-none d-flex align-items-center gap-2 mb-3">
@@ -62,43 +66,82 @@ A `#zoom-controls` bar is placed between `#svg-preview-container` and the downlo
 </div>
 ```
 
-### Behaviour
+### setZoom helper
 
-| Control | Effect |
+All zoom changes go through a single `setZoom(level)` function to keep the slider, label, state, and transform in sync:
+
+```js
+function setZoom(level) {
+  zoomLevel = Math.min(4.0, Math.max(0.25, level));
+  const pct = Math.round(zoomLevel * 100);
+  document.getElementById('zoom-slider').value = pct;
+  document.getElementById('zoom-label').textContent = pct + '%';
+  applyViewTransform();
+}
+```
+
+### Control behaviour
+
+| Control | Action |
 |---------|--------|
-| Slider drag | Sets `zoomLevel = value / 100`; updates label |
-| `[−]` button | Decrements slider by 5 (min 25); fires same update |
-| `[+]` button | Increments slider by 5 (max 400); fires same update |
-| `[Reset]` | Sets zoom to 100%, pan to 0/0 |
+| Slider `input` event | `setZoom(slider.value / 100)` |
+| `[−]` button | `setZoom(zoomLevel - 0.05)` |
+| `[+]` button | `setZoom(zoomLevel + 0.05)` |
+| `[Reset]` button | `panX = 0; panY = 0; setZoom(1.0)` |
 
-Zoom is applied centered on the container's midpoint. The transform origin of `#svg-viewport` is set to `50% 50%` of the container (achieved by positioning the viewport absolutely centered, then applying scale from its own center: `transform-origin: 50% 50%`).
+`[-]`/`[+]` call `setZoom()` directly — they do not dispatch synthetic events on the slider.
 
-### Zoom label
+### Zoom centering
 
-Always shows the current integer percent: `"100%"`, `"75%"`, `"200%"`, etc.
+`#svg-viewport` is a flex child of `#svg-preview-container` (which uses `display:flex; align-items:center; justify-content:center`). `transform-origin: 50% 50%` is set on `#svg-viewport`. This means scale is applied from the viewport div's own center.
+
+- When the SVG is **smaller** than the container: the flex layout centers `#svg-viewport`; scaling from its center keeps the image centered in the container. Zoom in/out feels centered.
+- When the SVG is **larger** than the container: the flex child is still centered (overflow hidden), and scaling from the child's center provides consistent behavior. The user can then pan to see edges.
 
 ---
 
 ## Pan
 
-### Behaviour
+### State
 
-Click-and-drag inside `#svg-preview-container` to pan.
+One additional drag-tracking variable (not persisted, local to the event handlers):
 
-- **Cursor:** `grab` when SVG is loaded and mouse is over the container; `grabbing` while dragging.
-- **`mousedown`:** record `startMouseX`, `startMouseY`, `startPanX`, `startPanY`; set `isDragging = true`.
-- **`mousemove`:** if `isDragging`, compute `panX = startPanX + (e.clientX - startMouseX)`, `panY = startPanY + (e.clientY - startMouseY)`; apply transform.
-- **`mouseup` / `mouseleave`:** set `isDragging = false`.
+```js
+let isDragging  = false;
+let dragStartX  = 0;
+let dragStartY  = 0;
+let dragStartPanX = 0;
+let dragStartPanY = 0;
+```
 
-No pan limits — the user can drag the SVG fully off-screen. The `[Reset]` button brings it back.
+### Event listeners (attached to `#svg-preview-container`)
 
-Touch support is out of scope.
+- **`mousedown`:** `isDragging = true`; record `dragStartX/Y = e.clientX/Y`; record `dragStartPanX/Y = panX/Y`.
+- **`mousemove`:** if `isDragging`, set `panX = dragStartPanX + (e.clientX - dragStartX)`, `panY = dragStartPanY + (e.clientY - dragStartY)`; call `applyViewTransform()`.
+- **`mouseup`:** `isDragging = false`.
+- **`mouseleave`** (on `#svg-preview-container`): `isDragging = false`. This stops the drag when the cursor leaves the container. Fast movement can exit the container, which is an acceptable trade-off given the simple use case. No `document`-level listeners are needed.
+
+### Cursor
+
+```js
+// When SVG result is shown:
+container.style.cursor = 'grab';
+
+// On mousedown:
+container.style.cursor = 'grabbing';
+
+// On mouseup / mouseleave:
+container.style.cursor = 'grab';
+
+// When SVG result is cleared:
+container.style.cursor = '';
+```
+
+No pan boundary clamping — the user can drag the SVG fully off-screen. `[Reset]` brings it back.
 
 ---
 
 ## Transform application
-
-A single helper applies both zoom and pan:
 
 ```js
 function applyViewTransform() {
@@ -108,35 +151,47 @@ function applyViewTransform() {
 }
 ```
 
-Called on every zoom or pan update.
+Called by `setZoom()` and by pan `mousemove`.
 
 ---
 
 ## Visibility lifecycle
 
-`#zoom-controls` and `#svg-viewport` cursor are managed alongside the existing download button enable/disable logic:
+| Event | Zoom controls | Cursor on container |
+|-------|---------------|---------------------|
+| `displaySvgResult()` called | Show (remove `d-none`) | `grab` |
+| `clearSvgResult()` called | Hide (add `d-none`); reset `zoomLevel/panX/panY` | `''` (default) |
 
-| Event | Zoom controls | Cursor |
-|-------|---------------|--------|
-| SVG result displayed | Show (`d-none` removed) | `grab` |
-| SVG result cleared | Hide (`d-none` added) | default |
-| New image loaded | Hide; reset zoom+pan state | default |
+`clearSvgResult()` is the single place that resets zoom/pan state and hides controls. `displaySvgResult()` does not reset state.
 
 ---
 
 ## `displaySvgResult` changes
 
-`displaySvgResult(svgStr)` currently appends the SVG directly to `#svg-preview-container`. It must instead:
+Replace the current implementation:
 
-1. Clear content (existing `clearSvgContent()`).
-2. Create `#svg-viewport` div, append SVG inside it.
-3. Remove `max-width`/`max-height` from the SVG element.
-4. Append `#svg-viewport` to container.
-5. Call `applyViewTransform()` (uses current zoom/pan state).
-6. Show `#zoom-controls`.
-7. Set container cursor to `grab`.
-
-`clearSvgContent()` already preserves `#convert-overlay` — `#svg-viewport` is created fresh each time so no extra guard is needed.
+```js
+function displaySvgResult(svgStr) {
+  const container = clearSvgContent();           // removes placeholder, keeps overlay
+  const tmp = document.createElement('div');
+  tmp.innerHTML = svgStr;
+  const svgEl = tmp.querySelector('svg');
+  if (svgEl) {
+    svgEl.style.maxWidth  = '';                  // remove constraints — natural size
+    svgEl.style.maxHeight = '';
+    const vp = document.createElement('div');
+    vp.id = 'svg-viewport';
+    vp.appendChild(svgEl);
+    container.appendChild(vp);
+    applyViewTransform();                        // apply current zoom/pan (persisted)
+    document.getElementById('zoom-controls').classList.remove('d-none');
+    container.style.cursor = 'grab';
+  }
+}
+// Note: setDownloadButtonsEnabled(true) is called by the convert button handler
+// immediately after displaySvgResult() — it is not called inside displaySvgResult itself.
+// This is unchanged from the existing code.
+```
 
 ---
 
@@ -144,16 +199,56 @@ Called on every zoom or pan update.
 
 ```css
 #svg-preview-container {
-  overflow: hidden;      /* was: auto */
-  cursor: default;
+  overflow: hidden;           /* was: auto */
+  /* all other existing rules unchanged */
 }
+
 #svg-viewport {
   transform-origin: 50% 50%;
-  display: inline-block; /* sizes to SVG content */
+  display: inline-block;      /* sizes to SVG natural dimensions */
 }
+
+/* Remove the existing rule: */
+/* #svg-preview-container svg { max-width: 100%; max-height: 500px; } */
 ```
 
-The container needs `display: flex; align-items: center; justify-content: center` (already set) so `#svg-viewport` is centered before any pan offset.
+The `#svg-preview-container svg` rule is removed entirely (the SVG's size is now controlled by its own `width`/`height` attributes, not CSS).
+
+---
+
+## initZoomControls function
+
+All zoom/pan event listeners are wired in a new `initZoomControls()` function, called from `DOMContentLoaded` alongside the other `init*` functions:
+
+```js
+function initZoomControls() {
+  const container = document.getElementById('svg-preview-container');
+  const slider    = document.getElementById('zoom-slider');
+
+  slider.addEventListener('input', () => setZoom(slider.value / 100));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(zoomLevel - 0.05));
+  document.getElementById('btn-zoom-in' ).addEventListener('click', () => setZoom(zoomLevel + 0.05));
+  document.getElementById('btn-zoom-reset').addEventListener('click', () => {
+    panX = 0; panY = 0; setZoom(1.0);
+  });
+
+  container.addEventListener('mousedown', (e) => {
+    if (!document.getElementById('svg-viewport')) return;
+    isDragging = true;
+    dragStartX = e.clientX; dragStartY = e.clientY;
+    dragStartPanX = panX;   dragStartPanY = panY;
+    container.style.cursor = 'grabbing';
+  });
+  container.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    panX = dragStartPanX + (e.clientX - dragStartX);
+    panY = dragStartPanY + (e.clientY - dragStartY);
+    applyViewTransform();
+  });
+  container.addEventListener('mouseup',    () => { isDragging = false; if (document.getElementById('svg-viewport')) container.style.cursor = 'grab'; });
+  container.addEventListener('mouseleave', () => { isDragging = false; if (document.getElementById('svg-viewport')) container.style.cursor = 'grab'; });
+}
+```
 
 ---
 
@@ -161,5 +256,5 @@ The container needs `display: flex; align-items: center; justify-content: center
 
 - Mouse-wheel zoom
 - Touch / pinch-to-zoom
-- Zoom centered on cursor position (zoom is centered on container midpoint)
-- Pan limits / boundary clamping
+- Zoom centered on cursor position
+- Pan boundary clamping
