@@ -163,7 +163,7 @@
         <i class="fa fa-palette me-1"></i> Photo / Color
       </button>
       <button class="mode-btn" data-mode="lineart" id="btn-mode-lineart">
-        <i class="fa fa-pen-nib me-1"></i> Logo / Line Art
+        <i class="fa fa-pen-nib me-1"></i> Black & White
       </button>
     </div>
 
@@ -210,7 +210,7 @@
       <div id="controls-lineart" class="d-none">
         <div id="lineart-engine-error" class="d-none text-warning mb-2">
           <i class="fa fa-exclamation-triangle me-1"></i>
-          Line Art engine failed to load. This mode is unavailable.
+          Black &amp; White engine failed to load. This mode is unavailable.
         </div>
         <div class="row g-3">
           <div class="col-6 col-md-3">
@@ -513,6 +513,7 @@ async function traceWithPotrace() {
 
   const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);
   const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);
+  const smooth    = parseFloat(document.getElementById('ctrl-smooth').value);
 
   // Pre-binarise: composite on white background then apply threshold.
   // This makes the Threshold slider functional even though potrace-wasm has no options API.
@@ -533,7 +534,19 @@ async function traceWithPotrace() {
   tmpCanvas.height = canvasHeight;
   tmpCanvas.getContext('2d').putImageData(new ImageData(binary, canvasWidth, canvasHeight), 0, 0);
 
-  let svgStr = await loadFromCanvas(tmpCanvas);
+  // Apply blur when smoothing > 0. Blurring the binary image creates gray anti-aliased
+  // edges that potrace traces as smoother curves (higher blur = rounder, simpler paths).
+  let traceCanvas = tmpCanvas;
+  if (smooth > 0) {
+    traceCanvas = document.createElement('canvas');
+    traceCanvas.width  = canvasWidth;
+    traceCanvas.height = canvasHeight;
+    const blurCtx = traceCanvas.getContext('2d');
+    blurCtx.filter = `blur(${smooth}px)`;
+    blurCtx.drawImage(tmpCanvas, 0, 0);
+  }
+
+  let svgStr = await loadFromCanvas(traceCanvas);
 
   // Post-process: remove speckle paths smaller than turdsize² pixels
   svgStr = filterSmallPaths(svgStr, turdsize);
