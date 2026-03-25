@@ -1,0 +1,40 @@
+<h2>Image-to-Vector Converter — Approach Options</h2>
+<p class="subtitle">All three run entirely in the browser (no server needed) and produce SVG + EPS + DXF</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>ImageTracer.js — Pure JS, Color-First</h3>
+      <p>Single lightweight library (no WASM). Good at color images and photos. Control panel for color count, blur, stroke width, smoothing. Moderate quality on complex photos; decent on logos.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>No WASM — easiest to embed</li><li>Handles color natively</li><li>Small footprint</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Lower quality than Potrace for line art</li><li>Less crisp edges on logos</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Potrace WASM — High-Quality, B&amp;W Focused</h3>
+      <p>Gold-standard tracer compiled to WebAssembly. Produces the sharpest possible curves. For color images, pre-quantizes into layers then traces each separately. Best for logos and clean line art.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Best curve quality</li><li>Industry-standard algorithm</li><li>Excellent for logos &amp; line art</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Larger bundle (WASM)</li><li>Color handling is indirect (multi-layer)</li><li>Photos look "posterized"</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid — Two Modes, One Tool <span style="background:#4caf50;color:#fff;font-size:0.7em;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle">Recommended</span></h3>
+      <p>User picks <strong>Photo/Color mode</strong> (ImageTracer.js) or <strong>Logo/Line Art mode</strong> (Potrace WASM). Each mode shows its own tuned control panel. A shared SVG→EPS/DXF layer handles all downloads.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Best results for both image types</li><li>Each mode's controls match its algorithm</li><li>User understands what to expect</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Slightly larger bundle</li><li>User must choose a mode</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

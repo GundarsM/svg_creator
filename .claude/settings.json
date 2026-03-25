@@ -3,7 +3,21 @@
     "allow": [
       "Bash(node -c editor.js)",
       "Bash(where node:*)",
-      "Bash(grep -v \"//\")"
+      "Bash(grep -v \"//\")",
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "WebFetch",
+      "Grep",
+      "Glob",
+      "LS",
+      "MultiEdit",
+      "NotebookRead",
+      "NotebookEdit",
+      "TodoRead",
+      "TodoWrite",
+      "WebSearch"
     ]
   }
 }
