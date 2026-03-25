@@ -122,7 +122,7 @@
     }
     #svg-viewport {
       transform-origin: 50% 50%;
-      display: inline-block;
+      width: 100%;
     }
     #svg-preview-placeholder {
       color: #aaa;
@@ -1256,8 +1256,9 @@ function displaySvgResult(svgStr) {
   tmp.innerHTML = svgStr;
   const svgEl = tmp.querySelector('svg');
   if (svgEl) {
-    svgEl.style.maxWidth  = '';
-    svgEl.style.maxHeight = '';
+    svgEl.style.maxWidth  = '100%';
+    svgEl.style.maxHeight = '500px';
+    svgEl.style.height    = 'auto';
     const vp = document.createElement('div');
     vp.id = 'svg-viewport';
     vp.appendChild(svgEl);
