@@ -118,11 +118,11 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: auto;
+      overflow: hidden;
     }
-    #svg-preview-container svg {
-      max-width: 100%;
-      max-height: 500px;
+    #svg-viewport {
+      transform-origin: 50% 50%;
+      display: inline-block;
     }
     #svg-preview-placeholder {
       color: #aaa;
@@ -253,6 +253,16 @@
       <span id="svg-preview-placeholder">SVG result will appear here after conversion</span>
     </div>
 
+    <!-- ZONE 5b: Zoom controls (hidden until SVG result exists) -->
+    <div id="zoom-controls" class="d-none d-flex align-items-center gap-2 mb-3">
+      <button id="btn-zoom-out" class="btn btn-sm btn-outline-secondary">&#8722;</button>
+      <input type="range" id="zoom-slider" min="25" max="400" step="5" value="100"
+             class="form-range flex-fill">
+      <button id="btn-zoom-in" class="btn btn-sm btn-outline-secondary">+</button>
+      <span id="zoom-label" class="text-muted small" style="min-width:3.5em;text-align:right">100%</span>
+      <button id="btn-zoom-reset" class="btn btn-sm btn-outline-secondary">Reset</button>
+    </div>
+
     <!-- ZONE 6: Download bar -->
     <div class="d-flex gap-2 flex-wrap mb-3">
       <button class="btn btn-outline-light flex-fill" id="btn-dl-svg" disabled>
@@ -276,20 +286,7 @@
   </div><!-- /container-fluid -->
 </div><!-- /converter-wrapper -->
 
-<!-- Load wasm-potrace as a proper ES module so WASM initialises in the correct context.
-     The promise is awaited by initPotrace() in the main script.
-     esm.sh is used as CDN because it normalises module format and CORS for browser use. -->
-<script type="module">
-  import * as WasmPotrace from 'https://esm.sh/wasm-potrace@0.4.1';
-  window.__potraceLoading = (async () => {
-    if (typeof WasmPotrace.init === 'function') await WasmPotrace.init();
-    const fn = WasmPotrace.potrace ?? WasmPotrace.default?.potrace ?? WasmPotrace.default;
-    if (typeof fn !== 'function') {
-      throw new Error('potrace not found. Module keys: ' + Object.keys(WasmPotrace).join(', '));
-    }
-    return fn;
-  })();
-</script>
+<script src="https://cdn.jsdelivr.net/npm/potrace-wasm@1.0.4/index.js"></script>
 
 <script>
 // === STATE ===
@@ -303,9 +300,18 @@ let lastSvgResult = null;        // SVG string from last successful convert
 let lastStemName = 'converted';  // filename stem for downloads
 const MAX_PIXELS = 4_000_000;
 
+// Zoom / pan state for SVG preview
+let zoomLevel = 1.0;   // 0.25–4.0; slider shows as 25–400
+let panX      = 0;     // px translate offset
+let panY      = 0;     // px translate offset
+let isDragging  = false;
+let dragStartX  = 0;
+let dragStartY  = 0;
+let dragStartPanX = 0;
+let dragStartPanY = 0;
+
 // Forward declarations — set by their respective engine init functions
 let potraceReady    = false;     // set to true by initPotrace()
-let potraceFn       = null;      // assigned by initPotrace() on successful load
 
 // === CANVAS / IMAGE LOADING ===
 
@@ -413,6 +419,7 @@ async function handleFile(file) {
 
 function clearSvgResult() {
   lastSvgResult = null;
+  zoomLevel = 1.0; panX = 0; panY = 0;
   const container = document.getElementById('svg-preview-container');
   // Remove everything except the overlay
   Array.from(container.children).forEach(child => {
@@ -422,6 +429,8 @@ function clearSvgResult() {
   placeholder.id = 'svg-preview-placeholder';
   placeholder.textContent = 'SVG result will appear here after conversion';
   container.appendChild(placeholder);
+  container.style.cursor = '';
+  document.getElementById('zoom-controls').classList.add('d-none');
   setDownloadButtonsEnabled(false);
 }
 
@@ -458,58 +467,76 @@ function traceWithImageTracer() {
  */
 async function initPotrace() {
   try {
-    if (!(window.__potraceLoading instanceof Promise)) {
-      throw new Error('module script did not run (CSP or network blocked the import)');
-    }
-    potraceFn = await window.__potraceLoading;
-    if (typeof potraceFn !== 'function') {
-      throw new Error('potrace is not a function (got ' + typeof potraceFn + ')');
+    if (typeof loadFromCanvas !== 'function') {
+      throw new Error('loadFromCanvas not found — potrace-wasm script may not have loaded');
     }
     potraceReady = true;
   } catch (e) {
-    console.error('wasm-potrace failed to initialise:', e);
+    console.error('potrace-wasm failed to initialise:', e);
     potraceReady = false;
-    const errEl = document.getElementById('lineart-engine-error');
-    errEl.classList.remove('d-none');
-    errEl.textContent = 'Line Art engine failed to load: ' + (e && e.message ? e.message : e);
+    document.getElementById('lineart-engine-error').classList.remove('d-none');
   }
   updateConvertButtonState();
 }
 
 /**
- * Trace using wasm-potrace (Logo/Line Art mode).
- * Pre-binarises the image using the threshold slider, then passes the binary
- * RGBA data along with turdsize, alphamax, and opticurve to potraceFn.
- * Returns a Promise<svgString>.
+ * Remove SVG <path> elements whose bounding box area is below the threshold.
+ * Used to implement noise-removal (turdsize) for potrace-wasm@1.0.4 which has no options API.
+ */
+function filterSmallPaths(svgStr, turdsize) {
+  if (turdsize <= 0) return svgStr;
+  const minArea = turdsize * turdsize;
+  return svgStr.replace(/<path[^>]+>/g, (pathTag) => {
+    const dMatch = pathTag.match(/\bd="([^"]*)"/);
+    if (!dMatch) return pathTag;
+    const nums = dMatch[1].match(/-?[\d.]+(?:e[+-]?\d+)?/gi);
+    if (!nums || nums.length < 4) return pathTag;
+    const vals = nums.map(Number);
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    for (let i = 0; i < vals.length - 1; i += 2) {
+      const x = vals[i], y = vals[i + 1];
+      if (x < xMin) xMin = x; if (x > xMax) xMax = x;
+      if (y < yMin) yMin = y; if (y > yMax) yMax = y;
+    }
+    return (xMax - xMin) * (yMax - yMin) >= minArea ? pathTag : '';
+  });
+}
+
+/**
+ * Trace using potrace-wasm@1.0.4 (Logo/Line Art mode).
+ * Pre-binarises using the threshold slider (with alpha compositing), draws to a
+ * temp canvas, passes it to loadFromCanvas(), then filters small speckle paths.
  */
 async function traceWithPotrace() {
   if (!potraceReady) throw new Error('Potrace engine not ready');
 
   const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);
   const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);
-  const alphamax  = parseFloat(document.getElementById('ctrl-alphamax').value);
-  const opticurve = document.getElementById('ctrl-opticurve').checked ? 1 : 0;
 
-  // Pre-binarise: apply threshold to produce a binary RGBA Uint8ClampedArray.
-  // wasm-potrace expects RGBA (4 bytes/pixel). Because the image is already fully
-  // binarised here, potrace's internal threshold step is a no-op and the slider is exact.
+  // Pre-binarise: composite on white background then apply threshold.
+  // This makes the Threshold slider functional even though potrace-wasm has no options API.
   const imageData = processingCtx.getImageData(0, 0, canvasWidth, canvasHeight);
   const src    = imageData.data;
   const binary = new Uint8ClampedArray(src.length);
   for (let i = 0; i < src.length; i += 4) {
     const r = src[i], g = src[i + 1], b = src[i + 2], a = src[i + 3];
-    // Composite on white background before thresholding so semi-transparent
-    // edge pixels (anti-aliasing) are handled correctly, not forced to white.
     const alpha = a / 255;
     const lum = alpha * (0.299 * r + 0.587 * g + 0.114 * b) + (1 - alpha) * 255;
     const v = lum >= threshold ? 255 : 0;
     binary[i] = v; binary[i + 1] = v; binary[i + 2] = v; binary[i + 3] = 255;
   }
 
-  const svgStr = await potraceFn(
-    { data: binary, width: canvasWidth, height: canvasHeight },
-    { turdsize, alphamax, opticurve, opttolerance: 0.2 }
-  );
+  // Draw binary data to a temp canvas so loadFromCanvas() can read it
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width  = canvasWidth;
+  tmpCanvas.height = canvasHeight;
+  tmpCanvas.getContext('2d').putImageData(new ImageData(binary, canvasWidth, canvasHeight), 0, 0);
+
+  let svgStr = await loadFromCanvas(tmpCanvas);
+
+  // Post-process: remove speckle paths smaller than turdsize² pixels
+  svgStr = filterSmallPaths(svgStr, turdsize);
+
   return svgStr;
 }
 
@@ -1229,10 +1256,32 @@ function displaySvgResult(svgStr) {
   tmp.innerHTML = svgStr;
   const svgEl = tmp.querySelector('svg');
   if (svgEl) {
-    svgEl.style.maxWidth  = '100%';
-    svgEl.style.maxHeight = '500px';
-    container.appendChild(svgEl);
+    svgEl.style.maxWidth  = '';
+    svgEl.style.maxHeight = '';
+    const vp = document.createElement('div');
+    vp.id = 'svg-viewport';
+    vp.appendChild(svgEl);
+    container.appendChild(vp);
+    applyViewTransform();
+    document.getElementById('zoom-controls').classList.remove('d-none');
+    container.style.cursor = 'grab';
   }
+}
+
+// === ZOOM / PAN ===
+
+function applyViewTransform() {
+  const vp = document.getElementById('svg-viewport');
+  if (!vp) return;
+  vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+}
+
+function setZoom(level) {
+  zoomLevel = Math.min(4.0, Math.max(0.25, level));
+  const pct = Math.round(zoomLevel * 100);
+  document.getElementById('zoom-slider').value = pct;
+  document.getElementById('zoom-label').textContent = pct + '%';
+  applyViewTransform();
 }
 
 function showSvgError(msg) {
@@ -1246,6 +1295,40 @@ function showSvgError(msg) {
   container.appendChild(errSpan);
 }
 
+function initZoomControls() {
+  const container = document.getElementById('svg-preview-container');
+  const slider    = document.getElementById('zoom-slider');
+
+  slider.addEventListener('input', () => setZoom(slider.value / 100));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(zoomLevel - 0.05));
+  document.getElementById('btn-zoom-in' ).addEventListener('click', () => setZoom(zoomLevel + 0.05));
+  document.getElementById('btn-zoom-reset').addEventListener('click', () => {
+    panX = 0; panY = 0; setZoom(1.0);
+  });
+
+  container.addEventListener('mousedown', (e) => {
+    if (!document.getElementById('svg-viewport')) return;
+    isDragging = true;
+    dragStartX = e.clientX; dragStartY = e.clientY;
+    dragStartPanX = panX;   dragStartPanY = panY;
+    container.style.cursor = 'grabbing';
+  });
+  container.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    panX = dragStartPanX + (e.clientX - dragStartX);
+    panY = dragStartPanY + (e.clientY - dragStartY);
+    applyViewTransform();
+  });
+  container.addEventListener('mouseup', () => {
+    isDragging = false;
+    if (document.getElementById('svg-viewport')) container.style.cursor = 'grab';
+  });
+  container.addEventListener('mouseleave', () => {
+    isDragging = false;
+    if (document.getElementById('svg-viewport')) container.style.cursor = 'grab';
+  });
+}
+
 // === INIT ===
 document.addEventListener('DOMContentLoaded', () => {
   initCanvas();
@@ -1254,6 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSliders();
   initConvertButton();
   initDownloadButtons();
+  initZoomControls();
   initPotrace();
 });
 </script>
