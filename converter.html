@@ -200,13 +200,13 @@
             <input type="range" class="form-range" id="ctrl-stroke" min="0" max="5" value="1" step="0.5">
           </div>
           <div class="col-6 col-md-3">
-            <div class="control-label">Smoothing <span class="value-badge" id="val-smooth">0.5</span></div>
-            <input type="range" class="form-range" id="ctrl-smooth" min="0" max="5" value="0.5" step="0.5">
+            <div class="control-label">Smoothing <span class="value-badge" id="val-smooth-color">0.5</span></div>
+            <input type="range" class="form-range" id="ctrl-smooth-color" min="0" max="5" value="0.5" step="0.5">
           </div>
         </div>
       </div>
 
-      <!-- Logo/Line Art controls -->
+      <!-- Black & White controls -->
       <div id="controls-lineart" class="d-none">
         <div id="lineart-engine-error" class="d-none text-warning mb-2">
           <i class="fa fa-exclamation-triangle me-1"></i>
@@ -214,26 +214,18 @@
         </div>
         <div class="row g-3">
           <div class="col-6 col-md-3">
-            <div class="control-label">B&amp;W Threshold <span class="value-badge" id="val-threshold">128</span></div>
+            <div class="control-label">Threshold <span class="value-badge" id="val-threshold">128</span></div>
             <input type="range" class="form-range" id="ctrl-threshold" min="0" max="255" value="128" step="1">
           </div>
           <div class="col-6 col-md-3">
             <div class="control-label">Noise Removal <span class="value-badge" id="val-turdsize">2</span></div>
             <input type="range" class="form-range" id="ctrl-turdsize" min="0" max="50" value="2" step="1">
           </div>
-          <div class="col-6 col-md-3" style="opacity:0.45;pointer-events:none">
-            <div class="control-label">Corner Sharpness <span class="value-badge" id="val-alphamax">1.0</span></div>
-            <input type="range" class="form-range" id="ctrl-alphamax" min="0" max="1.34" value="1" step="0.01" disabled>
-          </div>
-          <div class="col-6 col-md-3" style="opacity:0.45;pointer-events:none">
-            <div class="control-label">Curve Optimization</div>
-            <div class="form-check form-switch mt-1">
-              <input class="form-check-input" type="checkbox" id="ctrl-opticurve" checked disabled>
-              <label class="form-check-label" for="ctrl-opticurve">Enabled</label>
-            </div>
+          <div class="col-6 col-md-3">
+            <div class="control-label">Smoothing <span class="value-badge" id="val-smooth-bw">0</span></div>
+            <input type="range" class="form-range" id="ctrl-smooth-bw" min="0" max="5" value="0" step="0.5">
           </div>
         </div>
-        <p class="text-muted small mt-2 mb-0"><i class="fa fa-info-circle me-1"></i>Corner Sharpness and Curve Optimization are not supported by the current tracing engine.</p>
       </div>
 
     </div><!-- /control-panel -->
@@ -445,7 +437,7 @@ function traceWithImageTracer() {
   const colors = parseInt(document.getElementById('ctrl-colors').value, 10);
   const blur   = parseInt(document.getElementById('ctrl-blur').value, 10);
   const stroke = parseFloat(document.getElementById('ctrl-stroke').value);
-  const smooth = parseFloat(document.getElementById('ctrl-smooth').value);
+  const smooth = parseFloat(document.getElementById('ctrl-smooth-color').value);
 
   const options = {
     numberofcolors: colors,
@@ -513,7 +505,7 @@ async function traceWithPotrace() {
 
   const threshold = parseInt(document.getElementById('ctrl-threshold').value, 10);
   const turdsize  = parseInt(document.getElementById('ctrl-turdsize').value, 10);
-  const smooth    = parseFloat(document.getElementById('ctrl-smooth').value);
+  const smooth    = parseFloat(document.getElementById('ctrl-smooth-bw').value);
 
   // Pre-binarise: composite on white background then apply threshold.
   // This makes the Threshold slider functional even though potrace-wasm has no options API.
@@ -1150,10 +1142,10 @@ function initSliders() {
     ['ctrl-colors',    'val-colors'],
     ['ctrl-blur',      'val-blur'],
     ['ctrl-stroke',    'val-stroke'],
-    ['ctrl-smooth',    'val-smooth'],
-    ['ctrl-threshold', 'val-threshold'],
-    ['ctrl-turdsize',  'val-turdsize'],
-    ['ctrl-alphamax',  'val-alphamax'],
+    ['ctrl-smooth-color', 'val-smooth-color'],
+    ['ctrl-threshold',    'val-threshold'],
+    ['ctrl-turdsize',     'val-turdsize'],
+    ['ctrl-smooth-bw',    'val-smooth-bw'],
   ];
   pairs.forEach(([ctrlId, valId]) => {
     const ctrl = document.getElementById(ctrlId);
