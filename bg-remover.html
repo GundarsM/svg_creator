@@ -272,7 +272,543 @@
 </div><!-- /bg-remover-wrapper -->
 
 <script>
-// JS added in subsequent tasks
+// === STATE ===
+let currentMode      = 'smart'; // 'smart' | 'color'
+let currentImageFile = null;    // File object from upload
+let stemName         = '';      // filename without extension, for download
+let pickedColor      = null;    // { r, g, b } — Color Match mode
+let grabRect         = null;    // { x, y, w, h } in canvas pixels — Smart Removal
+let cvReady          = false;   // true once OpenCV WASM is ready
+let lastResultBlob   = null;    // Blob (PNG) from last removal
+let prevBeforeUrl    = null;    // object URL for before-img (revoked on replacement)
+let prevAfterUrl     = null;    // object URL for after-img (revoked on replacement)
+
+// Drag state for rect drawing (Smart mode)
+let rectDrawing = false;
+let rectX0 = 0, rectY0 = 0; // drag start in canvas pixels
+let rectX1 = 0, rectY1 = 0; // drag end in canvas pixels
+
+// Off-screen canvas for pixel processing (natural image dimensions)
+const processingCanvas = document.createElement('canvas');
+const processingCtx    = processingCanvas.getContext('2d');
+
+// === UTILITIES ===
+
+function updateProcessButtonState() {
+  const btn = document.getElementById('btn-process');
+  if (currentMode === 'smart') {
+    btn.disabled = !(currentImageFile && grabRect && cvReady);
+  } else {
+    btn.disabled = !(currentImageFile && pickedColor);
+  }
+}
+
+function setProcessLoading(loading) {
+  document.getElementById('btn-process-text').classList.toggle('d-none', loading);
+  document.getElementById('btn-process-spinner').classList.toggle('d-none', !loading);
+  if (loading) {
+    document.getElementById('btn-process').disabled = true;
+  } else {
+    updateProcessButtonState(); // re-enable only if app state allows it
+  }
+}
+
+function deriveStemName(filename) {
+  const i = filename.lastIndexOf('.');
+  return i > 0 ? filename.substring(0, i) : filename;
+}
+
+// === UPLOAD ZONE ===
+
+function handleImageLoad(file) {
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    document.getElementById('drop-error').classList.remove('d-none');
+    return;
+  }
+  document.getElementById('drop-error').classList.add('d-none');
+
+  currentImageFile = file;
+  stemName = deriveStemName(file.name);
+  pickedColor = null;
+  grabRect    = null;
+  rectDrawing = false;
+  lastResultBlob = null;
+
+  // Reset color swatch
+  document.getElementById('color-swatch').style.background = 'transparent';
+  document.getElementById('color-hint').textContent = 'Click image to pick';
+
+  // Reset result area
+  document.getElementById('result-panels').classList.add('d-none');
+  if (prevBeforeUrl) { URL.revokeObjectURL(prevBeforeUrl); prevBeforeUrl = null; }
+  if (prevAfterUrl)  { URL.revokeObjectURL(prevAfterUrl);  prevAfterUrl  = null; }
+
+  const img = new Image();
+  const decodeUrl = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(decodeUrl); // free decode URL immediately after drawing
+
+    // Draw into processing canvas (natural size)
+    processingCanvas.width  = img.naturalWidth;
+    processingCanvas.height = img.naturalHeight;
+    processingCtx.drawImage(img, 0, 0);
+
+    // Draw into visible preview-canvas (same pixel dimensions; CSS limits display size)
+    const pc = document.getElementById('preview-canvas');
+    pc.width  = img.naturalWidth;
+    pc.height = img.naturalHeight;
+    pc.getContext('2d').drawImage(img, 0, 0);
+
+    // Show canvas, hide prompt
+    document.getElementById('drop-zone').classList.add('has-image');
+    document.getElementById('drop-prompt').style.display = 'none';
+
+    // Show control panel
+    document.getElementById('control-panel').classList.remove('d-none');
+
+    // Show result-area if in smart mode (so cv-loading spinner is visible)
+    if (currentMode === 'smart') {
+      document.getElementById('result-area').classList.remove('d-none');
+    }
+
+    updateProcessButtonState();
+  };
+  img.src = decodeUrl;
+}
+
+function initUploadZone() {
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageLoad(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleImageLoad(fileInput.files[0]);
+    fileInput.value = '';
+  });
+}
+
+// === MODE SELECTOR ===
+
+function initModeSelector() {
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      currentMode = btn.dataset.mode;
+
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Toggle control panels
+      document.getElementById('controls-smart').classList.toggle('d-none', currentMode !== 'smart');
+      document.getElementById('controls-color').classList.toggle('d-none', currentMode !== 'color');
+
+      // Reset interaction state
+      grabRect    = null;
+      pickedColor = null;
+      rectDrawing = false;
+      lastResultBlob = null;
+
+      // Reset color swatch
+      document.getElementById('color-swatch').style.background = 'transparent';
+      document.getElementById('color-hint').textContent = 'Click image to pick';
+
+      // Hide result panels; show result-area only in smart mode (for CV loading spinner)
+      document.getElementById('result-panels').classList.add('d-none');
+      if (prevBeforeUrl) { URL.revokeObjectURL(prevBeforeUrl); prevBeforeUrl = null; }
+      if (prevAfterUrl)  { URL.revokeObjectURL(prevAfterUrl);  prevAfterUrl  = null; }
+
+      if (currentMode === 'smart' && currentImageFile) {
+        document.getElementById('result-area').classList.remove('d-none');
+      } else if (currentMode === 'color') {
+        document.getElementById('result-area').classList.add('d-none');
+      }
+
+      // Redraw preview canvas to clear any rect overlay
+      if (currentImageFile) drawPreviewCanvas();
+
+      updateProcessButtonState();
+    });
+  });
+}
+
+// === OPENCV LOADING ===
+
+function onCvReady() {
+  cvReady = true;
+  document.getElementById('cv-loading').classList.add('d-none');
+  updateProcessButtonState();
+}
+
+function waitForCv() {
+  if (window.cv && typeof window.cv.Mat === 'function') {
+    onCvReady();
+  } else if (window.cv && typeof window.cv.then === 'function') {
+    // Some builds return cv as a Promise
+    window.cv.then(instance => { window.cv = instance; onCvReady(); });
+  } else {
+    setTimeout(waitForCv, 100);
+  }
+}
+
+function initOpenCv() {
+  const script = document.getElementById('opencv-script');
+  script.addEventListener('load', waitForCv);
+  script.addEventListener('error', () => {
+    document.getElementById('cv-error').classList.remove('d-none');
+    document.getElementById('btn-mode-smart').disabled = true;
+    // Switch to color mode automatically
+    document.getElementById('btn-mode-color').click();
+  });
+  // If the script already loaded before DOMContentLoaded fired (cached), poll immediately
+  if (window.cv) waitForCv();
+}
+
+// === PREVIEW CANVAS INTERACTIONS ===
+
+function drawPreviewCanvas() {
+  const pc  = document.getElementById('preview-canvas');
+  const ctx = pc.getContext('2d');
+  ctx.drawImage(processingCanvas, 0, 0);
+
+  // Scale for converting CSS pixels to canvas pixels
+  const scaleX = pc.width / pc.offsetWidth;
+  const scaleY = pc.height / pc.offsetHeight;
+  const lw = Math.max(1, scaleX * 2); // 2 CSS px in canvas units
+
+  if (rectDrawing) {
+    ctx.save();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = lw;
+    ctx.setLineDash([lw * 4, lw * 2]);
+    ctx.strokeRect(rectX0, rectY0, rectX1 - rectX0, rectY1 - rectY0);
+    ctx.restore();
+  } else if (grabRect) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,200,50,0.9)';
+    ctx.lineWidth = lw;
+    ctx.setLineDash([lw * 4, lw * 2]);
+    ctx.strokeRect(grabRect.x, grabRect.y, grabRect.w, grabRect.h);
+    ctx.restore();
+  }
+}
+
+function handleRectStart(e) {
+  const pc = document.getElementById('preview-canvas');
+  if (!pc.offsetWidth) return; // canvas not yet visible
+  const scaleX = pc.width / pc.offsetWidth;
+  const scaleY = pc.height / pc.offsetHeight;
+  rectDrawing = true;
+  grabRect = null;
+  rectX0 = e.offsetX * scaleX;
+  rectY0 = e.offsetY * scaleY;
+  rectX1 = rectX0;
+  rectY1 = rectY0;
+}
+
+function handleRectDraw(e) {
+  if (!rectDrawing) return;
+  const pc = document.getElementById('preview-canvas');
+  if (!pc.offsetWidth) return;
+  const scaleX = pc.width / pc.offsetWidth;
+  const scaleY = pc.height / pc.offsetHeight;
+  rectX1 = e.offsetX * scaleX;
+  rectY1 = e.offsetY * scaleY;
+  drawPreviewCanvas();
+}
+
+function handleRectEnd(e) {
+  if (!rectDrawing) return;
+  rectDrawing = false;
+  const pc = document.getElementById('preview-canvas');
+  if (!pc.offsetWidth) { grabRect = null; updateProcessButtonState(); return; }
+  const scaleX = pc.width / pc.offsetWidth;
+  const scaleY = pc.height / pc.offsetHeight;
+  rectX1 = e.offsetX * scaleX;
+  rectY1 = e.offsetY * scaleY;
+  const x = Math.round(Math.min(rectX0, rectX1));
+  const y = Math.round(Math.min(rectY0, rectY1));
+  const w = Math.round(Math.abs(rectX1 - rectX0));
+  const h = Math.round(Math.abs(rectY1 - rectY0));
+  if (w > 4 && h > 4) {
+    grabRect = { x, y, w, h };
+  } else {
+    grabRect = null; // too small, ignore
+  }
+  drawPreviewCanvas();
+  updateProcessButtonState();
+}
+
+function handleColorPick(e) {
+  const pc = document.getElementById('preview-canvas');
+  const scaleX = processingCanvas.width / pc.offsetWidth;
+  const scaleY = processingCanvas.height / pc.offsetHeight;
+  const imgX = Math.floor(e.offsetX * scaleX);
+  const imgY = Math.floor(e.offsetY * scaleY);
+  const px = processingCtx.getImageData(
+    Math.min(imgX, processingCanvas.width  - 1),
+    Math.min(imgY, processingCanvas.height - 1),
+    1, 1
+  ).data;
+  pickedColor = { r: px[0], g: px[1], b: px[2] };
+  document.getElementById('color-swatch').style.background =
+    `rgb(${px[0]},${px[1]},${px[2]})`;
+  document.getElementById('color-hint').textContent =
+    `rgb(${px[0]}, ${px[1]}, ${px[2]})`;
+  updateProcessButtonState();
+}
+
+function initPreviewListeners() {
+  const pc = document.getElementById('preview-canvas');
+  pc.addEventListener('mousedown', (e) => { if (currentMode === 'smart') handleRectStart(e); });
+  pc.addEventListener('mousemove', (e) => { if (currentMode === 'smart') handleRectDraw(e); });
+  pc.addEventListener('mouseup',   (e) => { if (currentMode === 'smart') handleRectEnd(e); });
+  pc.addEventListener('mouseleave',(e) => { if (currentMode === 'smart' && rectDrawing) handleRectEnd(e); });
+  pc.addEventListener('click',     (e) => { if (currentMode === 'color') handleColorPick(e); });
+}
+
+// === RESULT DISPLAY & ACTIONS ===
+
+function displayResult(blob) {
+  lastResultBlob = blob;
+
+  // Revoke previous object URLs to free memory
+  if (prevBeforeUrl) URL.revokeObjectURL(prevBeforeUrl);
+  if (prevAfterUrl)  URL.revokeObjectURL(prevAfterUrl);
+
+  prevBeforeUrl = URL.createObjectURL(currentImageFile);
+  prevAfterUrl  = URL.createObjectURL(blob);
+
+  document.getElementById('before-img').src = prevBeforeUrl;
+  document.getElementById('after-img').src  = prevAfterUrl;
+
+  document.getElementById('result-area').classList.remove('d-none');
+  document.getElementById('cv-loading').classList.add('d-none');
+  document.getElementById('result-panels').classList.remove('d-none');
+}
+
+function downloadPng() {
+  if (!lastResultBlob) return;
+  const url = URL.createObjectURL(lastResultBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = stemName + '-no-bg.png';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyToClipboard() {
+  if (!lastResultBlob) return;
+  document.getElementById('copy-error').classList.add('d-none');
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': lastResultBlob })
+    ]);
+  } catch (e) {
+    document.getElementById('copy-error').textContent = 'Copy failed: ' + e.message;
+    document.getElementById('copy-error').classList.remove('d-none');
+  }
+}
+
+function initResultActions() {
+  document.getElementById('btn-download').addEventListener('click', downloadPng);
+  document.getElementById('btn-copy').addEventListener('click', copyToClipboard);
+
+  // Hide copy button if Clipboard API is unavailable
+  if (typeof ClipboardItem === 'undefined') {
+    document.getElementById('btn-copy').style.display = 'none';
+  }
+}
+
+// === CONTROLS ===
+
+function initSliders() {
+  const pairs = [
+    ['ctrl-iterations', 'val-iterations'],
+    ['ctrl-tolerance',  'val-tolerance'],
+    ['ctrl-feathering', 'val-feathering'],
+  ];
+  pairs.forEach(([ctrlId, valId]) => {
+    const ctrl = document.getElementById(ctrlId);
+    const val  = document.getElementById(valId);
+    if (ctrl && val) {
+      ctrl.addEventListener('input', () => { val.textContent = ctrl.value; });
+    }
+  });
+}
+
+// === COLOR MATCH ===
+
+/**
+ * In-place separable box blur on the alpha channel.
+ * data: Uint8ClampedArray (RGBA interleaved), w/h: image dimensions, r: blur radius.
+ */
+function boxBlurAlpha(data, w, h, r) {
+  if (r < 1) return;
+
+  // Extract alpha channel
+  const src = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) src[i] = data[i * 4 + 3];
+  const tmp = new Uint8ClampedArray(w * h);
+
+  // Horizontal pass (src → tmp) using sliding window
+  for (let y = 0; y < h; y++) {
+    const base = y * w;
+    let sum = 0;
+    for (let x = -r; x < w; x++) {
+      if (x + r < w) sum += src[base + x + r];
+      if (x - r - 1 >= 0) sum -= src[base + x - r - 1];
+      const lo = Math.max(0, x - r), hi = Math.min(w - 1, x + r);
+      if (x >= 0) tmp[base + x] = Math.round(sum / (hi - lo + 1));
+    }
+  }
+
+  // Vertical pass (tmp → src) using sliding window
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -r; y < h; y++) {
+      if (y + r < h) sum += tmp[(y + r) * w + x];
+      if (y - r - 1 >= 0) sum -= tmp[(y - r - 1) * w + x];
+      const lo = Math.max(0, y - r), hi = Math.min(h - 1, y + r);
+      if (y >= 0) src[y * w + x] = Math.round(sum / (hi - lo + 1));
+    }
+  }
+
+  // Write back
+  for (let i = 0; i < w * h; i++) data[i * 4 + 3] = src[i];
+}
+
+function runColorMatch() {
+  const tolerance  = parseInt(document.getElementById('ctrl-tolerance').value, 10);
+  const feathering = parseInt(document.getElementById('ctrl-feathering').value, 10);
+  const threshold  = tolerance * 4.41; // map 0–100 → 0–441 (max RGB distance)
+
+  const imageData = processingCtx.getImageData(
+    0, 0, processingCanvas.width, processingCanvas.height
+  );
+  const data = imageData.data;
+  const { r: pr, g: pg, b: pb } = pickedColor;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const dr = data[i]   - pr;
+    const dg = data[i+1] - pg;
+    const db = data[i+2] - pb;
+    if (Math.sqrt(dr*dr + dg*dg + db*db) <= threshold) {
+      data[i+3] = 0; // transparent
+    }
+  }
+
+  if (feathering > 0) {
+    boxBlurAlpha(data, processingCanvas.width, processingCanvas.height, feathering);
+  }
+
+  const resultCanvas = document.createElement('canvas');
+  resultCanvas.width  = processingCanvas.width;
+  resultCanvas.height = processingCanvas.height;
+  resultCanvas.getContext('2d').putImageData(imageData, 0, 0);
+  resultCanvas.toBlob(blob => {
+    setProcessLoading(false);
+    displayResult(blob);
+  }, 'image/png');
+}
+
+// === SMART REMOVAL ===
+
+function runGrabCut() {
+  const iterations = parseInt(document.getElementById('ctrl-iterations').value, 10);
+
+  // Read original RGBA from processing canvas
+  const rgba = cv.imread(processingCanvas);
+
+  // Convert to BGR (3-channel) — GrabCut requires CV_8UC3, not RGBA
+  const bgr = new cv.Mat();
+  cv.cvtColor(rgba, bgr, cv.COLOR_RGBA2BGR);
+
+  const mask     = new cv.Mat();
+  const bgdModel = new cv.Mat();
+  const fgdModel = new cv.Mat();
+  const rect = new cv.Rect(grabRect.x, grabRect.y, grabRect.w, grabRect.h);
+
+  try {
+    cv.grabCut(bgr, mask, rect, bgdModel, fgdModel, iterations, cv.GC_INIT_WITH_RECT);
+
+    // Apply mask to the RGBA Mat: background pixels → alpha 0
+    for (let row = 0; row < rgba.rows; row++) {
+      for (let col = 0; col < rgba.cols; col++) {
+        const m = mask.ucharAt(row, col);
+        if (m === cv.GC_BGD || m === cv.GC_PR_BGD) {
+          rgba.ucharPtr(row, col)[3] = 0;
+        }
+      }
+    }
+
+    // cv.imshow is synchronous — copies all pixels into canvas before returning.
+    // toBlob reads from canvas buffer (independent of Mat memory), so it is safe
+    // to delete Mats in finally even though toBlob is async.
+    const resultCanvas = document.createElement('canvas');
+    resultCanvas.width  = rgba.cols;
+    resultCanvas.height = rgba.rows;
+    cv.imshow(resultCanvas, rgba);
+    resultCanvas.toBlob(blob => {
+      setProcessLoading(false);
+      displayResult(blob);
+    }, 'image/png');
+
+  } catch (err) {
+    setProcessLoading(false);
+    alert('Smart Removal failed: ' + err.message);
+  } finally {
+    rgba.delete();
+    bgr.delete();
+    mask.delete();
+    bgdModel.delete();
+    fgdModel.delete();
+  }
+}
+
+// === PROCESS BUTTON ===
+
+function initProcessButton() {
+  document.getElementById('btn-process').addEventListener('click', async () => {
+    setProcessLoading(true);
+    await new Promise(r => requestAnimationFrame(r)); // yield so browser paints spinner
+    try {
+      if (currentMode === 'smart') {
+        runGrabCut(); // async via toBlob callback — setProcessLoading(false) called inside
+      } else {
+        runColorMatch(); // async via toBlob callback — setProcessLoading(false) called inside
+      }
+    } catch (err) {
+      alert('Removal failed: ' + err.message);
+      setProcessLoading(false);
+      updateProcessButtonState();
+    }
+  });
+}
+
+// === INIT ===
+document.addEventListener('DOMContentLoaded', () => {
+  initUploadZone();
+  initModeSelector();
+  initOpenCv();
+  initPreviewListeners();
+  initSliders();
+  initProcessButton();
+  initResultActions();
+});
 </script>
 </body>
 </html>
