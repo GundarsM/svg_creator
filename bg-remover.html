@@ -88,6 +88,7 @@
       max-height: 300px;
       border-radius: 4px;
     }
+    #bg-remover-wrapper #preview-canvas.cursor-crosshair { cursor: crosshair; }
     #bg-remover-wrapper #drop-zone.has-image #preview-canvas {
       display: block;
       margin: 0 auto;
@@ -216,7 +217,7 @@
             <div class="control-label">Background Color</div>
             <div class="d-flex align-items-center gap-2">
               <span id="color-swatch"></span>
-              <span class="text-muted small" id="color-hint">Click image to pick</span>
+              <span class="small" id="color-hint" style="color:#ffe066;">Click image to pick</span>
             </div>
           </div>
         </div>
@@ -308,6 +309,11 @@ function updateProcessButtonState() {
   }
 }
 
+function autoProcess() {
+  const btn = document.getElementById('btn-process');
+  if (!btn.disabled) btn.click();
+}
+
 function setProcessLoading(loading) {
   document.getElementById('btn-process-text').classList.toggle('d-none', loading);
   document.getElementById('btn-process-spinner').classList.toggle('d-none', !loading);
@@ -376,6 +382,9 @@ function handleImageLoad(file) {
     if (currentMode === 'smart') {
       document.getElementById('result-area').classList.remove('d-none');
     }
+
+    // Crosshair cursor if already in color mode
+    document.getElementById('preview-canvas').classList.toggle('cursor-crosshair', currentMode === 'color');
 
     updateProcessButtonState();
   };
@@ -447,6 +456,9 @@ function initModeSelector() {
 
       // Redraw preview canvas to clear any rect overlay
       if (currentImageFile) drawPreviewCanvas();
+
+      // Crosshair cursor in color mode for pick affordance
+      document.getElementById('preview-canvas').classList.toggle('cursor-crosshair', currentMode === 'color');
 
       updateProcessButtonState();
     });
@@ -558,6 +570,7 @@ function handleRectEnd(e) {
   }
   drawPreviewCanvas();
   updateProcessButtonState();
+  autoProcess();
 }
 
 function handleColorPick(e) {
@@ -577,6 +590,7 @@ function handleColorPick(e) {
   document.getElementById('color-hint').textContent =
     `rgb(${px[0]}, ${px[1]}, ${px[2]})`;
   updateProcessButtonState();
+  autoProcess();
 }
 
 function initPreviewListeners() {
@@ -654,6 +668,7 @@ function initSliders() {
     const val  = document.getElementById(valId);
     if (ctrl && val) {
       ctrl.addEventListener('input', () => { val.textContent = ctrl.value; });
+      ctrl.addEventListener('change', () => autoProcess()); // fires on mouseup/touchend
     }
   });
 }
