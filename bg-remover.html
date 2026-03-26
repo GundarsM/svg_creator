@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Background Remover - HillSpring Crafts</title>
+
+  <!-- Bootstrap inside CSS layer so Squarespace styles always win -->
+  <style>@import url("https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css") layer(bootstrap);</style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- OpenCV.js — version pinned at 4.8.0-release.1, do not bump without re-testing init path -->
+  <script id="opencv-script" src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.8.0-release.1/dist/opencv.js"></script>
+
+  <style>
+    /* Prevent Bootstrap from affecting Squarespace sections outside this tool */
+    body > *:not(#bg-remover-wrapper) .container,
+    body > *:not(#bg-remover-wrapper) .container-fluid,
+    body > *:not(#bg-remover-wrapper) .row,
+    body > section .container,
+    body > section .container-fluid,
+    body > div:not(#bg-remover-wrapper) > .container,
+    body > div:not(#bg-remover-wrapper) > .container-fluid {
+      max-width: none !important;
+      width: 100% !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+    }
+
+    :root { --lunar-green: #344734; }
+
+    #bg-remover-wrapper {
+      font-family: 'Athelas', Georgia, serif;
+      background-color: var(--lunar-green);
+      color: white;
+      padding: 1.5rem;
+      min-height: 100vh;
+      margin: 0;
+      clear: both;
+      overflow: visible;
+    }
+    #bg-remover-wrapper h2 {
+      font-family: 'IvyMode', 'Times New Roman', serif;
+    }
+
+    /* Mode toggle */
+    #bg-remover-wrapper .mode-btn {
+      border: 2px solid rgba(255,255,255,0.4);
+      color: white;
+      background: transparent;
+      padding: 0.6rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.15s;
+    }
+    #bg-remover-wrapper .mode-btn.active {
+      background: rgba(255,255,255,0.2);
+      border-color: white;
+    }
+    #bg-remover-wrapper .mode-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Upload / drop zone */
+    #drop-zone {
+      border: 2px dashed rgba(255,255,255,0.4);
+      border-radius: 8px;
+      padding: 3rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    #drop-zone.drag-over {
+      border-color: white;
+      background: rgba(255,255,255,0.05);
+    }
+    #drop-zone.has-image {
+      padding: 0.5rem;
+      border-style: solid;
+    }
+    #preview-canvas {
+      display: none;
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 4px;
+    }
+    #drop-zone.has-image #preview-canvas {
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Control labels */
+    #bg-remover-wrapper .control-label {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.75);
+      margin-bottom: 0.2rem;
+    }
+    #bg-remover-wrapper .form-range { accent-color: white; }
+    #bg-remover-wrapper .value-badge {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.6);
+      min-width: 2.5rem;
+      display: inline-block;
+    }
+
+    /* Colour swatch */
+    #color-swatch {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 4px;
+      border: 2px solid rgba(255,255,255,0.4);
+      background: transparent;
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    /* Result panels */
+    #result-area .panel-label {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      margin-bottom: 0.25rem;
+    }
+    #result-area img {
+      width: 100%;
+      max-height: 400px;
+      object-fit: contain;
+      border-radius: 6px;
+      display: block;
+    }
+    .checkerboard {
+      background-color: #ccc;
+      background-image:
+        linear-gradient(45deg, #fff 25%, transparent 25%),
+        linear-gradient(-45deg, #fff 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #fff 75%),
+        linear-gradient(-45deg, transparent 75%, #fff 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+<div id="bg-remover-wrapper">
+  <div class="container-fluid px-0">
+
+    <h2 class="mb-3 text-white">Background Remover</h2>
+
+    <!-- ZONE 1: Mode selector -->
+    <div class="mb-3 d-flex gap-2">
+      <button class="mode-btn active" data-mode="smart" id="btn-mode-smart">
+        <i class="fa fa-wand-magic-sparkles me-1"></i> Smart Removal
+      </button>
+      <button class="mode-btn" data-mode="color" id="btn-mode-color">
+        <i class="fa fa-eye-dropper me-1"></i> Color Match
+      </button>
+    </div>
+
+    <!-- ZONE 2: Upload zone -->
+    <div id="drop-zone" class="mb-3" tabindex="0" role="button" aria-label="Upload image">
+      <div id="drop-prompt">
+        <i class="fa fa-cloud-upload-alt fa-2x mb-2 d-block"></i>
+        <div>Drag &amp; drop a JPG or PNG here, or <span class="text-decoration-underline">click to browse</span></div>
+      </div>
+      <canvas id="preview-canvas"></canvas>
+      <input type="file" id="file-input" accept=".jpg,.jpeg,.png" class="d-none">
+    </div>
+    <div id="drop-error" class="text-warning mb-2 d-none">
+      <i class="fa fa-exclamation-triangle me-1"></i>
+      <span id="drop-error-text">Please upload a JPG or PNG file.</span>
+    </div>
+
+    <!-- ZONE 3: Controls (hidden until image loaded) -->
+    <div id="control-panel" class="mb-3 d-none">
+
+      <!-- Smart Removal controls -->
+      <div id="controls-smart">
+        <div id="cv-error" class="d-none text-warning mb-2">
+          <i class="fa fa-exclamation-triangle me-1"></i>
+          Smart Removal engine failed to load. Use Color Match instead.
+        </div>
+        <div class="row g-3">
+          <div class="col-6 col-md-4">
+            <div class="control-label">Iterations <span class="value-badge" id="val-iterations">3</span></div>
+            <input type="range" class="form-range" id="ctrl-iterations" min="1" max="5" value="3" step="1">
+          </div>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+          <i class="fa fa-info-circle me-1"></i>Draw a rectangle around the subject on the image above, then click Remove Background.
+        </p>
+      </div>
+
+      <!-- Color Match controls -->
+      <div id="controls-color" class="d-none">
+        <div class="row g-3 align-items-end">
+          <div class="col-6 col-md-4">
+            <div class="control-label">Tolerance <span class="value-badge" id="val-tolerance">30</span></div>
+            <input type="range" class="form-range" id="ctrl-tolerance" min="0" max="100" value="30" step="1">
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="control-label">Feathering <span class="value-badge" id="val-feathering">2</span>px</div>
+            <input type="range" class="form-range" id="ctrl-feathering" min="0" max="10" value="2" step="1">
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="control-label">Background Color</div>
+            <div class="d-flex align-items-center gap-2">
+              <span id="color-swatch"></span>
+              <span class="text-muted small" id="color-hint">Click image to pick</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /control-panel -->
+
+    <!-- ZONE 4: Process button -->
+    <div class="mb-3">
+      <button class="btn btn-light w-100 py-2 fw-semibold" id="btn-process" disabled>
+        <span id="btn-process-text"><i class="fa fa-scissors me-1"></i> Remove Background</span>
+        <span id="btn-process-spinner" class="d-none">
+          <span class="spinner-border spinner-border-sm me-1" role="status"></span> Removing&hellip;
+        </span>
+      </button>
+    </div>
+
+    <!-- ZONE 5: Result area -->
+    <div id="result-area" class="d-none mb-3">
+
+      <!-- Zone 5b: CV loading indicator (shown while OpenCV loads) -->
+      <div id="cv-loading" class="text-center py-4">
+        <div class="spinner-border text-light" role="status" style="width:3rem;height:3rem;">
+          <span class="visually-hidden">Loading…</span>
+        </div>
+        <div class="mt-2">Loading Smart Removal engine…</div>
+        <div class="text-muted small">This takes a moment on first use.</div>
+      </div>
+
+      <!-- Before / After panels (hidden while CV loading, shown after first result) -->
+      <div id="result-panels" class="d-none">
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <div class="panel-label">Before</div>
+            <img id="before-img" alt="Original">
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="panel-label">After</div>
+            <div class="checkerboard">
+              <img id="after-img" alt="Background removed">
+            </div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-light flex-fill" id="btn-download">
+            <i class="fa fa-download me-1"></i> Download PNG
+          </button>
+          <button class="btn btn-outline-light flex-fill" id="btn-copy">
+            <i class="fa fa-copy me-1"></i> Copy to Clipboard
+          </button>
+        </div>
+        <div id="copy-error" class="d-none text-warning small mt-1"></div>
+      </div>
+
+    </div><!-- /result-area -->
+
+  </div><!-- /container-fluid -->
+</div><!-- /bg-remover-wrapper -->
+
+<script>
+// JS added in subsequent tasks
+</script>
+</body>
+</html>
