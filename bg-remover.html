@@ -539,10 +539,10 @@ function handleRectEnd(e) {
   const scaleY = pc.height / pc.offsetHeight;
   rectX1 = e.offsetX * scaleX;
   rectY1 = e.offsetY * scaleY;
-  const x = Math.round(Math.min(rectX0, rectX1));
-  const y = Math.round(Math.min(rectY0, rectY1));
-  const w = Math.round(Math.abs(rectX1 - rectX0));
-  const h = Math.round(Math.abs(rectY1 - rectY0));
+  const x = Math.round(Math.max(0, Math.min(rectX0, rectX1)));
+  const y = Math.round(Math.max(0, Math.min(rectY0, rectY1)));
+  const w = Math.round(Math.min(Math.abs(rectX1 - rectX0), processingCanvas.width  - x));
+  const h = Math.round(Math.min(Math.abs(rectY1 - rectY0), processingCanvas.height - y));
   if (w > 4 && h > 4) {
     grabRect = { x, y, w, h };
   } else {
@@ -582,14 +582,14 @@ function initPreviewListeners() {
 
 // === RESULT DISPLAY & ACTIONS ===
 
-function displayResult(blob) {
+function displayResult(blob, sourceFile) {
   lastResultBlob = blob;
 
   // Revoke previous object URLs to free memory
   if (prevBeforeUrl) URL.revokeObjectURL(prevBeforeUrl);
   if (prevAfterUrl)  URL.revokeObjectURL(prevAfterUrl);
 
-  prevBeforeUrl = URL.createObjectURL(currentImageFile);
+  prevBeforeUrl = URL.createObjectURL(sourceFile);
   prevAfterUrl  = URL.createObjectURL(blob);
 
   document.getElementById('before-img').src = prevBeforeUrl;
@@ -692,6 +692,7 @@ function boxBlurAlpha(data, w, h, r) {
 }
 
 function runColorMatch() {
+  const sourceFile = currentImageFile; // capture before any async gap
   const tolerance  = parseInt(document.getElementById('ctrl-tolerance').value, 10);
   const feathering = parseInt(document.getElementById('ctrl-feathering').value, 10);
   const threshold  = tolerance * 4.41; // map 0–100 → 0–441 (max RGB distance)
@@ -721,13 +722,14 @@ function runColorMatch() {
   resultCanvas.getContext('2d').putImageData(imageData, 0, 0);
   resultCanvas.toBlob(blob => {
     setProcessLoading(false);
-    displayResult(blob);
+    displayResult(blob, sourceFile);
   }, 'image/png');
 }
 
 // === SMART REMOVAL ===
 
 function runGrabCut() {
+  const sourceFile = currentImageFile; // capture before any async gap
   const iterations = parseInt(document.getElementById('ctrl-iterations').value, 10);
 
   // Read original RGBA from processing canvas
@@ -764,7 +766,7 @@ function runGrabCut() {
     cv.imshow(resultCanvas, rgba);
     resultCanvas.toBlob(blob => {
       setProcessLoading(false);
-      displayResult(blob);
+      displayResult(blob, sourceFile);
     }, 'image/png');
 
   } catch (err) {
