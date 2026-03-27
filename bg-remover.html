@@ -154,7 +154,9 @@
         display: block;
         border-radius: 6px;
         transform-origin: center center;
+        cursor: grab;
       }
+      #bg-remover-wrapper #after-canvas:active { cursor: grabbing; }
       #bg-remover-wrapper #after-canvas.brush-active { cursor: none; }
       #bg-remover-wrapper #zoom-label {
         position: absolute;
@@ -344,11 +346,13 @@ let lastResultBlob   = null;    // Blob (PNG) from last removal
 let prevBeforeUrl    = null;    // object URL for before-img (revoked on replacement)
 let prevAfterUrl     = null;    // object URL for after-img (revoked on replacement)
 
-  // Brush / zoom state
+  // Brush / zoom / pan state
   let activeBrush = null;  // 'erase' | 'restore' | null
   let brushSize   = 30;    // diameter in canvas pixels at 1× zoom
   let isPainting  = false;
   let zoomLevel   = 1.0;   // 1.0–8.0; CSS scale applied to #after-canvas
+  let panX        = 0;     // CSS translate offset in screen px
+  let panY        = 0;
 
 // Drag state for rect drawing (Smart mode)
 let rectDrawing = false;
@@ -482,12 +486,12 @@ function initUploadZone() {
 // === MODE SELECTOR ===
 
 function initModeSelector() {
-  document.querySelectorAll('.mode-btn').forEach(btn => {
+  document.querySelectorAll('.mode-btn[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
       currentMode = btn.dataset.mode;
 
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.mode-btn[data-mode]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
       // Toggle control panels
@@ -686,13 +690,14 @@ function initPreviewListeners() {
     };
     img.src = url;
 
-    // Reset brush and zoom state
-    activeBrush = null; isPainting = false; zoomLevel = 1.0;
+    // Reset zoom/pan; default to erase brush
+    isPainting = false; zoomLevel = 1.0; panX = 0; panY = 0;
     ac.style.transform = '';
     document.getElementById('zoom-label').style.display = 'none';
-    document.getElementById('btn-brush-erase').classList.remove('active');
+    activeBrush = 'erase';
+    document.getElementById('btn-brush-erase').classList.add('active');
     document.getElementById('btn-brush-restore').classList.remove('active');
-    ac.classList.remove('brush-active');
+    ac.classList.add('brush-active');
 
     // Show brush toolbar and result panels
     document.getElementById('brush-toolbar').classList.remove('d-none');
@@ -935,14 +940,29 @@ function initProcessButton() {
     const wrap   = document.getElementById('after-canvas-wrap');
     const cursor = document.getElementById('brush-cursor');
 
+    // Apply current zoom + pan transform to canvas
+    function applyTransform() {
+      const label = document.getElementById('zoom-label');
+      if (zoomLevel === 1.0 && panX === 0 && panY === 0) {
+        ac.style.transform = '';
+        label.style.display = 'none';
+      } else {
+        ac.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+        label.style.display = 'block';
+        label.textContent = zoomLevel.toFixed(1) + '\u00d7';
+      }
+    }
+
     // Brush button toggles
     ['btn-brush-erase', 'btn-brush-restore'].forEach(id => {
       document.getElementById(id).addEventListener('click', () => {
         const mode = id === 'btn-brush-erase' ? 'erase' : 'restore';
         if (activeBrush === mode) {
+          // Deactivate — switch to pan mode
           activeBrush = null;
           document.getElementById(id).classList.remove('active');
           ac.classList.remove('brush-active');
+          cursor.style.display = 'none';
         } else {
           activeBrush = mode;
           document.getElementById('btn-brush-erase').classList.toggle('active', mode === 'erase');
@@ -969,32 +989,47 @@ function initProcessButton() {
 
     // Cursor sizing helper
     function updateBrushCursor(e) {
+      if (!ac.width) return;
       const rect = ac.getBoundingClientRect();
       const screenDiam = brushSize * (rect.width / ac.width) * 2;
       cursor.style.width  = screenDiam + 'px';
       cursor.style.height = screenDiam + 'px';
       cursor.style.left   = e.clientX + 'px';
       cursor.style.top    = e.clientY + 'px';
+      cursor.style.display = 'block';
     }
+
+    // Pan state (local — only used in mouse handlers)
+    let panStart = null;
 
     // Canvas mouse events
     ac.addEventListener('mousedown', (e) => {
-      if (!activeBrush || !ac.width) return;
-      isPainting = true;
-      applyBrush(ac, getCanvasCoords(e));
+      if (!ac.width) return;
+      if (activeBrush) {
+        isPainting = true;
+        applyBrush(ac, getCanvasCoords(e));
+      } else {
+        panStart = { x: e.clientX - panX, y: e.clientY - panY };
+      }
     });
     ac.addEventListener('mousemove', (e) => {
-      if (!activeBrush) return;
-      updateBrushCursor(e);
-      if (isPainting) applyBrush(ac, getCanvasCoords(e));
+      if (activeBrush) {
+        updateBrushCursor(e);
+        if (isPainting) applyBrush(ac, getCanvasCoords(e));
+      } else if (panStart) {
+        panX = e.clientX - panStart.x;
+        panY = e.clientY - panStart.y;
+        applyTransform();
+      }
     });
-    ac.addEventListener('mouseup', () => { isPainting = false; });
+    ac.addEventListener('mouseup', () => { isPainting = false; panStart = null; });
     ac.addEventListener('mouseleave', () => {
       isPainting = false;
+      panStart = null;
       cursor.style.display = 'none';
     });
     ac.addEventListener('mouseenter', (e) => {
-      if (activeBrush) { cursor.style.display = 'block'; updateBrushCursor(e); }
+      if (activeBrush) updateBrushCursor(e);
     });
 
     // Scroll-wheel zoom (attached to wrap so the whole checkerboard area responds)
@@ -1003,14 +1038,7 @@ function initProcessButton() {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 0.15 : -0.15;
       zoomLevel = Math.min(8.0, Math.max(1.0, zoomLevel + delta));
-      ac.style.transform = zoomLevel === 1.0 ? '' : `scale(${zoomLevel})`;
-      const label = document.getElementById('zoom-label');
-      if (zoomLevel === 1.0) {
-        label.style.display = 'none';
-      } else {
-        label.style.display = 'block';
-        label.textContent = zoomLevel.toFixed(1) + '\u00d7';
-      }
+      applyTransform();
     }, { passive: false });
   }
 
