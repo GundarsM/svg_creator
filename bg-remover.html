@@ -809,7 +809,9 @@ function runGrabCut() {
 function initProcessButton() {
   document.getElementById('btn-process').addEventListener('click', async () => {
     setProcessLoading(true);
-    await new Promise(r => requestAnimationFrame(r)); // yield so browser paints spinner
+    // Double rAF: first schedules the paint, second fires after it has committed to screen.
+    // Without this, GrabCut's synchronous pixel loop blocks the thread before the spinner renders.
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       if (currentMode === 'smart') {
         runGrabCut(); // async via toBlob callback — setProcessLoading(false) called inside
