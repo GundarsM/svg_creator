@@ -134,6 +134,27 @@
       border-radius: 6px;
       display: block;
     }
+    #bg-remover-wrapper #after-canvas {
+      max-width: 100%;
+      max-height: 400px;
+      display: block;
+      border-radius: 6px;
+    }
+    #bg-remover-wrapper #after-canvas.brush-active { cursor: none; }
+    #brush-cursor {
+      position: fixed;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+      pointer-events: none;
+      display: none;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+    }
+    #bg-remover-wrapper .brush-btn.active {
+      background: rgba(255,255,255,0.25);
+      border-color: white;
+    }
     #bg-remover-wrapper .checkerboard {
       background-color: #ccc;
       background-image:
@@ -257,10 +278,25 @@
           <div class="col-12 col-md-6">
             <div class="panel-label">After</div>
             <div class="checkerboard">
-              <img id="after-img" alt="Background removed">
+              <canvas id="after-canvas"></canvas>
             </div>
           </div>
         </div>
+
+        <!-- Brush toolbar -->
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2 mt-1">
+          <button class="mode-btn brush-btn" id="btn-brush-erase" title="Erase — make pixels transparent">
+            <i class="fa fa-eraser me-1"></i> Erase
+          </button>
+          <button class="mode-btn brush-btn" id="btn-brush-restore" title="Restore — bring pixels back">
+            <i class="fa fa-paintbrush me-1"></i> Restore
+          </button>
+          <div class="d-flex align-items-center gap-2 flex-fill ms-2">
+            <span class="control-label mb-0" style="white-space:nowrap">Size <span id="val-brush-size">30</span>px</span>
+            <input type="range" class="form-range flex-fill" id="ctrl-brush-size" min="5" max="150" value="30" step="1">
+          </div>
+        </div>
+
         <div class="d-flex gap-2 flex-wrap">
           <button class="btn btn-outline-light flex-fill" id="btn-download">
             <i class="fa fa-download me-1"></i> Download PNG
@@ -276,6 +312,7 @@
 
   </div><!-- /container-fluid -->
 </div><!-- /bg-remover-wrapper -->
+<div id="brush-cursor"></div>
 
 <script>
 // === STATE ===
@@ -288,6 +325,11 @@ let cvReady          = false;   // true once OpenCV WASM is ready
 let lastResultBlob   = null;    // Blob (PNG) from last removal
 let prevBeforeUrl    = null;    // object URL for before-img (revoked on replacement)
 let prevAfterUrl     = null;    // object URL for after-img (revoked on replacement)
+
+// Brush state
+let activeBrush = null;  // 'erase' | 'restore' | null
+let brushSize   = 30;    // display pixels diameter
+let isPainting  = false;
 
 // Drag state for rect drawing (Smart mode)
 let rectDrawing = false;
@@ -607,42 +649,160 @@ function initPreviewListeners() {
 function displayResult(blob, sourceFile) {
   lastResultBlob = blob;
 
-  // Revoke previous object URLs to free memory
+  // Reset brush state for the new result
+  activeBrush = null;
+  isPainting  = false;
+  document.getElementById('btn-brush-erase').classList.remove('active');
+  document.getElementById('btn-brush-restore').classList.remove('active');
+  document.getElementById('after-canvas').classList.remove('brush-active');
+
+  // Before image
   if (prevBeforeUrl) URL.revokeObjectURL(prevBeforeUrl);
-  if (prevAfterUrl)  URL.revokeObjectURL(prevAfterUrl);
-
   prevBeforeUrl = URL.createObjectURL(sourceFile);
-  prevAfterUrl  = URL.createObjectURL(blob);
-
   document.getElementById('before-img').src = prevBeforeUrl;
-  document.getElementById('after-img').src  = prevAfterUrl;
+
+  // After: draw blob into the canvas
+  if (prevAfterUrl) { URL.revokeObjectURL(prevAfterUrl); prevAfterUrl = null; }
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const ac = document.getElementById('after-canvas');
+    ac.width  = img.naturalWidth;
+    ac.height = img.naturalHeight;
+    ac.getContext('2d').drawImage(img, 0, 0);
+  };
+  img.src = url;
 
   document.getElementById('result-area').classList.remove('d-none');
   document.getElementById('cv-loading').classList.add('d-none');
   document.getElementById('result-panels').classList.remove('d-none');
 }
 
+function syncResultBlob() {
+  const ac = document.getElementById('after-canvas');
+  ac.toBlob(blob => { lastResultBlob = blob; }, 'image/png');
+}
+
 function downloadPng() {
-  if (!lastResultBlob) return;
-  const url = URL.createObjectURL(lastResultBlob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = stemName + '-no-bg.png';
-  a.click();
-  URL.revokeObjectURL(url);
+  const ac = document.getElementById('after-canvas');
+  if (!ac.width) return;
+  ac.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = stemName + '-no-bg.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
 }
 
 async function copyToClipboard() {
-  if (!lastResultBlob) return;
+  const ac = document.getElementById('after-canvas');
+  if (!ac.width) return;
   document.getElementById('copy-error').classList.add('d-none');
-  try {
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'image/png': lastResultBlob })
-    ]);
-  } catch (e) {
-    document.getElementById('copy-error').textContent = 'Copy failed: ' + e.message;
-    document.getElementById('copy-error').classList.remove('d-none');
+  ac.toBlob(async blob => {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    } catch (e) {
+      document.getElementById('copy-error').textContent = 'Copy failed: ' + e.message;
+      document.getElementById('copy-error').classList.remove('d-none');
+    }
+  }, 'image/png');
+}
+
+// === BRUSH TOOLS ===
+
+function applyBrush(offsetX, offsetY) {
+  const ac  = document.getElementById('after-canvas');
+  const ctx = ac.getContext('2d');
+
+  // Scale display coordinates to canvas pixel coordinates
+  const scaleX = ac.width  / ac.offsetWidth;
+  const scaleY = ac.height / ac.offsetHeight;
+  const cx = offsetX * scaleX;
+  const cy = offsetY * scaleY;
+  const r  = (brushSize / 2) * Math.max(scaleX, scaleY);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  if (activeBrush === 'erase') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'black';
+    ctx.fill();
+  } else {
+    // Restore: paint original image pixels back, clipped to circle
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(processingCanvas, 0, 0, ac.width, ac.height);
   }
+
+  ctx.restore();
+}
+
+function initBrushTools() {
+  const ac     = document.getElementById('after-canvas');
+  const cursor = document.getElementById('brush-cursor');
+  const sizeSlider = document.getElementById('ctrl-brush-size');
+  const sizeLabel  = document.getElementById('val-brush-size');
+
+  // Brush button toggles
+  ['btn-brush-erase', 'btn-brush-restore'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      const mode = id === 'btn-brush-erase' ? 'erase' : 'restore';
+      if (activeBrush === mode) {
+        // deactivate
+        activeBrush = null;
+        document.getElementById(id).classList.remove('active');
+        ac.classList.remove('brush-active');
+      } else {
+        activeBrush = mode;
+        document.getElementById('btn-brush-erase').classList.toggle('active', mode === 'erase');
+        document.getElementById('btn-brush-restore').classList.toggle('active', mode === 'restore');
+        ac.classList.add('brush-active');
+      }
+    });
+  });
+
+  // Size slider
+  sizeSlider.addEventListener('input', () => {
+    brushSize = parseInt(sizeSlider.value, 10);
+    sizeLabel.textContent = brushSize;
+    cursor.style.width  = brushSize + 'px';
+    cursor.style.height = brushSize + 'px';
+  });
+
+  // Floating cursor follows mouse
+  ac.addEventListener('mousemove', (e) => {
+    if (!activeBrush) return;
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top  = e.clientY + 'px';
+    cursor.style.width  = brushSize + 'px';
+    cursor.style.height = brushSize + 'px';
+    if (isPainting) applyBrush(e.offsetX, e.offsetY);
+  });
+  ac.addEventListener('mouseenter', (e) => {
+    if (!activeBrush) return;
+    cursor.style.display = 'block';
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top  = e.clientY + 'px';
+  });
+  ac.addEventListener('mouseleave', () => {
+    cursor.style.display = 'none';
+    if (isPainting) { isPainting = false; syncResultBlob(); }
+  });
+  ac.addEventListener('mousedown', (e) => {
+    if (!activeBrush) return;
+    isPainting = true;
+    applyBrush(e.offsetX, e.offsetY);
+  });
+  ac.addEventListener('mouseup', () => {
+    if (!isPainting) return;
+    isPainting = false;
+    syncResultBlob();
+  });
 }
 
 function initResultActions() {
@@ -835,6 +995,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSliders();
   initProcessButton();
   initResultActions();
+  initBrushTools();
 });
 </script>
 </body>
