@@ -145,6 +145,43 @@
       background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
       border-radius: 6px;
     }
+
+      /* After canvas + brush/zoom UI */
+      #bg-remover-wrapper #after-canvas {
+        width: 100%;
+        max-width: 100%;
+        max-height: 400px;
+        display: block;
+        border-radius: 6px;
+        transform-origin: center center;
+      }
+      #bg-remover-wrapper #after-canvas.brush-active { cursor: none; }
+      #bg-remover-wrapper #zoom-label {
+        position: absolute;
+        bottom: 6px;
+        right: 8px;
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.7);
+        background: rgba(0,0,0,0.4);
+        padding: 1px 5px;
+        border-radius: 3px;
+        pointer-events: none;
+        display: none;
+      }
+      #bg-remover-wrapper .brush-btn.active {
+        background: rgba(255,255,255,0.25);
+        border-color: white;
+      }
+      #brush-cursor {
+        position: fixed;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+        pointer-events: none;
+        display: none;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+      }
   </style>
 </head>
 <body>
