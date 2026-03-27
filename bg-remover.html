@@ -197,7 +197,7 @@
             <input type="range" class="form-range" id="ctrl-iterations" min="1" max="5" value="3" step="1">
           </div>
         </div>
-        <p class="text-muted small mt-2 mb-0">
+        <p class="small mt-2 mb-0" style="color:#ffe066;">
           <i class="fa fa-info-circle me-1"></i>Draw a rectangle around the subject on the image above, then click Remove Background.
         </p>
       </div>
@@ -384,7 +384,7 @@ function handleImageLoad(file) {
     }
 
     // Crosshair cursor if already in color mode
-    document.getElementById('preview-canvas').classList.toggle('cursor-crosshair', currentMode === 'color');
+    document.getElementById('preview-canvas').classList.add('cursor-crosshair');
 
     updateProcessButtonState();
   };
@@ -458,7 +458,7 @@ function initModeSelector() {
       if (currentImageFile) drawPreviewCanvas();
 
       // Crosshair cursor in color mode for pick affordance
-      document.getElementById('preview-canvas').classList.toggle('cursor-crosshair', currentMode === 'color');
+      document.getElementById('preview-canvas').classList.add('cursor-crosshair');
 
       updateProcessButtonState();
     });
