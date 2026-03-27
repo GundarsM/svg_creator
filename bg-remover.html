@@ -991,7 +991,7 @@ function initProcessButton() {
     function updateBrushCursor(e) {
       if (!ac.width) return;
       const rect = ac.getBoundingClientRect();
-      const screenDiam = brushSize * (rect.width / ac.width) * 2;
+      const screenDiam = brushSize * (rect.width / ac.width);
       cursor.style.width  = screenDiam + 'px';
       cursor.style.height = screenDiam + 'px';
       cursor.style.left   = e.clientX + 'px';
@@ -1005,21 +1005,21 @@ function initProcessButton() {
     // Canvas mouse events
     ac.addEventListener('mousedown', (e) => {
       if (!ac.width) return;
-      if (activeBrush) {
+      if (e.ctrlKey || !activeBrush) {
+        panStart = { x: e.clientX - panX, y: e.clientY - panY };
+      } else {
         isPainting = true;
         applyBrush(ac, getCanvasCoords(e));
-      } else {
-        panStart = { x: e.clientX - panX, y: e.clientY - panY };
       }
     });
     ac.addEventListener('mousemove', (e) => {
-      if (activeBrush) {
-        updateBrushCursor(e);
-        if (isPainting) applyBrush(ac, getCanvasCoords(e));
-      } else if (panStart) {
+      if (panStart) {
         panX = e.clientX - panStart.x;
         panY = e.clientY - panStart.y;
         applyTransform();
+      } else if (activeBrush) {
+        updateBrushCursor(e);
+        if (isPainting) applyBrush(ac, getCanvasCoords(e));
       }
     });
     ac.addEventListener('mouseup', () => { isPainting = false; panStart = null; });
