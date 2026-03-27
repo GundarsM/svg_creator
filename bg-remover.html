@@ -344,6 +344,12 @@ let lastResultBlob   = null;    // Blob (PNG) from last removal
 let prevBeforeUrl    = null;    // object URL for before-img (revoked on replacement)
 let prevAfterUrl     = null;    // object URL for after-img (revoked on replacement)
 
+  // Brush / zoom state
+  let activeBrush = null;  // 'erase' | 'restore' | null
+  let brushSize   = 30;    // diameter in canvas pixels at 1× zoom
+  let isPainting  = false;
+  let zoomLevel   = 1.0;   // 1.0–8.0; CSS scale applied to #after-canvas
+
 // Drag state for rect drawing (Smart mode)
 let rectDrawing = false;
 let rectX0 = 0, rectY0 = 0; // drag start in canvas pixels
@@ -659,46 +665,68 @@ function initPreviewListeners() {
 
 // === RESULT DISPLAY & ACTIONS ===
 
-function displayResult(blob, sourceFile) {
-  lastResultBlob = blob;
+  function displayResult(blob, sourceFile) {
+    lastResultBlob = blob;
 
-  // Revoke previous object URLs to free memory
-  if (prevBeforeUrl) URL.revokeObjectURL(prevBeforeUrl);
-  if (prevAfterUrl)  URL.revokeObjectURL(prevAfterUrl);
+    // Before image
+    if (prevBeforeUrl) URL.revokeObjectURL(prevBeforeUrl);
+    prevBeforeUrl = URL.createObjectURL(sourceFile);
+    document.getElementById('before-img').src = prevBeforeUrl;
 
-  prevBeforeUrl = URL.createObjectURL(sourceFile);
-  prevAfterUrl  = URL.createObjectURL(blob);
+    // After: draw blob into canvas
+    if (prevAfterUrl) { URL.revokeObjectURL(prevAfterUrl); prevAfterUrl = null; }
+    const ac  = document.getElementById('after-canvas');
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      ac.width  = img.naturalWidth;
+      ac.height = img.naturalHeight;
+      ac.getContext('2d').drawImage(img, 0, 0);
+    };
+    img.src = url;
 
-  document.getElementById('before-img').src = prevBeforeUrl;
-  document.getElementById('after-img').src  = prevAfterUrl;
+    // Reset brush and zoom state
+    activeBrush = null; isPainting = false; zoomLevel = 1.0;
+    ac.style.transform = '';
+    document.getElementById('zoom-label').style.display = 'none';
+    document.getElementById('btn-brush-erase').classList.remove('active');
+    document.getElementById('btn-brush-restore').classList.remove('active');
+    ac.classList.remove('brush-active');
 
-  document.getElementById('result-area').classList.remove('d-none');
-  document.getElementById('cv-loading').classList.add('d-none');
-  document.getElementById('result-panels').classList.remove('d-none');
-}
-
-function downloadPng() {
-  if (!lastResultBlob) return;
-  const url = URL.createObjectURL(lastResultBlob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = stemName + '-no-bg.png';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function copyToClipboard() {
-  if (!lastResultBlob) return;
-  document.getElementById('copy-error').classList.add('d-none');
-  try {
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'image/png': lastResultBlob })
-    ]);
-  } catch (e) {
-    document.getElementById('copy-error').textContent = 'Copy failed: ' + e.message;
-    document.getElementById('copy-error').classList.remove('d-none');
+    // Show brush toolbar and result panels
+    document.getElementById('brush-toolbar').classList.remove('d-none');
+    document.getElementById('result-area').classList.remove('d-none');
+    document.getElementById('cv-loading').classList.add('d-none');
+    document.getElementById('result-panels').classList.remove('d-none');
   }
-}
+
+  function downloadPng() {
+    const ac = document.getElementById('after-canvas');
+    if (!ac.width) return;
+    ac.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = stemName + '-no-bg.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
+  async function copyToClipboard() {
+    const ac = document.getElementById('after-canvas');
+    if (!ac.width) return;
+    document.getElementById('copy-error').classList.add('d-none');
+    ac.toBlob(async blob => {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      } catch (e) {
+        document.getElementById('copy-error').textContent = 'Copy failed: ' + e.message;
+        document.getElementById('copy-error').classList.remove('d-none');
+      }
+    }, 'image/png');
+  }
 
 function initResultActions() {
   document.getElementById('btn-download').addEventListener('click', downloadPng);
