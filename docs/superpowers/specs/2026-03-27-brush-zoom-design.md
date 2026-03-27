@@ -83,6 +83,7 @@ Appended just before `</body>`. Fixed-position, never in the document flow.
 }
 
 #bg-remover-wrapper #after-canvas {
+  width: 100%;
   max-width: 100%;
   max-height: 400px;
   display: block;
@@ -213,6 +214,15 @@ async function copyToClipboard() {
 ## `initBrushTools` Function
 
 Called from `DOMContentLoaded`. Wires all brush and zoom interactions.
+
+```js
+function initBrushTools() {
+  const ac     = document.getElementById('after-canvas');
+  const wrap   = document.getElementById('after-canvas-wrap');
+  const cursor = document.getElementById('brush-cursor');
+  // … all handlers below close over ac, wrap, cursor …
+}
+```
 
 ### Brush button toggle
 
