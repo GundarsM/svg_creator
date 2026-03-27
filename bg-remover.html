@@ -147,8 +147,13 @@
     }
 
       /* After canvas + brush/zoom UI */
+      #bg-remover-wrapper #after-canvas-wrap {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
       #bg-remover-wrapper #after-canvas {
-        width: 100%;
+        width: auto;
         max-width: 100%;
         max-height: 400px;
         display: block;
@@ -309,6 +314,12 @@
             <button class="mode-btn brush-btn" id="btn-brush-restore">
               <i class="fa fa-paintbrush me-1"></i> Restore
             </button>
+            <button class="mode-btn brush-btn" id="btn-undo" disabled title="Undo (Ctrl+Z)">
+              <i class="fa fa-rotate-left"></i>
+            </button>
+            <button class="mode-btn brush-btn" id="btn-redo" disabled title="Redo (Ctrl+Y)">
+              <i class="fa fa-rotate-right"></i>
+            </button>
             <div class="d-flex align-items-center gap-2 flex-fill ms-2">
               <span class="control-label mb-0" style="white-space:nowrap">
                 Size <span id="val-brush-size">30</span>px
@@ -353,6 +364,10 @@ let prevAfterUrl     = null;    // object URL for after-img (revoked on replacem
   let zoomLevel   = 1.0;   // 1.0–8.0; CSS scale applied to #after-canvas
   let panX        = 0;     // CSS translate offset in screen px
   let panY        = 0;
+  // Undo / redo history (ImageData snapshots)
+  let undoStack   = [];
+  let redoStack   = [];
+  const MAX_UNDO  = 20;
 
 // Drag state for rect drawing (Smart mode)
 let rectDrawing = false;
@@ -690,8 +705,11 @@ function initPreviewListeners() {
     };
     img.src = url;
 
-    // Reset zoom/pan; default to erase brush
+    // Reset zoom/pan/history; default to erase brush
     isPainting = false; zoomLevel = 1.0; panX = 0; panY = 0;
+    undoStack = []; redoStack = [];
+    document.getElementById('btn-undo').disabled = true;
+    document.getElementById('btn-redo').disabled = true;
     ac.style.transform = '';
     document.getElementById('zoom-label').style.display = 'none';
     activeBrush = 'erase';
@@ -999,6 +1017,36 @@ function initProcessButton() {
       cursor.style.display = 'block';
     }
 
+    // Undo / redo helpers
+    function saveUndoState() {
+      undoStack.push(ac.getContext('2d').getImageData(0, 0, ac.width, ac.height));
+      if (undoStack.length > MAX_UNDO) undoStack.shift();
+      redoStack = [];
+      document.getElementById('btn-undo').disabled = false;
+      document.getElementById('btn-redo').disabled = true;
+    }
+    function applyUndo() {
+      if (!undoStack.length) return;
+      redoStack.push(ac.getContext('2d').getImageData(0, 0, ac.width, ac.height));
+      ac.getContext('2d').putImageData(undoStack.pop(), 0, 0);
+      document.getElementById('btn-undo').disabled = undoStack.length === 0;
+      document.getElementById('btn-redo').disabled = false;
+    }
+    function applyRedo() {
+      if (!redoStack.length) return;
+      undoStack.push(ac.getContext('2d').getImageData(0, 0, ac.width, ac.height));
+      ac.getContext('2d').putImageData(redoStack.pop(), 0, 0);
+      document.getElementById('btn-undo').disabled = false;
+      document.getElementById('btn-redo').disabled = redoStack.length === 0;
+    }
+
+    document.getElementById('btn-undo').addEventListener('click', applyUndo);
+    document.getElementById('btn-redo').addEventListener('click', applyRedo);
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); applyUndo(); }
+      if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); applyRedo(); }
+    });
+
     // Pan state (local — only used in mouse handlers)
     let panStart = null;
 
@@ -1008,6 +1056,7 @@ function initProcessButton() {
       if (e.ctrlKey || !activeBrush) {
         panStart = { x: e.clientX - panX, y: e.clientY - panY };
       } else {
+        saveUndoState();
         isPainting = true;
         applyBrush(ac, getCanvasCoords(e));
       }
