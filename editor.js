@@ -799,14 +799,25 @@
                     <h3>Tips & Shortcuts</h3>
                     <div style="display: flex; gap: 40px; flex-wrap: wrap;">
                         <div>
-                            <h5 style="font-size: 0.95em;">Keyboard Shortcuts</h5>
-                            <table style="font-size: 0.85em;">
-                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd></td><td>Remove selected objects</td></tr>
-                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
-                            </table>
+                            <h5 style="font-size: 0.95em;">How to use</h5>
+                            <ol style="font-size: 0.85em; padding-left: 1.2em; margin: 0;">
+                                <li>Choose a template or add shapes from the left panel</li>
+                                <li>Click an object to select it — drag to move, use handles to resize or rotate</li>
+                                <li>Adjust fill, stroke, and material in the right panel</li>
+                                <li>Use <strong>Undo</strong> / <strong>Redo</strong> buttons (or keyboard shortcuts) to step through changes</li>
+                                <li>Click <strong>Request a Quote</strong> when your design is ready</li>
+                            </ol>
                         </div>
                         <div>
-                            <h5 style="font-size: 0.95em;">Mouse Controls</h5>
+                            <h5 style="font-size: 0.95em;">Keyboard Shortcuts</h5>
+                            <table style="font-size: 0.85em;">
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Z</kbd></td><td>Undo</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Y</kbd></td><td>Redo</td></tr>
+                            </table>
+
+                            <h5 style="font-size: 0.95em; margin-top: 16px;">Mouse Controls</h5>
                             <table style="font-size: 0.85em;">
                                 <tr><td style="padding: 2px 12px 2px 0;">Ctrl + Scroll wheel</td><td>Zoom in/out</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;">Alt/Ctrl + drag</td><td>Pan the canvas</td></tr>
