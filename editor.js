@@ -234,7 +234,7 @@
             #design-tool-wrapper .header-title {
                 text-align: center;
                 padding: 8px 0;
-                margin-top: 6rem;
+                margin-top: 8rem;
                 margin-bottom: 0;
             }
             
@@ -435,7 +435,7 @@
     <body>
         <div id="design-tool-wrapper">
             <div class="header-title" style="padding: 8px 0; margin-bottom: 0;">
-                <h1 style="font-size: 1.4em; margin: 0; color: white;">Design Your Custom Product</h1>
+                <h1 style="font-size: 1.4em; margin: 0; color: white;">Design Your Custom Coin Holder</h1>
             </div>
 
             <div class="main-layout">
