@@ -234,7 +234,7 @@
             #design-tool-wrapper .header-title {
                 text-align: center;
                 padding: 8px 0;
-                margin-top: 80px;
+                margin-top: 6rem;
                 margin-bottom: 0;
             }
             
