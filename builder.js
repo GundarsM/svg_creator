@@ -5137,7 +5137,185 @@
                     Coach.SELECTORS.shapes,
                     Coach.SELECTORS.imageUpload
                 ],
-                renderAction(el) { el.textContent = this.intro; }
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    /* ── Intro ───────────────────────────────────────── */
+                    const intro = document.createElement('p');
+                    intro.className = 'mb-1';
+                    intro.textContent = this.intro;
+                    el.appendChild(intro);
+
+                    const muted = document.createElement('p');
+                    muted.className = 'text-muted small mb-3';
+                    muted.textContent = 'All optional — add what you like, or Skip.';
+                    el.appendChild(muted);
+
+                    /* ── Helper: section label ───────────────────────── */
+                    function sectionLabel(text) {
+                        const lbl = document.createElement('div');
+                        lbl.className = 'fw-semibold small mb-1 mt-2';
+                        lbl.textContent = text;
+                        return lbl;
+                    }
+
+                    /* ── 1. Engraving text ───────────────────────────── */
+                    el.appendChild(sectionLabel('Engraving text'));
+
+                    const textRow = document.createElement('div');
+                    textRow.className = 'd-flex gap-2 mb-2';
+
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.className = 'form-control form-control-sm';
+                    textInput.placeholder = 'Your text…';
+
+                    const addTextBtn = document.createElement('button');
+                    addTextBtn.className = 'btn btn-sm btn-outline-secondary text-nowrap';
+                    addTextBtn.textContent = 'Add text';
+                    addTextBtn.addEventListener('click', () => {
+                        if (typeof addText === 'function') {
+                            addText();
+                            const value = textInput.value.trim();
+                            if (value) {
+                                const obj = canvas && canvas.getActiveObject
+                                    ? canvas.getActiveObject()
+                                    : null;
+                                if (obj && (obj.type === 'i-text' || obj.type === 'text')) {
+                                    obj.set('text', value);
+                                    obj.setCoords();
+                                    if (canvas.requestRenderAll) canvas.requestRenderAll();
+                                    if (typeof saveState === 'function') saveState();
+                                }
+                            }
+                        }
+                    });
+
+                    textRow.appendChild(textInput);
+                    textRow.appendChild(addTextBtn);
+                    el.appendChild(textRow);
+
+                    /* ── 2. Country outline ──────────────────────────── */
+                    el.appendChild(sectionLabel('Country shape'));
+
+                    const countryToggleBtn = document.createElement('button');
+                    countryToggleBtn.className = 'btn btn-sm btn-outline-secondary mb-2';
+                    countryToggleBtn.textContent = 'Choose country…';
+
+                    const countryPanel = document.createElement('div');
+                    countryPanel.className = 'mb-2';
+                    countryPanel.style.display = 'none';
+
+                    /* Filled / Outline mode toggle */
+                    const modeRow = document.createElement('div');
+                    modeRow.className = 'd-flex gap-2 mb-2 align-items-center';
+
+                    const modeLabel = document.createElement('span');
+                    modeLabel.className = 'small text-muted';
+                    modeLabel.textContent = 'Style:';
+
+                    let countryMode = 'filled';
+
+                    const filledBtn = document.createElement('button');
+                    filledBtn.className = 'btn btn-sm btn-secondary';
+                    filledBtn.textContent = 'Filled';
+
+                    const outlineBtn = document.createElement('button');
+                    outlineBtn.className = 'btn btn-sm btn-outline-secondary';
+                    outlineBtn.textContent = 'Outline';
+
+                    function updateModeButtons() {
+                        if (countryMode === 'filled') {
+                            filledBtn.className = 'btn btn-sm btn-secondary';
+                            outlineBtn.className = 'btn btn-sm btn-outline-secondary';
+                        } else {
+                            filledBtn.className = 'btn btn-sm btn-outline-secondary';
+                            outlineBtn.className = 'btn btn-sm btn-secondary';
+                        }
+                    }
+
+                    filledBtn.addEventListener('click', () => { countryMode = 'filled'; updateModeButtons(); });
+                    outlineBtn.addEventListener('click', () => { countryMode = 'outline'; updateModeButtons(); });
+
+                    modeRow.appendChild(modeLabel);
+                    modeRow.appendChild(filledBtn);
+                    modeRow.appendChild(outlineBtn);
+                    countryPanel.appendChild(modeRow);
+
+                    /* Country buttons */
+                    const countries = [
+                        { key: 'usa',       label: 'USA' },
+                        { key: 'uk',        label: 'UK' },
+                        { key: 'australia', label: 'Australia' },
+                        { key: 'canada',    label: 'Canada' },
+                        { key: 'germany',   label: 'Germany' },
+                        { key: 'italy',     label: 'Italy' }
+                    ];
+
+                    const countryGrid = document.createElement('div');
+                    countryGrid.className = 'd-flex flex-wrap gap-1';
+
+                    countries.forEach(({ key, label }) => {
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-sm btn-outline-secondary';
+                        btn.textContent = label;
+                        btn.addEventListener('click', () => {
+                            if (countryMode === 'filled') {
+                                if (typeof addCountry === 'function') addCountry(key);
+                            } else {
+                                if (typeof addCountryOutline === 'function') addCountryOutline(key);
+                            }
+                        });
+                        countryGrid.appendChild(btn);
+                    });
+
+                    countryPanel.appendChild(countryGrid);
+
+                    countryToggleBtn.addEventListener('click', () => {
+                        const hidden = countryPanel.style.display === 'none';
+                        countryPanel.style.display = hidden ? '' : 'none';
+                        countryToggleBtn.textContent = hidden ? 'Hide countries' : 'Choose country…';
+                    });
+
+                    el.appendChild(countryToggleBtn);
+                    el.appendChild(countryPanel);
+
+                    /* ── 3. Add a shape ──────────────────────────────── */
+                    el.appendChild(sectionLabel('Add a shape'));
+
+                    const shapeRow = document.createElement('div');
+                    shapeRow.className = 'd-flex flex-wrap gap-1 mb-2';
+
+                    const shapes = [
+                        { type: 'rectangle', label: 'Rectangle' },
+                        { type: 'circle',    label: 'Circle' },
+                        { type: 'ellipse',   label: 'Ellipse' }
+                    ];
+
+                    shapes.forEach(({ type, label }) => {
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-sm btn-outline-secondary';
+                        btn.textContent = label;
+                        btn.addEventListener('click', () => {
+                            if (typeof addShape === 'function') addShape(type);
+                        });
+                        shapeRow.appendChild(btn);
+                    });
+
+                    el.appendChild(shapeRow);
+
+                    /* ── 4. Upload a logo / image ────────────────────── */
+                    el.appendChild(sectionLabel('Upload a logo or image'));
+
+                    const uploadBtn = document.createElement('button');
+                    uploadBtn.className = 'btn btn-sm btn-outline-secondary mb-1';
+                    uploadBtn.textContent = 'Upload image…';
+                    uploadBtn.addEventListener('click', () => {
+                        document.getElementById('imageUpload')?.click();
+                    });
+
+                    el.appendChild(uploadBtn);
+                },
             },
             {
                 id: 'review',
