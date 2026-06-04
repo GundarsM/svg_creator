@@ -608,6 +608,8 @@
                 #coach-drag {
                     display: none;
                 }
+
+                #design-tool-wrapper { padding-bottom: 60vh; }
             }
         </style>
         <!-- ═══════════════════════════════════════════════════════
