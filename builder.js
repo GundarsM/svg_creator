@@ -4574,24 +4574,16 @@
             }
             if (!holder) return false;
 
-            // Collect coin objects
-            const coins = canvas.getObjects().filter(o => o.shapeType === 'currency');
-            if (coins.length === 0) return false;
+            // ALL coin objects regardless of current position — fixes re-arrange after adding coins
+            const targets = canvas.getObjects().filter(o => o.shapeType === 'currency');
+            if (targets.length === 0) return false;
 
             // Holder absolute bounding box
-            const hc  = holder.getCenterPoint();
-            const hw  = holder.getScaledWidth();
-            const hh  = holder.getScaledHeight();
+            const hc   = holder.getCenterPoint();
+            const hw   = holder.getScaledWidth();
+            const hh   = holder.getScaledHeight();
             const left = hc.x - hw / 2;
             const top  = hc.y - hh / 2;
-
-            // Coins whose center lies inside the holder bbox
-            const contained = coins.filter(c => {
-                const cp = c.getCenterPoint();
-                return cp.x >= left && cp.x <= left + hw &&
-                       cp.y >= top  && cp.y <= top  + hh;
-            });
-            const targets = contained.length ? contained : coins;
 
             // Cell size based on the largest coin footprint + padding
             let maxFoot = 0;
@@ -4599,61 +4591,100 @@
             const pad  = maxFoot * 0.15;
             const cell = maxFoot + pad;
 
-            // Build position array
-            const pos = [];
+            // Inside capacity of the holder
+            const colsIn = Math.max(1, Math.floor(hw / cell));
+            const rowsIn = Math.max(1, Math.floor(hh / cell));
+
+            // Helper: place `count` surplus coins on an expanding rectangular perimeter
+            // around the holder so they are visible and non-overlapping.
+            // Overflow-to-perimeter replaces the old edge-clamping that caused stacking.
+            function perimeterPositions(count, rl0, rt0, rw0, rh0, cellSz, centre) {
+                const out = [];
+                let ring = 1, produced = 0;
+                while (produced < count) {
+                    const rl = rl0 - ring * cellSz;
+                    const rt = rt0 - ring * cellSz;
+                    const rw = rw0 + 2 * ring * cellSz;
+                    const rh = rh0 + 2 * ring * cellSz;
+                    const perim = 2 * (rw + rh);
+                    const slots = Math.max(4, Math.floor(perim / cellSz));
+                    for (let s = 0; s < slots && produced < count; s++) {
+                        const d = (s / slots) * perim;
+                        let x, y;
+                        if (d < rw)                  { x = rl + d;             y = rt; }
+                        else if (d < rw + rh)        { x = rl + rw;            y = rt + (d - rw); }
+                        else if (d < 2 * rw + rh)    { x = rl + rw - (d - rw - rh); y = rt + rh; }
+                        else                         { x = rl;                 y = rt + rh - (d - 2 * rw - rh); }
+                        out.push({ x, y });
+                        produced++;
+                    }
+                    ring++;
+                    if (ring > 50) break; // safety
+                }
+                return out;
+            }
+
+            // Build position array — length === targets.length, inside first, perimeter for surplus
+            let positions = [];
 
             if (pattern === 'circle') {
-                let R = Math.min(hw, hh) / 2 - cell / 2;
-                // Fall back to grid when ring is too tight or radius is non-positive
-                const tooTight = targets.length > 1 &&
-                    (2 * R * Math.sin(Math.PI / targets.length) < cell);
-                if (R <= 0 || tooTight) {
-                    pattern = 'grid'; // continue below
-                } else {
-                    for (let i = 0; i < targets.length; i++) {
-                        const theta = -Math.PI / 2 + i * (2 * Math.PI / targets.length);
-                        pos.push({
-                            x: hc.x + R * Math.cos(theta),
-                            y: hc.y + R * Math.sin(theta)
-                        });
+                // Concentric rings starting just inside the holder; overflow rings expand outward
+                let placed = 0, ring = 0;
+                while (placed < targets.length) {
+                    const R = (Math.min(hw, hh) / 2 - cell / 2) + ring * cell;
+                    if (R <= 0) {
+                        // Holder too small for any ring — fall back to perimeter spiral
+                        positions = positions.concat(
+                            perimeterPositions(targets.length - placed, left, top, hw, hh, cell, hc)
+                        );
+                        break;
                     }
+                    // Max coins on this ring without overlap
+                    const ringCap = Math.max(1, Math.floor(Math.PI / Math.asin(Math.min(1, cell / (2 * R)))));
+                    const n = Math.min(ringCap, targets.length - placed);
+                    for (let i = 0; i < n; i++) {
+                        const theta = -Math.PI / 2 + i * (2 * Math.PI / n);
+                        positions.push({ x: hc.x + R * Math.cos(theta), y: hc.y + R * Math.sin(theta) });
+                    }
+                    placed += n;
+                    ring++;
+                    if (ring > 50) break; // safety
                 }
-            }
-
-            if (pattern === 'grid' || pattern === 'rows') {
+            } else {
+                // 'grid' or 'rows'
+                // For 'grid' prefer a squarish column count but never exceed colsIn;
+                // for 'rows' use colsIn (wide rows, fills width).
                 let cols;
                 if (pattern === 'rows') {
-                    // Maximise columns to fill width
-                    cols = Math.max(1, Math.floor(hw / cell));
+                    cols = colsIn;
                 } else {
-                    // Roughly square grid, then cap to what fits horizontally
-                    cols = Math.max(1, Math.round(Math.sqrt(targets.length)));
-                    cols = Math.min(cols, Math.max(1, Math.floor(hw / cell)));
+                    cols = Math.min(colsIn, Math.max(1, Math.round(Math.sqrt(targets.length))));
                 }
-                const rows  = Math.ceil(targets.length / cols);
-                const bw    = cols * cell;
-                const bh    = rows * cell;
+                const capIn = cols * rowsIn;
+                const nIn   = Math.min(targets.length, capIn);
+
+                // Inside block centred on holder
+                const rowsUsed = Math.ceil(nIn / cols) || 1;
+                const bw = cols * cell;
+                const bh = rowsUsed * cell;
                 const startX = hc.x - bw / 2 + cell / 2;
                 const startY = hc.y - bh / 2 + cell / 2;
-                for (let i = 0; i < targets.length; i++) {
-                    const col = i % cols;
-                    const row = Math.floor(i / cols);
-                    pos.push({ x: startX + col * cell, y: startY + row * cell });
+                for (let i = 0; i < nIn; i++) {
+                    positions.push({ x: startX + (i % cols) * cell, y: startY + Math.floor(i / cols) * cell });
+                }
+
+                // Surplus coins on outer perimeter — visible, non-overlapping
+                if (targets.length > nIn) {
+                    positions = positions.concat(
+                        perimeterPositions(targets.length - nIn, left, top, hw, hh, cell, hc)
+                    );
                 }
             }
 
-            // Clamp each position so the coin stays inside the holder box
+            // Apply positions
             targets.forEach((c, i) => {
-                const fw = c.getScaledWidth()  / 2;
-                const fh = c.getScaledHeight() / 2;
-                const minX = left + fw;
-                const maxX = left + hw - fw;
-                const minY = top  + fh;
-                const maxY = top  + hh - fh;
-                // When the holder is smaller than the coin, just use the holder center
-                const x = minX <= maxX ? Math.max(minX, Math.min(maxX, pos[i].x)) : hc.x;
-                const y = minY <= maxY ? Math.max(minY, Math.min(maxY, pos[i].y)) : hc.y;
-                c.setPositionByOrigin(new fabric.Point(x, y), 'center', 'center');
+                const p = positions[i] || { x: hc.x, y: hc.y };
+                c.setPositionByOrigin(new fabric.Point(p.x, p.y), 'center', 'center');
                 c.setCoords();
             });
 
