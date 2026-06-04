@@ -4410,7 +4410,7 @@
             /* Called from init when canvas is confirmed */
             boot() {
                 const saved = Coach.persist.load();
-                if (saved && saved.canvasJSON) {
+                if (saved && saved.canvasJSON && Array.isArray(saved.canvasJSON.objects) && saved.canvasJSON.objects.length) {
                     Coach.persist.promptResume(saved);
                 } else {
                     Coach.go(0);
@@ -4629,6 +4629,9 @@
             return true;
         };
 
+        /* ── Shared DOM helper (used across multiple steps) ─────────── */
+        const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
+
         /* ── Populate steps (after Coach.SELECTORS is defined) ────── */
         Coach.steps = [
             {
@@ -4720,8 +4723,6 @@
                     el.innerHTML = '';
 
                     // ── helpers ───────────────────────────────────────────
-                    const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
-
                     const makeBtn = (label, icon, active) => {
                         const btn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light' });
                         btn.innerHTML = icon ? `<i class="${icon}"></i> ${label}` : label;
@@ -4941,11 +4942,30 @@
                     countries.forEach(({ key, label }) => {
                         const cb = makeBtn(label, null, false);
                         cb.addEventListener('click', () => {
-                            if (typeof addCountry === 'function') {
-                                addCountry(key);
-                                captureHolder('country');
+                            if (typeof canvas !== 'undefined' && canvas) {
+                                if (Coach._pendingHolderHandler) {
+                                    canvas.off('object:added', Coach._pendingHolderHandler);
+                                    clearTimeout(Coach._pendingHolderTimeout);
+                                }
+                                const handler = (e) => {
+                                    const obj = e.target;
+                                    if (obj && obj.shapeType === 'currency') return; // ignore stray coins
+                                    Coach.state.holderObj = obj;
+                                    Coach.state.holderType = 'country';
+                                    if (obj) obj.coachHolderId = 'holder';
+                                    canvas.off('object:added', handler);
+                                    clearTimeout(Coach._pendingHolderTimeout);
+                                    Coach._pendingHolderHandler = null;
+                                    markSelected(shapeGroup, 'country');
+                                };
+                                Coach._pendingHolderHandler = handler;
+                                Coach._pendingHolderTimeout = setTimeout(() => {
+                                    canvas.off('object:added', handler);
+                                    Coach._pendingHolderHandler = null;
+                                }, 120000);
+                                canvas.on('object:added', handler);
                             }
-                            markSelected(shapeGroup, 'country');
+                            if (typeof addCountry === 'function') addCountry(key);
                             // Highlight chosen country button
                             countryPicker.querySelectorAll('button').forEach(b => {
                                 const sel = b.textContent.trim() === label;
@@ -5033,7 +5053,7 @@
                         if (typeof saveState === 'function') saveState();
                         Coach.state.material = fillType;
                         // Re-render to reflect the new selection state
-                        this.renderAction(el);
+                        Coach.render();
                     };
 
                     const currentMaterial = Coach.state.material || null;
