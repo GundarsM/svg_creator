@@ -4559,15 +4559,42 @@
                     svgBtn.dataset.shape = 'imported';
                     svgBtn.addEventListener('click', () => {
                         if (typeof canvas !== 'undefined' && canvas) {
+                            // Remove any previously-registered pending import handler to prevent stacking
+                            if (Coach._pendingImportHandler) {
+                                canvas.off('object:added', Coach._pendingImportHandler);
+                                Coach._pendingImportHandler = null;
+                            }
+                            if (Coach._pendingImportTimeout) {
+                                clearTimeout(Coach._pendingImportTimeout);
+                                Coach._pendingImportTimeout = null;
+                            }
+
                             const handler = (e) => {
                                 const obj = e.target;
+                                // Ignore coins — a stray coin after a cancelled picker must not be captured as the holder
+                                if (obj && obj.shapeType === 'currency') {
+                                    return;
+                                }
+                                // Successful capture
                                 Coach.state.holderObj = obj;
                                 Coach.state.holderType = 'imported';
                                 if (obj) obj.coachHolderId = 'holder';
                                 canvas.off('object:added', handler);
+                                clearTimeout(Coach._pendingImportTimeout);
+                                Coach._pendingImportTimeout = null;
+                                Coach._pendingImportHandler = null;
                                 markSelected(shapeGroup, 'imported');
                             };
+
+                            Coach._pendingImportHandler = handler;
                             canvas.on('object:added', handler);
+
+                            // Safety timeout: if the file picker is cancelled the handler won't linger indefinitely
+                            Coach._pendingImportTimeout = setTimeout(() => {
+                                canvas.off('object:added', handler);
+                                Coach._pendingImportHandler = null;
+                                Coach._pendingImportTimeout = null;
+                            }, 120000);
                         }
                         document.getElementById('fileImport')?.click();
                     });
