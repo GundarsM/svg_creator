@@ -255,6 +255,9 @@
                 flex: 0 0 25%;
                 max-width: 25%;
                 overflow-x: hidden;
+                /* FIX J: scroll internally so sidebars don't push the page taller than the viewport */
+                max-height: calc(100vh - 80px);
+                overflow-y: auto;
             }
 
             #design-tool-wrapper .canvas-column {
@@ -592,6 +595,112 @@
                 align-items: center;
                 gap: 5px;
                 margin-left: auto;
+            }
+
+            /* ── FIX I: Button colours & font consistency inside coach bubble ── */
+
+            /* Font — inherit everywhere inside bubble */
+            #coach-bubble,
+            #coach-bubble * {
+                font-family: 'Athelas', Georgia, serif;
+            }
+
+            /* Size normalisation */
+            #coach-body {
+                font-size: 14px;
+            }
+            #coach-title {
+                font-size: 16px;
+                font-weight: bold;
+            }
+            #coach-progress {
+                font-size: 11px;
+            }
+            #coach-bubble .btn {
+                font-size: 13px;
+            }
+
+            /* Default filled green for ALL buttons inside coach bubble */
+            #coach-bubble .btn {
+                background: #344734 !important;
+                color: #fff !important;
+                border: 1px solid #344734 !important;
+                font-family: inherit !important;
+            }
+            #coach-bubble .btn:hover {
+                background: #2a3a2a !important;
+                border-color: #2a3a2a !important;
+            }
+
+            /* Active / selected state (JS also sets inline styles, but this covers non-inline cases) */
+            #coach-bubble .btn.active {
+                background: #cfe3cf !important;
+                color: #344734 !important;
+                border-color: #cfe3cf !important;
+            }
+
+            /* btn-secondary and btn-outline-secondary in coach — keep dark-muted style */
+            #coach-bubble .btn-secondary,
+            #coach-bubble .btn-outline-secondary {
+                background: #6c757d !important;
+                color: #fff !important;
+                border-color: #6c757d !important;
+            }
+            #coach-bubble .btn-secondary:hover,
+            #coach-bubble .btn-outline-secondary:hover {
+                background: #5a6268 !important;
+                border-color: #5a6268 !important;
+            }
+            #coach-bubble .btn-secondary.active,
+            #coach-bubble .btn-outline-secondary.active {
+                background: #cfe3cf !important;
+                color: #344734 !important;
+                border-color: #cfe3cf !important;
+            }
+
+            /* Download (btn-success) and Quote (btn-primary) — theme green variants */
+            #coach-bubble .btn-success {
+                background: #198754 !important;
+                color: #fff !important;
+                border-color: #198754 !important;
+            }
+            #coach-bubble .btn-success:hover {
+                background: #157347 !important;
+                border-color: #157347 !important;
+            }
+            #coach-bubble .btn-primary {
+                background: #344734 !important;
+                color: #fff !important;
+                border-color: #344734 !important;
+            }
+            #coach-bubble .btn-primary:hover {
+                background: #2a3a2a !important;
+                border-color: #2a3a2a !important;
+            }
+
+            /* Back/Skip footer nav buttons — subtle transparent */
+            #coach-back,
+            #coach-skip {
+                background: transparent !important;
+                color: #344734 !important;
+                border-color: #344734 !important;
+            }
+            #coach-back:hover,
+            #coach-skip:hover {
+                background: rgba(52, 71, 52, .08) !important;
+                color: #344734 !important;
+            }
+
+            /* Next/Finish footer button — keep filled green (already in main rules, reinforce) */
+            #coach-next {
+                background: #344734 !important;
+                color: #fff !important;
+                border-color: #344734 !important;
+                font-weight: bold !important;
+            }
+            #coach-next:hover {
+                background: #2a3a2a !important;
+                border-color: #2a3a2a !important;
             }
 
             /* Responsive — mobile sheet */
