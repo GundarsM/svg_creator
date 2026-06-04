@@ -60,6 +60,10 @@ The Coach interacts with the engine through three narrow, well-defined channels 
 
 Because the engine region is byte-identical to `editor.js`, the Coach is a clean additive layer and the engine can be re-synced by re-pasting.
 
+**Resolving "the holder" object.** Several steps act on the holder board (e.g. step 3 applies material to it). The Coach treats the holder as the base shape it created in step 2 and keeps a reference to it in `Coach.state` (falling back to the current selection if none). Note that some engine functions such as `applyFill(object, fillType)` read DOM inputs (`#fillColor`, `#materialPreset`) internally — the Coach therefore sets those inputs before invoking, rather than passing colours directly.
+
+**Navigation primitive.** `Coach.go(stepId)` is the single navigation method; Back / Skip / Next and the step-dots all call it.
+
 ## The Coach engine
 
 A single `Coach` object (plain JS, no framework).
@@ -115,7 +119,8 @@ Arranges coins **inside the bounds of the holder shape they belong to** — not 
 
 - On every canvas change and step change, **debounce-save** to `localStorage` under a versioned key `hsc-builder-v1`:
   `{ canvasJSON: canvas.toJSON(extraProps), step, state }`.
-- `extraProps` must include every custom Fabric property the engine sets on coins/holders (e.g. coin value, diameter, material type) so a reload is faithful. The exact list is enumerated during implementation by inspecting the engine's object-creation code.
+- `extraProps` must include every custom Fabric property the engine sets on coins/holders (e.g. coin value, diameter, material/shape type) so a reload is faithful. The implementation plan includes a dedicated sub-task to enumerate this list by inspecting the engine's object-creation code, so faithful reload does not silently regress.
+- The Upload-SVG path (step 2) and invalid-SVG handling reuse the engine's existing `#fileImport` change-handler, which performs the full parse/import — the Coach only triggers the input and does not re-implement SVG parsing.
 - **On load:** if a saved design exists, the coach offers "Welcome back — resume where you left off?" (Resume / Start fresh). Resume → `canvas.loadFromJSON` + `Coach.go(step)`.
 - **Start over** button clears the key and resets canvas + coach to step 1 (with a confirm).
 
