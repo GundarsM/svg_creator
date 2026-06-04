@@ -4795,7 +4795,169 @@
                 intro: 'Add the coins you want to display.',
                 optional: false,
                 highlight: [Coach.SELECTORS.coins],
-                renderAction(el) { el.textContent = this.intro; }
+                isComplete() {
+                    return typeof canvas !== 'undefined' && canvas && canvas.getObjects().some(o => o.shapeType === 'currency');
+                },
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    /* ── Intro text ────────────────────────────────────── */
+                    const introP = mkEl('p', { className: 'small mb-3', textContent: this.intro });
+                    el.appendChild(introP);
+
+                    /* ── Denomination data ─────────────────────────────── */
+                    const CURRENCIES = {
+                        euro: {
+                            label: '€ Euro',
+                            icon: '€',
+                            coins: [
+                                { label: '2 €',    value: '2 €',    diameter: 25.75 },
+                                { label: '1 €',    value: '1 €',    diameter: 23.4  },
+                                { label: '0.50 €', value: '0.50 €', diameter: 24.4  },
+                                { label: '0.20 €', value: '0.20 €', diameter: 22.4  },
+                                { label: '0.10 €', value: '0.10 €', diameter: 19.9  },
+                                { label: '0.05 €', value: '0.05 €', diameter: 21.4  },
+                                { label: '0.02 €', value: '0.02 €', diameter: 18.9  },
+                                { label: '0.01 €', value: '0.01 €', diameter: 16.4  },
+                            ]
+                        },
+                        dollar: {
+                            label: '$ Dollar',
+                            icon: '$',
+                            coins: [
+                                { label: '50 ¢',  value: '50 ¢',  diameter: 30.76 },
+                                { label: '25 ¢',  value: '25 ¢',  diameter: 24.41 },
+                                { label: '10 ¢',  value: '10 ¢',  diameter: 18.06 },
+                                { label: '5 ¢',   value: '5 ¢',   diameter: 21.36 },
+                                { label: '1 ¢',   value: '1 ¢',   diameter: 19.25 },
+                                { label: '$ 1',   value: '$ 1',   diameter: 26.65 },
+                            ]
+                        },
+                        pound: {
+                            label: '£ Pound',
+                            icon: '£',
+                            coins: [
+                                { label: '2£',   value: '2£',   diameter: 28.55 },
+                                { label: '1£',   value: '1£',   diameter: 23.18 },
+                                { label: '50p',  value: '50p',  diameter: 27.45 },
+                                { label: '20p',  value: '20p',  diameter: 21.55 },
+                                { label: '10p',  value: '10p',  diameter: 24.65 },
+                                { label: '5p',   value: '5p',   diameter: 18.15 },
+                                { label: '2p',   value: '2p',   diameter: 26.06 },
+                                { label: '1p',   value: '1p',   diameter: 20.47 },
+                            ]
+                        }
+                    };
+
+                    /* ── Local state ───────────────────────────────────── */
+                    Coach.state.coins = Coach.state.coins || {};
+                    const activeCurrency = Coach.state.coinCurrency || 'euro';
+
+                    /* ── Currency tab buttons ──────────────────────────── */
+                    const tabRow = mkEl('div', { className: 'd-flex gap-2 mb-3' });
+                    Object.entries(CURRENCIES).forEach(([key, cur]) => {
+                        const isActive = key === activeCurrency;
+                        const tab = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm ' + (isActive ? 'btn-secondary' : 'btn-outline-secondary'),
+                            textContent: cur.label
+                        });
+                        if (isActive) {
+                            tab.style.backgroundColor = '#cfe3cf';
+                            tab.style.color = '#344734';
+                            tab.style.borderColor = '#cfe3cf';
+                        }
+                        tab.addEventListener('click', () => {
+                            Coach.state.coinCurrency = key;
+                            Coach.renderStep(Coach.current);
+                        });
+                        tabRow.appendChild(tab);
+                    });
+                    el.appendChild(tabRow);
+
+                    /* ── Denomination rows ─────────────────────────────── */
+                    const currency = CURRENCIES[activeCurrency];
+                    const denom = mkEl('div', { className: 'd-flex flex-column gap-2 mb-3' });
+
+                    currency.coins.forEach(coin => {
+                        const qty = { value: 1 };
+                        const row = mkEl('div', { className: 'd-flex align-items-center gap-2' });
+
+                        // Label
+                        const lbl = mkEl('span', { className: 'small', textContent: coin.label });
+                        lbl.style.minWidth = '52px';
+                        row.appendChild(lbl);
+
+                        // Stepper: minus button
+                        const minusBtn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-secondary px-2 py-0',
+                            textContent: '−'
+                        });
+
+                        // Quantity display
+                        const qtyDisplay = mkEl('span', {
+                            className: 'small text-center',
+                            textContent: '1'
+                        });
+                        qtyDisplay.style.minWidth = '20px';
+
+                        // Plus button
+                        const plusBtn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-secondary px-2 py-0',
+                            textContent: '+'
+                        });
+
+                        minusBtn.addEventListener('click', () => {
+                            if (qty.value > 0) { qty.value--; qtyDisplay.textContent = qty.value; }
+                        });
+                        plusBtn.addEventListener('click', () => {
+                            qty.value++;
+                            qtyDisplay.textContent = qty.value;
+                        });
+
+                        row.appendChild(minusBtn);
+                        row.appendChild(qtyDisplay);
+                        row.appendChild(plusBtn);
+
+                        // Add button
+                        const addBtn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-secondary',
+                            textContent: 'Add'
+                        });
+                        addBtn.addEventListener('click', () => {
+                            if (qty.value < 1) return;
+                            if (typeof addSingleCoin !== 'function') return;
+                            Coach.state.coins = Coach.state.coins || {};
+                            for (let i = 0; i < qty.value; i++) {
+                                addSingleCoin(coin.value, coin.diameter);
+                            }
+                            Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + qty.value;
+                            // Refresh tally
+                            updateTally();
+                        });
+
+                        row.appendChild(addBtn);
+                        denom.appendChild(row);
+                    });
+                    el.appendChild(denom);
+
+                    /* ── Running tally ─────────────────────────────────── */
+                    const tallyDiv = mkEl('div', { className: 'small text-muted' });
+                    el.appendChild(tallyDiv);
+
+                    function updateTally() {
+                        const entries = Object.entries(Coach.state.coins).filter(([, n]) => n > 0);
+                        if (entries.length === 0) {
+                            tallyDiv.textContent = '';
+                        } else {
+                            tallyDiv.textContent = 'Added: ' + entries.map(([v, n]) => n + '× ' + v).join(', ');
+                        }
+                    }
+                    updateTally();
+                }
             },
             {
                 id: 'arrange',
