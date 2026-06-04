@@ -2946,6 +2946,7 @@
                     
                     document.getElementById('fontSize').onchange = function() {
                         obj.set('fontSize', parseFloat(this.value) * scale);
+                        obj.realFontSize = parseFloat(this.value);
                         obj.setCoords();
                         canvas.requestRenderAll();
                     };
@@ -3390,7 +3391,9 @@
                                 angle: obj.angle,
                                 opacity: obj.opacity,
                                 originX: obj.originX,
-                                originY: obj.originY
+                                originY: obj.originY,
+                                scaleX: obj.scaleX,
+                                scaleY: obj.scaleY
                             });
                             result.push({ original: obj, converted: pathObjects[0] });
                         } else if (pathObjects.length > 1) {
@@ -3400,7 +3403,9 @@
                                 originX: obj.originX,
                                 originY: obj.originY,
                                 angle: obj.angle,
-                                opacity: obj.opacity
+                                opacity: obj.opacity,
+                                scaleX: obj.scaleX,
+                                scaleY: obj.scaleY
                             });
                             result.push({ original: obj, converted: group });
                         }
