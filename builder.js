@@ -4924,6 +4924,7 @@
                             Coach.state.holderObj = obj;
                             Coach.state.holderType = type;
                             if (obj) obj.coachHolderId = 'holder';
+                            applyStoredSize();
                         }
                     };
 
@@ -4936,7 +4937,11 @@
                         const curH = obj.getScaledHeight();
                         if (!curW || !curH) return;
                         const ratioX = (wMm * scale) / curW;
-                        const ratioY = lockAspect ? ratioX : (hMm * scale) / curH;
+                        // When not aspect-locked, only resize height if a valid value was given —
+                        // otherwise keep the current height (ratio 1) so width-only resizes don't collapse it.
+                        const ratioY = lockAspect
+                            ? ratioX
+                            : ((hMm && hMm > 0) ? (hMm * scale) / curH : 1);
                         obj.scaleX *= ratioX;
                         obj.scaleY *= ratioY;
                         if (obj.shapeType === 'rectangle') {
@@ -4946,6 +4951,15 @@
                         obj.setCoords();
                         canvas.requestRenderAll();
                         if (typeof saveState === 'function') saveState();
+                    };
+
+                    // Apply any size the customer entered *before* picking a shape.
+                    const applyStoredSize = () => {
+                        const w = Coach.state.holderW;
+                        const h = Coach.state.holderH;
+                        if (!w || w <= 0) return;
+                        const lock = (Coach.state.holderType === 'country' || Coach.state.holderType === 'imported');
+                        resizeHolder(w, lock ? null : h, lock);
                     };
 
                     // ── 1. Intro ───────────────────────────────────────────
@@ -4959,7 +4973,7 @@
                     const shapeGroup = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-2' });
 
                     // Row 1 btn: Rectangle
-                    const rectBtn = makeBtn('Rectangle', 'fas fa-square-full', Coach.state.holderType === 'rectangle');
+                    const rectBtn = makeBtn('Rectangle', 'fas fa-square', Coach.state.holderType === 'rectangle');
                     rectBtn.dataset.shape = 'rectangle';
                     rectBtn.addEventListener('click', () => {
                         if (typeof addShape === 'function') {
@@ -4987,7 +5001,7 @@
                     shapeGroup.appendChild(circBtn);
 
                     // Row 1 btn: Country / custom shape (toggle)
-                    const countryToggleBtn = makeBtn('Country / custom shape', 'fas fa-globe',
+                    const countryToggleBtn = makeBtn('Country / custom shape', 'fas fa-draw-polygon',
                         Coach.state.holderType === 'country' || Coach.state.holderType === 'imported');
                     countryToggleBtn.dataset.shape = 'country';
                     countryToggleBtn.addEventListener('click', () => {
@@ -5002,8 +5016,8 @@
                     // ── Country / custom panel (hidden by default) ─────────
                     // Contains 6 country buttons + Upload SVG as the final button
                     const countryPanel = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3 ps-1' });
-                    countryPanel.style.display =
-                        (Coach.state.holderType === 'country' || Coach.state.holderType === 'imported') ? '' : 'none';
+                    // Hidden until the "Country / custom shape" button is pressed
+                    countryPanel.style.display = 'none';
 
                     const countries = [
                         { key: 'usa',       label: 'USA' },
@@ -5031,6 +5045,7 @@
                                     canvas.off('object:added', handler);
                                     clearTimeout(Coach._pendingHolderTimeout);
                                     Coach._pendingHolderHandler = null;
+                                    applyStoredSize();
                                     markSelected(shapeGroup, 'country');
                                     Coach.render();
                                 };
@@ -5055,7 +5070,7 @@
                     });
 
                     // Upload SVG — last button in the country/custom panel
-                    const svgBtn = makeBtn('Upload SVG', 'fas fa-upload', Coach.state.holderType === 'imported');
+                    const svgBtn = makeBtn('Upload SVG', 'fas fa-shapes', Coach.state.holderType === 'imported');
                     svgBtn.dataset.shape = 'imported';
                     svgBtn.addEventListener('click', () => {
                         if (typeof canvas !== 'undefined' && canvas) {
@@ -5083,6 +5098,7 @@
                                 clearTimeout(Coach._pendingImportTimeout);
                                 Coach._pendingImportTimeout = null;
                                 Coach._pendingImportHandler = null;
+                                applyStoredSize();
                                 markSelected(shapeGroup, 'country'); // keep country toggle highlighted
                                 Coach.render();
                             };
@@ -5104,71 +5120,90 @@
                     el.appendChild(countryPanel);
 
                     // ── 3. Size controls (FIX G) ───────────────────────────
-                    const hasHolder = !!Coach.state.holderObj;
+                    // Size can be set before OR after picking a shape. Values are
+                    // stored on Coach.state so they apply automatically when a
+                    // holder is created, and re-apply live once one exists.
+                    const hasHolder  = !!Coach.state.holderObj;
                     const holderType = Coach.state.holderType;
                     const lockAspect = holderType === 'country' || holderType === 'imported';
+                    const scaleNow   = (typeof canvas !== 'undefined' && canvas && canvas.scale) ? canvas.scale : 1;
 
-                    const sizeSection = mkEl('div', { className: 'mb-3 mt-3' });
-                    const sizeLabel = mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Holder size' });
-                    sizeSection.appendChild(sizeLabel);
+                    const sizeSection = mkEl('div', { className: 'mb-3' });
+                    sizeSection.appendChild(mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Holder size (mm)' }));
 
-                    if (!hasHolder) {
-                        const noHolder = mkEl('p', { className: 'small text-muted mb-0', textContent: 'Pick a shape first, then set its size.' });
-                        sizeSection.appendChild(noHolder);
-                    } else {
-                        const sizeRow = mkEl('div', { className: 'd-flex flex-wrap gap-2 align-items-end' });
+                    const sizeRow = mkEl('div', { className: 'd-flex flex-wrap gap-2 align-items-end' });
 
-                        // Width input (always shown)
-                        const wWrap = mkEl('div');
-                        wWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-w', className: 'form-label small mb-0', textContent: 'Width (mm)' }));
-                        const wInput = mkEl('input', {
-                            type: 'number', id: 'coach-holder-w', className: 'form-control form-control-sm',
+                    // Width input (always shown)
+                    const wWrap = mkEl('div');
+                    wWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-w', className: 'form-label small mb-0', textContent: 'Width' }));
+                    const wInput = mkEl('input', {
+                        type: 'number', id: 'coach-holder-w', className: 'form-control form-control-sm',
+                        min: '1', step: '0.1', style: 'width:90px'
+                    });
+                    // Seed: stored value first, else current holder width
+                    if (Coach.state.holderW) {
+                        wInput.value = Coach.state.holderW;
+                    } else if (hasHolder) {
+                        wInput.value = parseFloat((Coach.state.holderObj.getScaledWidth() / scaleNow).toFixed(2));
+                    }
+                    wInput.addEventListener('input', () => {
+                        const v = parseFloat(wInput.value);
+                        Coach.state.holderW = (!isNaN(v) && v > 0) ? v : null;
+                    });
+                    wWrap.appendChild(wInput);
+                    sizeRow.appendChild(wWrap);
+
+                    // Height input — hidden once a country/imported holder is chosen (aspect-locked)
+                    let hInput = null;
+                    if (!lockAspect) {
+                        const hWrap = mkEl('div');
+                        hWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-h', className: 'form-label small mb-0', textContent: 'Height' }));
+                        hInput = mkEl('input', {
+                            type: 'number', id: 'coach-holder-h', className: 'form-control form-control-sm',
                             min: '1', step: '0.1', style: 'width:90px'
                         });
-                        // Seed from the holder's current dimensions
-                        if (typeof canvas !== 'undefined' && canvas && Coach.state.holderObj) {
-                            const scale = canvas.scale || 1;
-                            wInput.value = parseFloat((Coach.state.holderObj.getScaledWidth() / scale).toFixed(2));
+                        if (Coach.state.holderH) {
+                            hInput.value = Coach.state.holderH;
+                        } else if (hasHolder) {
+                            hInput.value = parseFloat((Coach.state.holderObj.getScaledHeight() / scaleNow).toFixed(2));
                         }
-                        wWrap.appendChild(wInput);
-                        sizeRow.appendChild(wWrap);
-
-                        // Height input — hidden for country/imported (aspect-locked)
-                        let hInput = null;
-                        if (!lockAspect) {
-                            const hWrap = mkEl('div');
-                            hWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-h', className: 'form-label small mb-0', textContent: 'Height (mm)' }));
-                            hInput = mkEl('input', {
-                                type: 'number', id: 'coach-holder-h', className: 'form-control form-control-sm',
-                                min: '1', step: '0.1', style: 'width:90px'
-                            });
-                            if (typeof canvas !== 'undefined' && canvas && Coach.state.holderObj) {
-                                const scale = canvas.scale || 1;
-                                hInput.value = parseFloat((Coach.state.holderObj.getScaledHeight() / scale).toFixed(2));
-                            }
-                            hWrap.appendChild(hInput);
-                            sizeRow.appendChild(hWrap);
-                        } else {
-                            // Aspect-locked hint
-                            const lockNote = mkEl('small', { className: 'text-muted align-self-end', textContent: '(aspect locked)' });
-                            sizeRow.appendChild(lockNote);
-                        }
-
-                        // Apply size button
-                        const applyBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Apply size' });
-                        applyBtn.addEventListener('click', () => {
-                            const w = parseFloat(wInput.value);
-                            const h = hInput ? parseFloat(hInput.value) : null;
-                            if (!isNaN(w) && w > 0) {
-                                resizeHolder(w, h, lockAspect);
-                            }
+                        hInput.addEventListener('input', () => {
+                            const v = parseFloat(hInput.value);
+                            Coach.state.holderH = (!isNaN(v) && v > 0) ? v : null;
                         });
-                        sizeRow.appendChild(applyBtn);
-
-                        sizeSection.appendChild(sizeRow);
+                        hWrap.appendChild(hInput);
+                        sizeRow.appendChild(hWrap);
+                    } else {
+                        const lockNote = mkEl('small', { className: 'text-muted align-self-end', textContent: '(aspect locked)' });
+                        sizeRow.appendChild(lockNote);
                     }
 
-                    el.appendChild(sizeSection);
+                    // Apply size button
+                    const applyBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Apply size' });
+                    applyBtn.addEventListener('click', () => {
+                        const w = parseFloat(wInput.value);
+                        const h = hInput ? parseFloat(hInput.value) : null;
+                        if (isNaN(w) || w <= 0) return;
+                        Coach.state.holderW = w;
+                        Coach.state.holderH = (hInput && !isNaN(h) && h > 0) ? h : Coach.state.holderH;
+                        if (Coach.state.holderObj) {
+                            resizeHolder(w, lockAspect ? null : h, lockAspect);
+                        }
+                        // else: stored — will apply automatically once a shape is picked
+                    });
+                    sizeRow.appendChild(applyBtn);
+
+                    sizeSection.appendChild(sizeRow);
+
+                    if (!hasHolder) {
+                        sizeSection.appendChild(mkEl('p', {
+                            className: 'small text-muted mb-0 mt-1',
+                            textContent: 'Set a size now or later — it applies as soon as you pick a base shape.'
+                        }));
+                    }
+
+                    // Render size BEFORE the base-shape picker (issue: size can come first)
+                    el.insertBefore(sizeSection, shapeLabel);
 
                     // ── 4. Ready layouts (subtle) ─────────────────────────
                     const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready layout:' });
@@ -5321,34 +5356,61 @@
                     el.appendChild(plasticLabel);
 
                     const plasticRow = document.createElement('div');
-                    plasticRow.className = 'd-flex align-items-center gap-2 mb-2';
+                    plasticRow.className = 'd-flex align-items-center flex-wrap gap-2 mb-2';
                     el.appendChild(plasticRow);
 
-                    const engineColorInput = document.getElementById('fillColor');
-                    const defaultColor = engineColorInput ? engineColorInput.value : '#344734';
+                    // Use the SAME predefined palette as the main editor's #fillColor dropdown.
+                    // Setting #fillColor to one of its real option values is what makes applyFill work —
+                    // an arbitrary hex from a free picker isn't a valid <option> and silently blanks the fill.
+                    const PRESET_COLORS = [
+                        { value: '#000000',     label: 'Black' },
+                        { value: '#FFFFFF',     label: 'White' },
+                        { value: '#F5F5DC',     label: 'Mat White' },
+                        { value: 'transparent', label: 'No Fill' },
+                        { value: '#FF0000',     label: 'Red' },
+                        { value: '#FFFF00',     label: 'Yellow' },
+                        { value: '#0000FF',     label: 'Blue' },
+                        { value: '#87CEEB',     label: 'Light Blue' },
+                        { value: '#00FF00',     label: 'Green' }
+                    ];
 
-                    const colorPicker = document.createElement('input');
-                    colorPicker.type = 'color';
-                    colorPicker.className = 'form-control form-control-color';
-                    colorPicker.value = defaultColor;
-                    colorPicker.title = 'Choose plastic colour';
-                    plasticRow.appendChild(colorPicker);
-
-                    const applyColorBtn = document.createElement('button');
-                    applyColorBtn.type = 'button';
-                    applyColorBtn.className = 'btn btn-sm btn-outline-light';
-                    const isColorActive = currentMaterial === 'color';
-                    if (isColorActive) {
-                        applyColorBtn.classList.add('active');
-                        Object.assign(applyColorBtn.style, makeSelected(true));
+                    // Determine the holder's current fill so we can highlight the matching swatch.
+                    let currentFill = null;
+                    if (obj.type === 'group') {
+                        obj.forEachObject(o => {
+                            if (currentFill === null && o.type !== 'text' && o.type !== 'i-text' && typeof o.fill === 'string') {
+                                currentFill = o.fill;
+                            }
+                        });
+                    } else if (typeof obj.fill === 'string') {
+                        currentFill = obj.fill;
                     }
-                    applyColorBtn.textContent = 'Apply colour';
-                    applyColorBtn.addEventListener('click', () => {
-                        const fillColorInput = document.getElementById('fillColor');
-                        if (fillColorInput) fillColorInput.value = colorPicker.value;
-                        applyMaterial('color');
+
+                    PRESET_COLORS.forEach(({ value, label }) => {
+                        // Plain <button> WITHOUT the .btn class — the coach CSS forces
+                        // ".btn { background:#344734 !important }", which would mask the swatch colour.
+                        const sw = document.createElement('button');
+                        sw.type = 'button';
+                        sw.title = label;
+                        sw.style.cssText = 'width:30px;height:30px;border-radius:6px;border:2px solid #888;cursor:pointer;padding:0;';
+                        if (value === 'transparent') {
+                            sw.style.background = 'repeating-linear-gradient(45deg,#ccc,#ccc 4px,#fff 4px,#fff 8px)';
+                        } else {
+                            sw.style.background = value;
+                        }
+                        const isSel = currentMaterial === 'color' && currentFill &&
+                                      currentFill.toLowerCase() === value.toLowerCase();
+                        if (isSel) {
+                            sw.style.borderColor = '#344734';
+                            sw.style.boxShadow = '0 0 0 3px #cfe3cf';
+                        }
+                        sw.addEventListener('click', () => {
+                            const fillColorInput = document.getElementById('fillColor');
+                            if (fillColorInput) fillColorInput.value = value; // valid <option> value
+                            applyMaterial('color');
+                        });
+                        plasticRow.appendChild(sw);
                     });
-                    plasticRow.appendChild(applyColorBtn);
                 },
             },
             {
@@ -5606,12 +5668,11 @@
             {
                 id: 'personalize',
                 title: 'Personalize',
-                intro: 'Add a title, a country outline, shapes or a logo.',
+                intro: 'Add a title, a country outline, or a logo.',
                 optional: true,
                 highlight: [
                     Coach.SELECTORS.text,
                     Coach.SELECTORS.countries,
-                    Coach.SELECTORS.shapes,
                     Coach.SELECTORS.imageUpload
                 ],
                 renderAction(el) {
@@ -5695,11 +5756,13 @@
 
                     const filledBtn = document.createElement('button');
                     filledBtn.className = 'btn btn-sm btn-secondary';
-                    filledBtn.textContent = 'Filled';
+                    // Same icon, solid = filled
+                    filledBtn.innerHTML = '<i class="fas fa-square"></i> Filled';
 
                     const outlineBtn = document.createElement('button');
                     outlineBtn.className = 'btn btn-sm btn-outline-secondary';
-                    outlineBtn.textContent = 'Outline';
+                    // Same icon, regular (hollow) = outline
+                    outlineBtn.innerHTML = '<i class="far fa-square"></i> Outline';
 
                     function updateModeButtons() {
                         if (countryMode === 'filled') {
@@ -5757,31 +5820,7 @@
                     el.appendChild(countryToggleBtn);
                     el.appendChild(countryPanel);
 
-                    /* ── 3. Add a shape ──────────────────────────────── */
-                    el.appendChild(sectionLabel('Add a shape'));
-
-                    const shapeRow = document.createElement('div');
-                    shapeRow.className = 'd-flex flex-wrap gap-1 mb-2';
-
-                    const shapes = [
-                        { type: 'rectangle', label: 'Rectangle' },
-                        { type: 'circle',    label: 'Circle' },
-                        { type: 'ellipse',   label: 'Ellipse' }
-                    ];
-
-                    shapes.forEach(({ type, label }) => {
-                        const btn = document.createElement('button');
-                        btn.className = 'btn btn-sm btn-outline-secondary';
-                        btn.textContent = label;
-                        btn.addEventListener('click', () => {
-                            if (typeof addShape === 'function') addShape(type);
-                        });
-                        shapeRow.appendChild(btn);
-                    });
-
-                    el.appendChild(shapeRow);
-
-                    /* ── 4. Upload a logo / image ────────────────────── */
+                    /* ── 3. Upload a logo / image ────────────────────── */
                     el.appendChild(sectionLabel('Upload a logo or image'));
 
                     const uploadBtn = document.createElement('button');
