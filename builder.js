@@ -5083,8 +5083,19 @@
                     el.appendChild(intro);
 
                     // ── Resolve the holder object ─────────────────────────
-                    const obj = Coach.state.holderObj ||
-                        (typeof canvas !== 'undefined' && canvas ? canvas.getActiveObject() : null);
+                    const obj = (function resolveTarget(){
+                        if (typeof canvas === 'undefined' || !canvas) return null;
+                        // prefer the tracked holder if it's still on the canvas
+                        if (Coach.state.holderObj && canvas.getObjects().indexOf(Coach.state.holderObj) !== -1) return Coach.state.holderObj;
+                        // else the largest non-coin object (the board, incl. template boards)
+                        const nonCoins = canvas.getObjects().filter(o => o.shapeType !== 'currency' && o.type !== 'i-text' && o.type !== 'text');
+                        if (nonCoins.length) {
+                            return nonCoins.reduce((a,b) => (a.getScaledWidth()*a.getScaledHeight() >= b.getScaledWidth()*b.getScaledHeight()) ? a : b);
+                        }
+                        return canvas.getActiveObject();
+                    })();
+                    // Track the resolved object so later steps and persistence use the template board
+                    if (obj) Coach.state.holderObj = obj;
 
                     if (!obj) {
                         const nudge = document.createElement('p');
@@ -5109,6 +5120,24 @@
                                 ? document.getElementById('fillColor').value
                                 : '#ffffff';
                             cascadeColorToContained(obj, fillType, plastic);
+                        }
+                        // Guarantee plastic colour is applied regardless of engine input state
+                        if (fillType === 'color') {
+                            const chosen = document.getElementById('fillColor')
+                                ? document.getElementById('fillColor').value
+                                : null;
+                            if (chosen && obj) {
+                                if (obj.type === 'group') {
+                                    obj.forEachObject(o => {
+                                        if (o.type !== 'text' && o.type !== 'i-text' && o.fill !== 'transparent') {
+                                            o.set('fill', chosen);
+                                        }
+                                    });
+                                } else {
+                                    obj.set('fill', chosen);
+                                }
+                                obj.materialType = 'color';
+                            }
                         }
                         // Keep engine's properties panel consistent
                         const sel = document.getElementById('materialPreset');
