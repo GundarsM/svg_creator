@@ -4869,7 +4869,7 @@
                         }
                         tab.addEventListener('click', () => {
                             Coach.state.coinCurrency = key;
-                            Coach.renderStep(Coach.current);
+                            Coach.render();
                         });
                         tabRow.appendChild(tab);
                     });
@@ -4928,13 +4928,14 @@
                             textContent: 'Add'
                         });
                         addBtn.addEventListener('click', () => {
-                            if (qty.value < 1) return;
+                            const q = parseInt(qty.value, 10);
+                            if (!q || q < 1) return;
                             if (typeof addSingleCoin !== 'function') return;
                             Coach.state.coins = Coach.state.coins || {};
-                            for (let i = 0; i < qty.value; i++) {
+                            for (let i = 0; i < q; i++) {
                                 addSingleCoin(coin.value, coin.diameter);
                             }
-                            Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + qty.value;
+                            Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
                             // Refresh tally
                             updateTally();
                         });
