@@ -4036,5 +4036,365 @@
         <!-- ═══════════════════════════════════════════════════════
              END COACH REGION
              ═══════════════════════════════════════════════════════ -->
+
+        <!-- ═══════════════════════════════════════════════════════
+             COACH CORE (Task 3)
+             ═══════════════════════════════════════════════════════ -->
+        <script>
+        /* ─────────────────────────────────────────────────────────
+           Coach — guided builder core
+           ───────────────────────────────────────────────────────── */
+        const Coach = {
+            current: 0,
+            state: {},
+            steps: [],          // populated below, after SELECTORS is defined
+            _highlighted: [],   // elements currently carrying .coach-highlight
+
+            SELECTORS: {
+                templates:      '#coachTemplatesHeading',
+                coins:          '#coachCoinsHeading',
+                countries:      '#coachCountriesHeading',
+                shapes:         '#coachShapesHeading',
+                text:           '#coachTextHeading',
+                settings:       '#coachSettingsBtn',
+                sizeW:          '#customWidthToolbar',
+                sizeH:          '#customHeightToolbar',
+                material:       '#materialPresetGroup',
+                materialSelect: '#materialPreset',
+                fillColor:      '#fillColor',
+                imageUpload:    '#imageUpload',
+                fileImport:     '#fileImport',
+                download:       '#downloadBtn'
+            },
+
+            /* ── 1. Init ──────────────────────────────────────────── */
+            init() {
+                let tries = 0;
+                const MAX_TRIES = 60;          // 60 × 50 ms = 3 s
+                const INTERVAL  = 50;
+
+                const poll = setInterval(() => {
+                    tries++;
+                    if (typeof canvas !== 'undefined' && canvas) {
+                        clearInterval(poll);
+                        Coach.go(0);
+                    } else if (tries >= MAX_TRIES) {
+                        clearInterval(poll);
+                        console.warn('[Coach] engine canvas not found; running in text-only mode');
+                        Coach.go(0);
+                    }
+                }, INTERVAL);
+            },
+
+            /* ── 2. Navigation primitives ─────────────────────────── */
+            go(index) {
+                const clamped = Math.max(0, Math.min(index, Coach.steps.length - 1));
+                Coach.current = clamped;
+                Coach.clearHighlights();
+                Coach.render();
+            },
+
+            next() { Coach.go(Coach.current + 1); },
+            back() { Coach.go(Coach.current - 1); },
+            skip() { Coach.next(); },
+
+            /* ── 3. Render ────────────────────────────────────────── */
+            render() {
+                const step      = Coach.steps[Coach.current];
+                if (!step) return;
+
+                const isFirst   = Coach.current === 0;
+                const isLast    = Coach.current === Coach.steps.length - 1;
+
+                // Progress text
+                const progressEl = document.getElementById('coach-progress');
+                if (progressEl) {
+                    progressEl.textContent = `Step ${Coach.current + 1} / ${Coach.steps.length}`;
+                }
+
+                // Title
+                const titleEl = document.getElementById('coach-title');
+                if (titleEl) {
+                    titleEl.textContent = step.title;
+                }
+
+                // Body
+                const bodyEl = document.getElementById('coach-body');
+                if (bodyEl) {
+                    bodyEl.innerHTML = '';
+                    if (typeof step.renderAction === 'function') {
+                        step.renderAction(bodyEl);
+                    }
+                }
+
+                // Highlights
+                Coach.highlight(step.highlight || []);
+
+                // Footer — back button
+                const backBtn = document.getElementById('coach-back');
+                if (backBtn) {
+                    backBtn.style.visibility = isFirst ? 'hidden' : 'visible';
+                }
+
+                // Footer — skip button (only when step.optional === true)
+                const skipBtn = document.getElementById('coach-skip');
+                if (skipBtn) {
+                    skipBtn.style.display = step.optional ? 'inline-block' : 'none';
+                }
+
+                // Footer — next button label
+                const nextBtn = document.getElementById('coach-next');
+                if (nextBtn) {
+                    nextBtn.textContent = isLast ? 'Finish' : 'Next ›';
+                }
+
+                // Dots
+                Coach.renderDots();
+            },
+
+            /* ── 4. Dots ──────────────────────────────────────────── */
+            renderDots() {
+                const dotsEl = document.getElementById('coach-dots');
+                if (!dotsEl) return;
+
+                dotsEl.innerHTML = '';
+
+                Coach.steps.forEach((step, i) => {
+                    const dot = document.createElement('span');
+                    dot.style.cssText = [
+                        'display:inline-block',
+                        'width:10px',
+                        'height:10px',
+                        'border-radius:50%',
+                        'margin:0 3px',
+                        'cursor:pointer',
+                        'font-size:8px',
+                        'line-height:10px',
+                        'text-align:center',
+                        'vertical-align:middle',
+                        'transition:background 0.2s'
+                    ].join(';');
+
+                    const isActive   = i === Coach.current;
+                    const isComplete = typeof step.isComplete === 'function' && step.isComplete();
+
+                    if (isComplete) {
+                        dot.textContent   = '✓';
+                        dot.style.background  = '#4a7c4a';
+                        dot.style.color       = '#fff';
+                        dot.style.width       = '14px';
+                        dot.style.height      = '14px';
+                        dot.style.lineHeight  = '14px';
+                        dot.style.fontSize    = '9px';
+                    } else if (isActive) {
+                        dot.style.background = '#344734';
+                        dot.style.transform  = 'scale(1.3)';
+                    } else {
+                        dot.style.background = '#bbb';
+                    }
+
+                    dot.title = step.title;
+                    dot.addEventListener('click', () => Coach.go(i));
+                    dotsEl.appendChild(dot);
+                });
+            },
+
+            /* ── 5. Highlight ─────────────────────────────────────── */
+            highlight(selectorList) {
+                Coach.clearHighlights();
+
+                if (!Array.isArray(selectorList) || selectorList.length === 0) return;
+
+                const isMobile = window.matchMedia('(max-width: 768px)').matches;
+                let firstEl    = null;
+
+                selectorList.forEach(sel => {
+                    if (!sel) return;
+                    const el = document.querySelector(sel);
+                    if (!el) return;
+                    el.classList.add('coach-highlight');
+                    Coach._highlighted.push(el);
+                    if (!firstEl) firstEl = el;
+                });
+
+                if (isMobile && firstEl) {
+                    firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            },
+
+            clearHighlights() {
+                // Use the remembered list first; fall back to a live query for safety
+                if (Coach._highlighted.length > 0) {
+                    Coach._highlighted.forEach(el => el.classList.remove('coach-highlight'));
+                    Coach._highlighted = [];
+                } else {
+                    document.querySelectorAll('.coach-highlight')
+                        .forEach(el => el.classList.remove('coach-highlight'));
+                }
+            },
+
+            /* ── 6. Collapse / launcher ───────────────────────────── */
+            _wireCollapse() {
+                const collapseBtn  = document.getElementById('coach-collapse');
+                const bubbleEl     = document.getElementById('coach-bubble');
+                const launcherBtn  = document.getElementById('coach-launcher');
+
+                if (collapseBtn && bubbleEl && launcherBtn) {
+                    collapseBtn.addEventListener('click', () => {
+                        bubbleEl.style.display  = 'none';
+                        launcherBtn.removeAttribute('hidden');
+                    });
+                    launcherBtn.addEventListener('click', () => {
+                        bubbleEl.style.display  = '';
+                        launcherBtn.setAttribute('hidden', '');
+                    });
+                }
+            },
+
+            /* ── 7. Drag (desktop only) ───────────────────────────── */
+            _wireDrag() {
+                if (window.matchMedia('(max-width: 768px)').matches) return;
+
+                const dragHandle = document.getElementById('coach-drag');
+                const bubbleEl   = document.getElementById('coach-bubble');
+                if (!dragHandle || !bubbleEl) return;
+
+                let dragging   = false;
+                let startX     = 0;
+                let startY     = 0;
+                let origLeft   = 0;
+                let origTop    = 0;
+
+                dragHandle.style.cursor = 'grab';
+
+                dragHandle.addEventListener('pointerdown', e => {
+                    if (window.matchMedia('(max-width: 768px)').matches) return;
+                    dragging = true;
+                    dragHandle.setPointerCapture(e.pointerId);
+                    dragHandle.style.cursor = 'grabbing';
+
+                    const rect = bubbleEl.getBoundingClientRect();
+                    startX   = e.clientX;
+                    startY   = e.clientY;
+                    origLeft = rect.left;
+                    origTop  = rect.top;
+
+                    // Switch to absolute left/top positioning
+                    bubbleEl.style.right  = 'auto';
+                    bubbleEl.style.bottom = 'auto';
+                    bubbleEl.style.left   = origLeft + 'px';
+                    bubbleEl.style.top    = origTop  + 'px';
+                });
+
+                dragHandle.addEventListener('pointermove', e => {
+                    if (!dragging) return;
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    bubbleEl.style.left = (origLeft + dx) + 'px';
+                    bubbleEl.style.top  = (origTop  + dy) + 'px';
+                });
+
+                dragHandle.addEventListener('pointerup', () => {
+                    dragging = false;
+                    dragHandle.style.cursor = 'grab';
+                });
+
+                dragHandle.addEventListener('pointercancel', () => {
+                    dragging = false;
+                    dragHandle.style.cursor = 'grab';
+                });
+            }
+        };
+
+        /* ── Populate steps (after Coach.SELECTORS is defined) ────── */
+        Coach.steps = [
+            {
+                id: 'occasion',
+                title: 'Welcome & occasion',
+                intro: "Let’s design your coin holder. What’s the occasion?",
+                optional: true,
+                highlight: [],
+                renderAction(el) { el.textContent = this.intro; }
+            },
+            {
+                id: 'holder',
+                title: 'Choose the holder',
+                intro: 'Pick the shape and size of your holder.',
+                optional: false,
+                highlight: [
+                    Coach.SELECTORS.settings,
+                    Coach.SELECTORS.shapes,
+                    Coach.SELECTORS.countries,
+                    Coach.SELECTORS.fileImport
+                ],
+                renderAction(el) { el.textContent = this.intro; }
+            },
+            {
+                id: 'material',
+                title: 'Pick the material',
+                intro: 'Choose a wood finish or plastic colour.',
+                optional: false,
+                highlight: [Coach.SELECTORS.material],
+                renderAction(el) { el.textContent = this.intro; }
+            },
+            {
+                id: 'coins',
+                title: 'Add your coins',
+                intro: 'Add the coins you want to display.',
+                optional: false,
+                highlight: [Coach.SELECTORS.coins],
+                renderAction(el) { el.textContent = this.intro; }
+            },
+            {
+                id: 'arrange',
+                title: 'Arrange the layout',
+                intro: 'Tidy your coins into a neat layout.',
+                optional: false,
+                highlight: [],
+                renderAction(el) { el.textContent = this.intro; }
+            },
+            {
+                id: 'personalize',
+                title: 'Personalize',
+                intro: 'Add a title, a country outline, shapes or a logo.',
+                optional: true,
+                highlight: [
+                    Coach.SELECTORS.text,
+                    Coach.SELECTORS.countries,
+                    Coach.SELECTORS.shapes,
+                    Coach.SELECTORS.imageUpload
+                ],
+                renderAction(el) { el.textContent = this.intro; }
+            },
+            {
+                id: 'review',
+                title: 'Review & request',
+                intro: 'Review your design, then download or request a quote.',
+                optional: false,
+                highlight: [Coach.SELECTORS.download],
+                renderAction(el) { el.textContent = this.intro; }
+            }
+        ];
+
+        /* ── Wire navigation buttons ──────────────────────────────── */
+        (function wireButtons() {
+            const backBtn = document.getElementById('coach-back');
+            const skipBtn = document.getElementById('coach-skip');
+            const nextBtn = document.getElementById('coach-next');
+            if (backBtn) backBtn.addEventListener('click', () => Coach.back());
+            if (skipBtn) skipBtn.addEventListener('click', () => Coach.skip());
+            if (nextBtn) nextBtn.addEventListener('click', () => Coach.next());
+        }());
+
+        /* ── Wire collapse + drag ─────────────────────────────────── */
+        Coach._wireCollapse();
+        Coach._wireDrag();
+
+        /* ── Boot ─────────────────────────────────────────────────── */
+        window.addEventListener('load', () => Coach.init());
+        </script>
+        <!-- ═══════════════════════════════════════════════════════
+             END COACH CORE
+             ═══════════════════════════════════════════════════════ -->
     </body>
     </html>
