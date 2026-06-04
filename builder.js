@@ -4306,6 +4306,118 @@
             }
         };
 
+        /* ── Coach.arrange ────────────────────────────────────────────
+           Arranges coins that lie inside the holder's bounding box into
+           one of three patterns.  Containment test is axis-aligned bbox
+           (good enough for rectangles, circles, ellipses).  Point-in-path
+           for irregular shapes (country / imported SVG) is a stretch goal
+           not implemented here. */
+        Coach.arrange = function(pattern) {
+            // Guard: canvas must exist
+            if (typeof canvas === 'undefined' || !canvas) return false;
+
+            // Holder types recognised by the Coach
+            const HOLDER_TYPES = new Set([
+                'rectangle', 'circle', 'ellipse',
+                'rectangle-outline', 'circle-outline', 'ellipse-outline',
+                'country', 'imported'
+            ]);
+
+            // Resolve holder object
+            let holder = Coach.state.holderObj;
+            if (!holder || canvas.getObjects().indexOf(holder) === -1) {
+                holder = canvas.getObjects().find(o => HOLDER_TYPES.has(o.shapeType)) || null;
+            }
+            if (!holder) return false;
+
+            // Collect coin objects
+            const coins = canvas.getObjects().filter(o => o.shapeType === 'currency');
+            if (coins.length === 0) return false;
+
+            // Holder absolute bounding box
+            const hc  = holder.getCenterPoint();
+            const hw  = holder.getScaledWidth();
+            const hh  = holder.getScaledHeight();
+            const left = hc.x - hw / 2;
+            const top  = hc.y - hh / 2;
+
+            // Coins whose center lies inside the holder bbox
+            const contained = coins.filter(c => {
+                const cp = c.getCenterPoint();
+                return cp.x >= left && cp.x <= left + hw &&
+                       cp.y >= top  && cp.y <= top  + hh;
+            });
+            const targets = contained.length ? contained : coins;
+
+            // Cell size based on the largest coin footprint + padding
+            let maxFoot = 0;
+            targets.forEach(c => { maxFoot = Math.max(maxFoot, c.getScaledWidth(), c.getScaledHeight()); });
+            const pad  = maxFoot * 0.15;
+            const cell = maxFoot + pad;
+
+            // Build position array
+            const pos = [];
+
+            if (pattern === 'circle') {
+                let R = Math.min(hw, hh) / 2 - cell / 2;
+                // Fall back to grid when ring is too tight or radius is non-positive
+                const tooTight = targets.length > 1 &&
+                    (2 * R * Math.sin(Math.PI / targets.length) < cell);
+                if (R <= 0 || tooTight) {
+                    pattern = 'grid'; // continue below
+                } else {
+                    for (let i = 0; i < targets.length; i++) {
+                        const theta = -Math.PI / 2 + i * (2 * Math.PI / targets.length);
+                        pos.push({
+                            x: hc.x + R * Math.cos(theta),
+                            y: hc.y + R * Math.sin(theta)
+                        });
+                    }
+                }
+            }
+
+            if (pattern === 'grid' || pattern === 'rows') {
+                let cols;
+                if (pattern === 'rows') {
+                    // Maximise columns to fill width
+                    cols = Math.max(1, Math.floor(hw / cell));
+                } else {
+                    // Roughly square grid, then cap to what fits horizontally
+                    cols = Math.max(1, Math.round(Math.sqrt(targets.length)));
+                    cols = Math.min(cols, Math.max(1, Math.floor(hw / cell)));
+                }
+                const rows  = Math.ceil(targets.length / cols);
+                const bw    = cols * cell;
+                const bh    = rows * cell;
+                const startX = hc.x - bw / 2 + cell / 2;
+                const startY = hc.y - bh / 2 + cell / 2;
+                for (let i = 0; i < targets.length; i++) {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    pos.push({ x: startX + col * cell, y: startY + row * cell });
+                }
+            }
+
+            // Clamp each position so the coin stays inside the holder box
+            targets.forEach((c, i) => {
+                const fw = c.getScaledWidth()  / 2;
+                const fh = c.getScaledHeight() / 2;
+                const minX = left + fw;
+                const maxX = left + hw - fw;
+                const minY = top  + fh;
+                const maxY = top  + hh - fh;
+                // When the holder is smaller than the coin, just use the holder center
+                const x = minX <= maxX ? Math.max(minX, Math.min(maxX, pos[i].x)) : hc.x;
+                const y = minY <= maxY ? Math.max(minY, Math.min(maxY, pos[i].y)) : hc.y;
+                c.setPositionByOrigin(new fabric.Point(x, y), 'center', 'center');
+                c.setCoords();
+            });
+
+            canvas.requestRenderAll();
+            if (typeof saveState === 'function') saveState();
+            return true;
+        };
+
         /* ── Populate steps (after Coach.SELECTORS is defined) ────── */
         Coach.steps = [
             {
@@ -4966,7 +5078,53 @@
                 intro: 'Tidy your coins into a neat layout.',
                 optional: false,
                 highlight: [],
-                renderAction(el) { el.textContent = this.intro; }
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    // Intro paragraph
+                    const intro = document.createElement('p');
+                    intro.className = 'mb-3';
+                    intro.textContent = this.intro;
+                    el.appendChild(intro);
+
+                    // Nudge element (hidden until a button returns false)
+                    const nudge = document.createElement('p');
+                    nudge.className = 'small text-warning mb-2';
+                    nudge.textContent = 'Add a holder and some coins first.';
+                    nudge.style.display = 'none';
+                    el.appendChild(nudge);
+
+                    const showNudge = (ok) => {
+                        nudge.style.display = ok ? 'none' : '';
+                    };
+
+                    // Layout buttons
+                    const btnRow = document.createElement('div');
+                    btnRow.className = 'd-flex flex-wrap gap-2 mb-3';
+
+                    const makeArrangeBtn = (label, iconClass, patternKey) => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn btn-sm btn-outline-light';
+                        btn.innerHTML = `<i class="${iconClass} me-1"></i>${label}`;
+                        btn.addEventListener('click', () => {
+                            const ok = Coach.arrange(patternKey);
+                            showNudge(ok);
+                        });
+                        return btn;
+                    };
+
+                    btnRow.appendChild(makeArrangeBtn('Grid',   'fas fa-th',            'grid'));
+                    btnRow.appendChild(makeArrangeBtn('Circle', 'fas fa-circle-notch',  'circle'));
+                    btnRow.appendChild(makeArrangeBtn('Rows',   'fas fa-bars',          'rows'));
+                    el.appendChild(btnRow);
+
+                    // Muted note
+                    const note = document.createElement('p');
+                    note.className = 'small text-muted mb-0';
+                    note.textContent = 'Or just drag the coins around the canvas yourself — your call.';
+                    el.appendChild(note);
+                }
             },
             {
                 id: 'personalize',
