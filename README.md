@@ -6,6 +6,22 @@ A browser-based canvas editor for designing custom commemorative products. Custo
 
 The tool lets users compose a design from coins, country outlines, shapes, text, and uploaded images on a resizable canvas. The finished design can be exported as a vector SVG file or sent directly to HillSpring Crafts as a quote request.
 
+## Guided builder (`builder.js`)
+
+`builder.js` is a separate, self-contained page that wraps the **same editor engine** in a guided, assistant-led experience for first-time customers. It contains a verbatim copy of `editor.js` plus an additive scripted "Coach" overlay — a floating, collapsible bubble that walks the customer through seven steps:
+
+1. **Welcome & occasion** — gift, travel memento, collection, milestone (optional)
+2. **Choose the holder** — Rectangle, Circular, a Country outline, or an uploaded SVG, plus size
+3. **Pick the material** — wood finish or plastic colour
+4. **Add coins** — currency, denominations, and quantities at real-world diameters
+5. **Arrange** — tidy coins into a grid / circle / rows *inside the holder shape*
+6. **Personalize** — engraving text, country outline, shapes, or an uploaded logo (optional)
+7. **Review & request** — plain-language summary, then Download SVG or Request a Quote (pre-filled)
+
+The assistant only guides — at every step the full editor canvas and toolbar stay editable, the customer can jump between steps freely, and progress auto-saves to the browser (`localStorage`) with a **Start over** option. No AI and no backend; it is deployed exactly like the other tools.
+
+> **Maintenance:** the engine region of `builder.js` is a byte-for-byte copy of `editor.js`. Don't hand-edit it — when `editor.js` changes, re-paste it into the region below the `ENGINE` marker. Only the appended `COACH` region is hand-maintained.
+
 ## Features
 
 **Templates**
@@ -50,6 +66,8 @@ Paste the full contents of `editor.js` into the **Page Header Code Injection** f
 4. Save and publish.
 
 The tool is self-contained — all styles, scripts, and HTML are in a single file. No additional files or dependencies need to be uploaded.
+
+To deploy the **guided builder**, paste the full contents of `builder.js` into the Page Header Code Injection field of a *separate* Squarespace page, the same way. It is also fully self-contained.
 
 ## Tech Stack
 
