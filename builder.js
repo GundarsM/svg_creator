@@ -4393,7 +4393,245 @@
                     Coach.SELECTORS.countries,
                     Coach.SELECTORS.fileImport
                 ],
-                renderAction(el) { el.textContent = this.intro; }
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    // ── helpers ───────────────────────────────────────────
+                    const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
+
+                    const makeBtn = (label, icon, active) => {
+                        const btn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light' });
+                        btn.innerHTML = icon ? `<i class="${icon}"></i> ${label}` : label;
+                        if (active) {
+                            btn.classList.add('active');
+                            btn.style.backgroundColor = '#cfe3cf';
+                            btn.style.color = '#344734';
+                            btn.style.borderColor = '#cfe3cf';
+                        }
+                        return btn;
+                    };
+
+                    const markSelected = (group, chosen) => {
+                        group.querySelectorAll('button[data-shape]').forEach(b => {
+                            const sel = b.dataset.shape === chosen;
+                            b.classList.toggle('active', sel);
+                            b.style.backgroundColor = sel ? '#cfe3cf' : '';
+                            b.style.color = sel ? '#344734' : '';
+                            b.style.borderColor = sel ? '#cfe3cf' : '';
+                        });
+                    };
+
+                    const captureHolder = (type) => {
+                        if (typeof canvas !== 'undefined' && canvas) {
+                            const obj = canvas.getActiveObject();
+                            Coach.state.holderObj = obj;
+                            Coach.state.holderType = type;
+                            if (obj) obj.coachHolderId = 'holder';
+                        }
+                    };
+
+                    // ── 1. Intro ───────────────────────────────────────────
+                    const intro = mkEl('p', { className: 'mb-3', textContent: this.intro });
+                    el.appendChild(intro);
+
+                    // ── 2. Ordering hint ──────────────────────────────────
+                    const hint = mkEl('p', { className: 'small text-muted mb-3' });
+                    hint.textContent = 'Tip: set the size first, then choose a shape — that way coins you add later land at the right scale.';
+                    el.appendChild(hint);
+
+                    // ── 3. Size controls ──────────────────────────────────
+                    const sizeSection = mkEl('div', { className: 'mb-3' });
+
+                    const sizeLabel = mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Board size' });
+                    sizeSection.appendChild(sizeLabel);
+
+                    const sizeRow = mkEl('div', { className: 'd-flex flex-wrap gap-2 align-items-end' });
+
+                    // width input
+                    const wWrap = mkEl('div');
+                    wWrap.appendChild(Object.assign(mkEl('label', { htmlFor: 'coach-size-w', className: 'form-label small mb-0', textContent: 'Width' })));
+                    const wInput = mkEl('input', {
+                        type: 'number', id: 'coach-size-w', className: 'form-control form-control-sm',
+                        min: '1', step: '0.01', style: 'width:90px'
+                    });
+                    // Initialise from live toolbar or canvas
+                    const liveW = document.getElementById('customWidthToolbar');
+                    const liveH = document.getElementById('customHeightToolbar');
+                    wInput.value = liveW ? liveW.value : (typeof canvas !== 'undefined' && canvas ? canvas.realWidth : 390);
+                    wWrap.appendChild(wInput);
+                    sizeRow.appendChild(wWrap);
+
+                    // height input
+                    const hWrap = mkEl('div');
+                    hWrap.appendChild(Object.assign(mkEl('label', { htmlFor: 'coach-size-h', className: 'form-label small mb-0', textContent: 'Height' })));
+                    const hInput = mkEl('input', {
+                        type: 'number', id: 'coach-size-h', className: 'form-control form-control-sm',
+                        min: '1', step: '0.01', style: 'width:90px'
+                    });
+                    hInput.value = liveH ? liveH.value : (typeof canvas !== 'undefined' && canvas ? canvas.realHeight : 300);
+                    hWrap.appendChild(hInput);
+                    sizeRow.appendChild(hWrap);
+
+                    // unit toggle
+                    const unitWrap = mkEl('div', { className: 'd-flex gap-1' });
+                    const initUnit = (typeof currentUnit !== 'undefined') ? currentUnit : 'mm';
+                    let chosenUnit = initUnit;
+
+                    const btnMM   = makeBtn('MM',   null, initUnit === 'mm');
+                    btnMM.dataset.unit = 'mm';
+                    const btnInch = makeBtn('INCH', null, initUnit === 'inch');
+                    btnInch.dataset.unit = 'inch';
+
+                    [btnMM, btnInch].forEach(ub => {
+                        ub.addEventListener('click', () => {
+                            chosenUnit = ub.dataset.unit;
+                            [btnMM, btnInch].forEach(x => {
+                                const s = x.dataset.unit === chosenUnit;
+                                x.classList.toggle('active', s);
+                                x.style.backgroundColor = s ? '#cfe3cf' : '';
+                                x.style.color = s ? '#344734' : '';
+                                x.style.borderColor = s ? '#cfe3cf' : '';
+                            });
+                        });
+                        unitWrap.appendChild(ub);
+                    });
+                    sizeRow.appendChild(unitWrap);
+
+                    // Apply size button
+                    const applyBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Apply size' });
+                    applyBtn.addEventListener('click', () => {
+                        if (liveW) liveW.value = wInput.value;
+                        if (liveH) liveH.value = hInput.value;
+                        if (typeof setUnit === 'function' && chosenUnit !== (typeof currentUnit !== 'undefined' ? currentUnit : 'mm')) {
+                            setUnit(chosenUnit);
+                        }
+                        if (typeof applyCustomSize === 'function') applyCustomSize();
+                    });
+                    sizeRow.appendChild(applyBtn);
+
+                    sizeSection.appendChild(sizeRow);
+                    el.appendChild(sizeSection);
+
+                    // ── 4. Base-shape picker ──────────────────────────────
+                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2 mt-3', textContent: 'Choose a base shape' });
+                    el.appendChild(shapeLabel);
+
+                    const shapeGroup = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3' });
+
+                    // Rectangle
+                    const rectBtn = makeBtn('Rectangle', 'fas fa-square-full', Coach.state.holderType === 'rectangle');
+                    rectBtn.dataset.shape = 'rectangle';
+                    rectBtn.addEventListener('click', () => {
+                        if (typeof addShape === 'function') {
+                            addShape('rectangle');
+                            captureHolder('rectangle');
+                        }
+                        markSelected(shapeGroup, 'rectangle');
+                        countryPicker.style.display = 'none';
+                    });
+                    shapeGroup.appendChild(rectBtn);
+
+                    // Circle
+                    const circBtn = makeBtn('Circular', 'fas fa-circle', Coach.state.holderType === 'circle');
+                    circBtn.dataset.shape = 'circle';
+                    circBtn.addEventListener('click', () => {
+                        if (typeof addShape === 'function') {
+                            addShape('circle');
+                            captureHolder('circle');
+                        }
+                        markSelected(shapeGroup, 'circle');
+                        countryPicker.style.display = 'none';
+                    });
+                    shapeGroup.appendChild(circBtn);
+
+                    // Country outline
+                    const countryBtn = makeBtn('Country outline', 'fas fa-globe', Coach.state.holderType === 'country');
+                    countryBtn.dataset.shape = 'country';
+                    countryBtn.addEventListener('click', () => {
+                        const visible = countryPicker.style.display !== 'none';
+                        countryPicker.style.display = visible ? 'none' : '';
+                        if (!visible) markSelected(shapeGroup, 'country');
+                    });
+                    shapeGroup.appendChild(countryBtn);
+
+                    // Upload SVG
+                    const svgBtn = makeBtn('Upload SVG', 'fas fa-upload', Coach.state.holderType === 'imported');
+                    svgBtn.dataset.shape = 'imported';
+                    svgBtn.addEventListener('click', () => {
+                        if (typeof canvas !== 'undefined' && canvas) {
+                            const handler = (e) => {
+                                const obj = e.target;
+                                Coach.state.holderObj = obj;
+                                Coach.state.holderType = 'imported';
+                                if (obj) obj.coachHolderId = 'holder';
+                                canvas.off('object:added', handler);
+                                markSelected(shapeGroup, 'imported');
+                            };
+                            canvas.on('object:added', handler);
+                        }
+                        document.getElementById('fileImport')?.click();
+                    });
+                    shapeGroup.appendChild(svgBtn);
+
+                    el.appendChild(shapeGroup);
+
+                    // ── 5. Country picker (hidden by default) ─────────────
+                    const countryPicker = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3' });
+                    countryPicker.style.display = Coach.state.holderType === 'country' ? '' : 'none';
+
+                    const countries = [
+                        { key: 'usa',       label: 'USA' },
+                        { key: 'uk',        label: 'UK' },
+                        { key: 'australia', label: 'Australia' },
+                        { key: 'canada',    label: 'Canada' },
+                        { key: 'germany',   label: 'Germany' },
+                        { key: 'italy',     label: 'Italy' }
+                    ];
+
+                    countries.forEach(({ key, label }) => {
+                        const cb = makeBtn(label, null, false);
+                        cb.addEventListener('click', () => {
+                            if (typeof addCountry === 'function') {
+                                addCountry(key);
+                                captureHolder('country');
+                            }
+                            markSelected(shapeGroup, 'country');
+                            // Highlight chosen country button
+                            countryPicker.querySelectorAll('button').forEach(b => {
+                                const sel = b.textContent.trim() === label;
+                                b.classList.toggle('active', sel);
+                                b.style.backgroundColor = sel ? '#cfe3cf' : '';
+                                b.style.color = sel ? '#344734' : '';
+                                b.style.borderColor = sel ? '#cfe3cf' : '';
+                            });
+                        });
+                        countryPicker.appendChild(cb);
+                    });
+
+                    el.appendChild(countryPicker);
+
+                    // ── 6. Ready layouts (subtle) ─────────────────────────
+                    const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready layout:' });
+                    el.appendChild(tmplLabel);
+
+                    const tmplRow = mkEl('div', { className: 'd-flex flex-wrap gap-2' });
+
+                    const templates = [
+                        { key: 'germany-euro', label: 'Rectangle Coin Display' },
+                        { key: 'uk-coins',     label: 'Circular Coin Display' },
+                        { key: 'memories',     label: 'Pressed Penny' }
+                    ];
+
+                    templates.forEach(({ key, label }) => {
+                        const tb = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-secondary', textContent: label });
+                        tb.addEventListener('click', () => {
+                            if (typeof addTemplate === 'function') addTemplate(key);
+                        });
+                        tmplRow.appendChild(tb);
+                    });
+
+                    el.appendChild(tmplRow);
+                },
             },
             {
                 id: 'material',
