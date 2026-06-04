@@ -4122,7 +4122,10 @@
                 if (Coach.persist) Coach.persist.save();
             },
 
-            next() { Coach.go(Coach.current + 1); },
+            next() {
+                if (Coach.current === Coach.steps.length - 1) { Coach.finish(); return; }
+                Coach.go(Coach.current + 1);
+            },
             back() { Coach.go(Coach.current - 1); },
             skip() { Coach.next(); },
 
@@ -4263,19 +4266,14 @@
 
             /* ── 6. Collapse / launcher ───────────────────────────── */
             _wireCollapse() {
-                const collapseBtn  = document.getElementById('coach-collapse');
-                const bubbleEl     = document.getElementById('coach-bubble');
-                const launcherBtn  = document.getElementById('coach-launcher');
+                const collapseBtn = document.getElementById('coach-collapse');
+                const launcherBtn = document.getElementById('coach-launcher');
 
-                if (collapseBtn && bubbleEl && launcherBtn) {
-                    collapseBtn.addEventListener('click', () => {
-                        bubbleEl.style.display  = 'none';
-                        launcherBtn.removeAttribute('hidden');
-                    });
-                    launcherBtn.addEventListener('click', () => {
-                        bubbleEl.style.display  = '';
-                        launcherBtn.setAttribute('hidden', '');
-                    });
+                if (collapseBtn) {
+                    collapseBtn.addEventListener('click', () => Coach.collapse());
+                }
+                if (launcherBtn) {
+                    launcherBtn.addEventListener('click', () => Coach.expand());
                 }
             },
 
@@ -4519,7 +4517,37 @@
                 canvas.requestRenderAll();
             }
             Coach.state = {};
+            Coach.current = 0;
+            Coach.expand();
             Coach.go(0);
+        };
+
+        /* ── Coach.collapse / expand ──────────────────────────────────── */
+        Coach.collapse = function() {
+            const b = document.getElementById('coach-bubble');
+            const l = document.getElementById('coach-launcher');
+            if (b) b.style.display = 'none';
+            if (l) l.removeAttribute('hidden');
+        };
+
+        Coach.expand = function() {
+            const b = document.getElementById('coach-bubble');
+            const l = document.getElementById('coach-launcher');
+            if (b) b.style.display = '';
+            if (l) l.setAttribute('hidden', '');
+        };
+
+        /* ── Coach.finish ─────────────────────────────────────────────── */
+        Coach.finish = function() {
+            const bodyEl = document.getElementById('coach-body');
+            if (bodyEl) {
+                bodyEl.innerHTML = '';
+                const msg = document.createElement('p');
+                msg.className = 'mb-2';
+                msg.innerHTML = '&#127881; You\'re all set! Use <strong>Download SVG</strong> or <strong>Request a Quote</strong> above. Reopen this helper anytime.';
+                bodyEl.appendChild(msg);
+            }
+            setTimeout(function() { Coach.collapse(); }, 1800);
         };
 
         /* ── Coach.arrange ────────────────────────────────────────────
@@ -5227,6 +5255,9 @@
                     const currency = CURRENCIES[activeCurrency];
                     const denom = mkEl('div', { className: 'd-flex flex-column gap-2 mb-3' });
 
+                    // rowControls keeps references so "Add all" can iterate them
+                    const rowControls = [];
+
                     currency.coins.forEach(coin => {
                         const qty = { value: 1 };
                         const row = mkEl('div', { className: 'd-flex align-items-center gap-2' });
@@ -5290,8 +5321,32 @@
 
                         row.appendChild(addBtn);
                         denom.appendChild(row);
+
+                        // Register for "Add all"
+                        rowControls.push({ coin: coin, qtyInput: qty });
                     });
                     el.appendChild(denom);
+
+                    /* ── Add all (non-zero) button ─────────────────────── */
+                    const addAllBtn = mkEl('button', {
+                        type: 'button',
+                        className: 'btn btn-sm btn-outline-secondary mb-3',
+                        textContent: 'Add all (non-zero)'
+                    });
+                    addAllBtn.addEventListener('click', () => {
+                        if (typeof addSingleCoin !== 'function') return;
+                        Coach.state.coins = Coach.state.coins || {};
+                        rowControls.forEach(({ coin, qtyInput }) => {
+                            const q = parseInt(qtyInput.value, 10);
+                            if (!q || q < 1) return;
+                            for (let i = 0; i < q; i++) {
+                                addSingleCoin(coin.value, coin.diameter);
+                            }
+                            Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
+                        });
+                        updateTally();
+                    });
+                    el.appendChild(addAllBtn);
 
                     /* ── Running tally ─────────────────────────────────── */
                     const tallyDiv = mkEl('div', { className: 'small text-muted' });
