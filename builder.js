@@ -4314,7 +4314,73 @@
                 intro: "Let’s design your coin holder. What’s the occasion?",
                 optional: true,
                 highlight: [],
-                renderAction(el) { el.textContent = this.intro; }
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    // Intro paragraph
+                    const intro = document.createElement('p');
+                    intro.className = 'mb-3';
+                    intro.textContent = this.intro;
+                    el.appendChild(intro);
+
+                    // Occasion buttons
+                    const occasions = ['Gift', 'Travel memento', 'Collection display', 'Milestone'];
+                    const btnGroup = document.createElement('div');
+                    btnGroup.className = 'd-flex flex-wrap gap-2 mb-3';
+
+                    const makeBtn = (label) => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn btn-sm btn-outline-light';
+                        btn.textContent = label;
+                        if (Coach.state.occasion === label) {
+                            btn.classList.add('active');
+                            btn.style.backgroundColor = '#cfe3cf';
+                            btn.style.color = '#344734';
+                            btn.style.borderColor = '#cfe3cf';
+                        }
+                        btn.addEventListener('click', () => {
+                            Coach.state.occasion = label;
+                            // Update all buttons in this group
+                            btnGroup.querySelectorAll('button').forEach(b => {
+                                const selected = b.textContent === label;
+                                b.classList.toggle('active', selected);
+                                b.style.backgroundColor = selected ? '#cfe3cf' : '';
+                                b.style.color = selected ? '#344734' : '';
+                                b.style.borderColor = selected ? '#cfe3cf' : '';
+                            });
+                            // Update placeholder on project name input
+                            const nameInput = el.querySelector('#coach-project-name');
+                            if (nameInput && !nameInput.value) {
+                                nameInput.placeholder = label + ' coin holder';
+                            }
+                        });
+                        return btn;
+                    };
+
+                    occasions.forEach(label => btnGroup.appendChild(makeBtn(label)));
+                    el.appendChild(btnGroup);
+
+                    // Project name input
+                    const nameLabel = document.createElement('label');
+                    nameLabel.htmlFor = 'coach-project-name';
+                    nameLabel.className = 'form-label small mb-1';
+                    nameLabel.textContent = 'Project name (optional)';
+                    el.appendChild(nameLabel);
+
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.id = 'coach-project-name';
+                    nameInput.className = 'form-control form-control-sm';
+                    nameInput.value = Coach.state.projectName || '';
+                    nameInput.placeholder = Coach.state.occasion
+                        ? Coach.state.occasion + ' coin holder'
+                        : 'e.g. Birthday coin holder';
+                    nameInput.addEventListener('input', () => {
+                        Coach.state.projectName = nameInput.value;
+                    });
+                    el.appendChild(nameInput);
+                }
             },
             {
                 id: 'holder',
