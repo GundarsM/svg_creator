@@ -703,6 +703,18 @@
                 border-color: #2a3a2a !important;
             }
 
+            /* Equalize footer button heights — Next had border:none while Back/Skip
+               had a 1px border, so with content-box they rendered 2px shorter/taller. */
+            #coach-back,
+            #coach-skip,
+            #coach-next {
+                box-sizing: border-box !important;
+                border: 1px solid #344734 !important;
+                padding: 5px 14px !important;
+                line-height: 1.4 !important;
+                vertical-align: middle;
+            }
+
             /* Responsive — mobile sheet */
             @media (max-width: 768px) {
                 #coach-bubble {
@@ -4164,6 +4176,7 @@
             current: 0,
             state: {},
             steps: [],          // populated below, after SELECTORS is defined
+            visited: new Set(), // step indices the customer has landed on (shown green)
             _highlighted: [],   // elements currently carrying .coach-highlight
 
             SELECTORS: {
@@ -4226,6 +4239,7 @@
             go(index) {
                 const clamped = Math.max(0, Math.min(index, Coach.steps.length - 1));
                 Coach.current = clamped;
+                Coach.visited.add(clamped);
                 Coach.clearHighlights();
                 Coach.render();
                 if (Coach.persist) Coach.persist.save();
@@ -4315,20 +4329,15 @@
                         'transition:background 0.2s'
                     ].join(';');
 
-                    const isActive   = i === Coach.current;
-                    const isComplete = typeof step.isComplete === 'function' && step.isComplete();
+                    const isActive  = i === Coach.current;
+                    const isVisited = Coach.visited.has(i);
 
-                    if (isComplete) {
-                        dot.textContent   = '✓';
-                        dot.style.background  = '#4a7c4a';
-                        dot.style.color       = '#fff';
-                        dot.style.width       = '14px';
-                        dot.style.height      = '14px';
-                        dot.style.lineHeight  = '14px';
-                        dot.style.fontSize    = '9px';
-                    } else if (isActive) {
+                    // Current step = scaled dark green; any step already visited = green; rest grey.
+                    if (isActive) {
                         dot.style.background = '#344734';
                         dot.style.transform  = 'scale(1.3)';
+                    } else if (isVisited) {
+                        dot.style.background = '#4a7c4a';
                     } else {
                         dot.style.background = '#bbb';
                     }
@@ -4575,7 +4584,10 @@
                     Coach.state = Object.assign({}, Coach.state, saved.state || {});
                     Coach.resolveHolder();
                     canvas.renderAll();
-                    Coach.go(typeof saved.step === 'number' ? saved.step : 0);
+                    const savedStep = typeof saved.step === 'number' ? saved.step : 0;
+                    // Treat every step up to where they left off as visited (green).
+                    for (let i = 0; i <= savedStep; i++) Coach.visited.add(i);
+                    Coach.go(savedStep);
                 });
             }
         };
@@ -4614,6 +4626,33 @@
             Coach.state.holderObj = holder || null;
         };
 
+        /* ── Coach.sizeToHolder ──────────────────────────────────────────
+           Scale a freshly-added decorative object (country outline / image)
+           to match the holder's size, preserving aspect ratio (contain), and
+           centre it on the holder. */
+        Coach.sizeToHolder = function(obj) {
+            if (!obj || typeof canvas === 'undefined' || !canvas) return;
+            // Make sure we have a current holder reference.
+            if (!Coach.state.holderObj || canvas.getObjects().indexOf(Coach.state.holderObj) === -1) {
+                Coach.resolveHolder();
+            }
+            const holder = Coach.state.holderObj;
+            if (!holder || holder === obj) return;
+            const hw = holder.getScaledWidth();
+            const hh = holder.getScaledHeight();
+            const ow = obj.getScaledWidth();
+            const oh = obj.getScaledHeight();
+            if (!hw || !hh || !ow || !oh) return;
+            const factor = Math.min(hw / ow, hh / oh);
+            obj.scaleX *= factor;
+            obj.scaleY *= factor;
+            const c = holder.getCenterPoint();
+            obj.setPositionByOrigin(new fabric.Point(c.x, c.y), 'center', 'center');
+            obj.setCoords();
+            canvas.requestRenderAll();
+            if (typeof saveState === 'function') saveState();
+        };
+
         /* ── Coach.startOver ─────────────────────────────────────────── */
         Coach.startOver = function() {
             if (!window.confirm('Start over? This clears your current design.')) return;
@@ -4627,6 +4666,7 @@
             }
             Coach.state = {};
             Coach.current = 0;
+            Coach.visited = new Set();
             Coach.expand();
             Coach.go(0);
         };
@@ -4895,6 +4935,10 @@
                 renderAction(el) {
                     el.innerHTML = '';
 
+                    // Suggested default holder size (prefilled, and auto-applied when a shape is picked)
+                    if (Coach.state.holderW == null) Coach.state.holderW = 100;
+                    if (Coach.state.holderH == null) Coach.state.holderH = 200;
+
                     // ── helpers ───────────────────────────────────────────
                     const makeBtn = (label, icon, active) => {
                         const btn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light' });
@@ -5056,7 +5100,9 @@
                                 }, 120000);
                                 canvas.on('object:added', handler);
                             }
-                            if (typeof addCountry === 'function') addCountry(key);
+                            // Holder = country OUTLINE (transparent fill) so coins show through
+                            if (typeof addCountryOutline === 'function') addCountryOutline(key);
+                            else if (typeof addCountry === 'function') addCountry(key);
                             // Highlight chosen country button
                             countryPanel.querySelectorAll('button').forEach(b => {
                                 const sel = b.textContent.trim() === label;
@@ -5131,14 +5177,14 @@
                     const sizeSection = mkEl('div', { className: 'mb-3' });
                     sizeSection.appendChild(mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Holder size (mm)' }));
 
-                    const sizeRow = mkEl('div', { className: 'd-flex flex-wrap gap-2 align-items-end' });
+                    const sizeRow = mkEl('div', { className: 'd-flex gap-2 align-items-end' });
 
                     // Width input (always shown)
                     const wWrap = mkEl('div');
                     wWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-w', className: 'form-label small mb-0', textContent: 'Width' }));
                     const wInput = mkEl('input', {
                         type: 'number', id: 'coach-holder-w', className: 'form-control form-control-sm',
-                        min: '1', step: '0.1', style: 'width:90px'
+                        min: '1', step: '0.1', style: 'width:70px'
                     });
                     // Seed: stored value first, else current holder width
                     if (Coach.state.holderW) {
@@ -5160,7 +5206,7 @@
                         hWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-h', className: 'form-label small mb-0', textContent: 'Height' }));
                         hInput = mkEl('input', {
                             type: 'number', id: 'coach-holder-h', className: 'form-control form-control-sm',
-                            min: '1', step: '0.1', style: 'width:90px'
+                            min: '1', step: '0.1', style: 'width:70px'
                         });
                         if (Coach.state.holderH) {
                             hInput.value = Coach.state.holderH;
@@ -5218,7 +5264,7 @@
                     ];
 
                     templates.forEach(({ key, label }) => {
-                        const tb = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-secondary', textContent: label });
+                        const tb = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: label });
                         tb.addEventListener('click', () => {
                             if (typeof addTemplate === 'function') addTemplate(key);
                         });
@@ -5483,7 +5529,7 @@
                         const isActive = key === activeCurrency;
                         const tab = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm ' + (isActive ? 'btn-secondary' : 'btn-outline-secondary'),
+                            className: 'btn btn-sm' + (isActive ? ' active' : ''),
                             textContent: cur.label
                         });
                         if (isActive) {
@@ -5518,7 +5564,7 @@
                         // Stepper: minus button
                         const minusBtn = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm btn-outline-secondary px-2 py-0',
+                            className: 'btn btn-sm px-2 py-0',
                             textContent: '−'
                         });
 
@@ -5532,7 +5578,7 @@
                         // Plus button
                         const plusBtn = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm btn-outline-secondary px-2 py-0',
+                            className: 'btn btn-sm px-2 py-0',
                             textContent: '+'
                         });
 
@@ -5551,7 +5597,7 @@
                         // Add button
                         const addBtn = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm btn-outline-secondary',
+                            className: 'btn btn-sm',
                             textContent: 'Add'
                         });
                         addBtn.addEventListener('click', () => {
@@ -5565,6 +5611,8 @@
                             Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
                             // Refresh tally
                             updateTally();
+                            // Auto-tidy into rows when more than one coin exists
+                            autoArrangeRows();
                         });
 
                         row.appendChild(addBtn);
@@ -5575,12 +5623,25 @@
                     });
                     el.appendChild(denom);
 
-                    /* ── Add all (non-zero) button ─────────────────────── */
+                    /* ── Auto-arrange helper: tidy coins into rows inside the holder ── */
+                    function autoArrangeRows() {
+                        if (typeof canvas === 'undefined' || !canvas) return;
+                        const coinCount = canvas.getObjects().filter(o => o.shapeType === 'currency').length;
+                        if (coinCount > 1 && typeof Coach.arrange === 'function') {
+                            Coach.arrange('rows');
+                        }
+                    }
+
+                    /* ── Add all (non-zero) button — yellow + centered ─────── */
                     const addAllBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm btn-outline-secondary mb-3',
+                        className: 'btn btn-sm',
                         textContent: 'Add all (non-zero)'
                     });
+                    // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
+                    addAllBtn.style.setProperty('background', '#ffc107', 'important');
+                    addAllBtn.style.setProperty('color', '#333', 'important');
+                    addAllBtn.style.setProperty('border-color', '#e0a800', 'important');
                     addAllBtn.addEventListener('click', () => {
                         if (typeof addSingleCoin !== 'function') return;
                         Coach.state.coins = Coach.state.coins || {};
@@ -5593,8 +5654,11 @@
                             Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
                         });
                         updateTally();
+                        autoArrangeRows();
                     });
-                    el.appendChild(addAllBtn);
+                    const addAllWrap = mkEl('div', { className: 'd-flex justify-content-center mb-3' });
+                    addAllWrap.appendChild(addAllBtn);
+                    el.appendChild(addAllWrap);
 
                     /* ── Running tally ─────────────────────────────────── */
                     const tallyDiv = mkEl('div', { className: 'small text-muted' });
@@ -5697,6 +5761,31 @@
                         return lbl;
                     }
 
+                    /* Capture the next non-coin object added and size it to the holder. */
+                    function captureAndSize() {
+                        if (typeof canvas === 'undefined' || !canvas) return;
+                        if (Coach._pendingSizeHandler) {
+                            canvas.off('object:added', Coach._pendingSizeHandler);
+                            clearTimeout(Coach._pendingSizeTimeout);
+                            Coach._pendingSizeHandler = null;
+                        }
+                        const handler = (e) => {
+                            const obj = e.target;
+                            // Only size country outlines / images — never coins or text
+                            if (obj && (obj.shapeType === 'currency' || obj.type === 'i-text' || obj.type === 'text')) return;
+                            canvas.off('object:added', handler);
+                            clearTimeout(Coach._pendingSizeTimeout);
+                            Coach._pendingSizeHandler = null;
+                            Coach.sizeToHolder(obj);
+                        };
+                        Coach._pendingSizeHandler = handler;
+                        canvas.on('object:added', handler);
+                        Coach._pendingSizeTimeout = setTimeout(() => {
+                            canvas.off('object:added', handler);
+                            Coach._pendingSizeHandler = null;
+                        }, 120000);
+                    }
+
                     /* ── 1. Engraving text ───────────────────────────── */
                     el.appendChild(sectionLabel('Engraving text'));
 
@@ -5709,7 +5798,7 @@
                     textInput.placeholder = 'Your text…';
 
                     const addTextBtn = document.createElement('button');
-                    addTextBtn.className = 'btn btn-sm btn-outline-secondary text-nowrap';
+                    addTextBtn.className = 'btn btn-sm btn-outline-light text-nowrap';
                     addTextBtn.textContent = 'Add text';
                     addTextBtn.addEventListener('click', () => {
                         if (typeof addText === 'function') {
@@ -5737,7 +5826,7 @@
                     el.appendChild(sectionLabel('Country shape'));
 
                     const countryToggleBtn = document.createElement('button');
-                    countryToggleBtn.className = 'btn btn-sm btn-outline-secondary mb-2';
+                    countryToggleBtn.className = 'btn btn-sm btn-outline-light mb-2';
                     countryToggleBtn.textContent = 'Choose country…';
 
                     const countryPanel = document.createElement('div');
@@ -5752,27 +5841,22 @@
                     modeLabel.className = 'small text-muted';
                     modeLabel.textContent = 'Style:';
 
-                    let countryMode = 'filled';
+                    let countryMode = 'filled';   // default: filled
 
+                    // Both green buttons; the selected one gets the light-green ".active" look.
                     const filledBtn = document.createElement('button');
-                    filledBtn.className = 'btn btn-sm btn-secondary';
-                    // Same icon, solid = filled
+                    filledBtn.className = 'btn btn-sm';
                     filledBtn.innerHTML = '<i class="fas fa-square"></i> Filled';
 
                     const outlineBtn = document.createElement('button');
-                    outlineBtn.className = 'btn btn-sm btn-outline-secondary';
-                    // Same icon, regular (hollow) = outline
+                    outlineBtn.className = 'btn btn-sm';
                     outlineBtn.innerHTML = '<i class="far fa-square"></i> Outline';
 
                     function updateModeButtons() {
-                        if (countryMode === 'filled') {
-                            filledBtn.className = 'btn btn-sm btn-secondary';
-                            outlineBtn.className = 'btn btn-sm btn-outline-secondary';
-                        } else {
-                            filledBtn.className = 'btn btn-sm btn-outline-secondary';
-                            outlineBtn.className = 'btn btn-sm btn-secondary';
-                        }
+                        filledBtn.classList.toggle('active', countryMode === 'filled');
+                        outlineBtn.classList.toggle('active', countryMode === 'outline');
                     }
+                    updateModeButtons();
 
                     filledBtn.addEventListener('click', () => { countryMode = 'filled'; updateModeButtons(); });
                     outlineBtn.addEventListener('click', () => { countryMode = 'outline'; updateModeButtons(); });
@@ -5797,9 +5881,10 @@
 
                     countries.forEach(({ key, label }) => {
                         const btn = document.createElement('button');
-                        btn.className = 'btn btn-sm btn-outline-secondary';
+                        btn.className = 'btn btn-sm btn-outline-light';
                         btn.textContent = label;
                         btn.addEventListener('click', () => {
+                            captureAndSize(); // size the added country to the holder
                             if (countryMode === 'filled') {
                                 if (typeof addCountry === 'function') addCountry(key);
                             } else {
@@ -5824,9 +5909,10 @@
                     el.appendChild(sectionLabel('Upload a logo or image'));
 
                     const uploadBtn = document.createElement('button');
-                    uploadBtn.className = 'btn btn-sm btn-outline-secondary mb-1';
+                    uploadBtn.className = 'btn btn-sm btn-outline-light mb-1';
                     uploadBtn.textContent = 'Upload image…';
                     uploadBtn.addEventListener('click', () => {
+                        captureAndSize(); // size the uploaded image to the holder
                         document.getElementById('imageUpload')?.click();
                     });
 
