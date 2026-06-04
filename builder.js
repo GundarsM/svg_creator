@@ -433,6 +433,186 @@
 
         <!-- opentype.js for text-to-path export -->
         <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+
+        <!-- ═══════════════════════════════════════════════════════
+             COACH REGION — styles only; JS added in Task 3
+             ═══════════════════════════════════════════════════════ -->
+        <style>
+            /* ── Top-level rule: targets engine elements OUTSIDE #coach-root ── */
+            .coach-highlight {
+                outline: 2px solid #344734 !important;
+                box-shadow: 0 0 0 4px rgba(52, 71, 52, .35) !important;
+                border-radius: 6px;
+                transition: box-shadow .2s;
+            }
+
+            /* ── All other Coach rules scoped under #coach-root ── */
+            #coach-root {
+                /* No layout of its own; children are fixed-positioned */
+            }
+
+            #coach-launcher {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 9999;
+                background: #344734;
+                color: #fff;
+                border: none;
+                border-radius: 24px;
+                padding: 10px 16px;
+                cursor: pointer;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+                font-family: 'Athelas', Georgia, serif;
+                font-size: 14px;
+            }
+
+            #coach-bubble {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                width: 320px;
+                max-width: calc(100vw - 40px);
+                background: #dbdbdb;
+                color: #333;
+                border-radius: 10px;
+                box-shadow: 0 8px 28px rgba(0, 0, 0, .3);
+                z-index: 9999;
+                font-family: 'Athelas', Georgia, serif;
+                font-size: 14px;
+                overflow: hidden;
+            }
+
+            #coach-header {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 14px 8px;
+                background: #cfe3cf;
+                border-bottom: 1px solid rgba(52, 71, 52, .15);
+            }
+
+            #coach-progress {
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: .06em;
+                color: #344734;
+                flex-shrink: 0;
+            }
+
+            #coach-title {
+                font-weight: bold;
+                color: #333;
+                flex: 1;
+                font-size: 13px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            #coach-collapse {
+                margin-left: auto;
+                background: none;
+                border: 1px solid rgba(52, 71, 52, .3);
+                border-radius: 4px;
+                padding: 1px 7px;
+                cursor: pointer;
+                font-size: 16px;
+                line-height: 1.2;
+                color: #344734;
+                flex-shrink: 0;
+            }
+
+            #coach-collapse:hover {
+                background: rgba(52, 71, 52, .1);
+            }
+
+            #coach-drag {
+                cursor: move;
+                color: #344734;
+                font-size: 16px;
+                flex-shrink: 0;
+                user-select: none;
+                opacity: .7;
+            }
+
+            #coach-body {
+                padding: 14px 16px;
+                min-height: 60px;
+                line-height: 1.5;
+                color: #333;
+            }
+
+            #coach-footer {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: 6px;
+                padding: 8px 14px 12px;
+                border-top: 1px solid rgba(52, 71, 52, .12);
+            }
+
+            #coach-back,
+            #coach-skip {
+                background: none;
+                border: 1px solid rgba(52, 71, 52, .35);
+                border-radius: 6px;
+                padding: 5px 11px;
+                cursor: pointer;
+                font-family: 'Athelas', Georgia, serif;
+                font-size: 13px;
+                color: #344734;
+            }
+
+            #coach-back:hover,
+            #coach-skip:hover {
+                background: rgba(52, 71, 52, .08);
+            }
+
+            #coach-next {
+                background: #344734;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                padding: 5px 14px;
+                cursor: pointer;
+                font-family: 'Athelas', Georgia, serif;
+                font-size: 13px;
+                font-weight: bold;
+            }
+
+            #coach-next:hover {
+                background: #2a3a2a;
+            }
+
+            #coach-dots {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: 5px;
+                margin-left: auto;
+            }
+
+            /* Responsive — mobile sheet */
+            @media (max-width: 768px) {
+                #coach-bubble {
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    width: 100%;
+                    max-width: 100%;
+                    border-radius: 16px 16px 0 0;
+                }
+
+                #coach-drag {
+                    display: none;
+                }
+            }
+        </style>
+        <!-- ═══════════════════════════════════════════════════════
+             END COACH STYLES
+             ═══════════════════════════════════════════════════════ -->
     </head>
     <body>
         <div id="design-tool-wrapper">
@@ -3831,5 +4011,30 @@
                 setupQuoteFormHandler();
             });
         </script>
+
+        <!-- ═══════════════════════════════════════════════════════
+             COACH REGION — root markup; JS wired in Task 3
+             ═══════════════════════════════════════════════════════ -->
+        <div id="coach-root">
+            <button id="coach-launcher" type="button" hidden>💬 Need a hand?</button>
+            <div id="coach-bubble">
+                <div id="coach-header">
+                    <span id="coach-progress"></span>
+                    <span id="coach-title"></span>
+                    <button id="coach-collapse" type="button" aria-label="Collapse">–</button>
+                    <span id="coach-drag" aria-hidden="true">⠿</span>
+                </div>
+                <div id="coach-body"></div>
+                <div id="coach-footer">
+                    <button id="coach-back" type="button">‹ Back</button>
+                    <button id="coach-skip" type="button">Skip</button>
+                    <button id="coach-next" type="button">Next ›</button>
+                    <div id="coach-dots"></div>
+                </div>
+            </div>
+        </div>
+        <!-- ═══════════════════════════════════════════════════════
+             END COACH REGION
+             ═══════════════════════════════════════════════════════ -->
     </body>
     </html>
