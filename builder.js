@@ -444,7 +444,7 @@
                 <!-- Left Sidebar - Tools -->
                 <div class="sidebar-left">
                     <div class="tool-panel">
-                        <h3>Start with a Template</h3>
+                        <h3 id="coachTemplatesHeading">Start with a Template</h3>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('germany-euro')">
                                 <i class="fas fa-layer-group"></i> Rectangle Coin Display
@@ -457,7 +457,7 @@
                             </button>
                         </div>
 
-                        <h3 class="mt-4">Add Coins</h3>
+                        <h3 class="mt-4" id="coachCoinsHeading">Add Coins</h3>
                         <button class="btn btn-outline-warning shape-btn" onclick="addCurrency('euro')">
                             <i class="fas fa-coins"></i> Add All Euro Coins
                         </button>
@@ -517,7 +517,7 @@
                             <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2£', 28.55)">2£</button>
                         </div>
 
-                        <h3 class="mt-4">Add Country Outlines</h3>
+                        <h3 class="mt-4" id="coachCountriesHeading">Add Country Outlines</h3>
                         <div class="country-buttons">
                         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                             <span style="flex: 1; font-size: 0.9em;">USA</span>
@@ -575,7 +575,7 @@
                         </div>
                         </div>
 
-                        <h3 class="mt-4">Add Shapes</h3>
+                        <h3 class="mt-4" id="coachShapesHeading">Add Shapes</h3>
                         <div class="shape-row-label">Filled:</div>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle')">
@@ -601,7 +601,7 @@
                             </button>
                         </div>
 
-                        <h3 class="mt-4">Add Text & Images</h3>
+                        <h3 class="mt-4" id="coachTextHeading">Add Text & Images</h3>
                         <button class="btn btn-outline-info shape-btn" onclick="addText()">
                             <i class="fas fa-font"></i> Add Text
                         </button>
@@ -638,7 +638,7 @@
                         </button>
                         <div class="toolbar-separator"></div>
                         <div class="settings-dropdown">
-                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleSettingsDropdown()" title="Board Size Settings">
+                            <button class="btn btn-sm btn-outline-secondary" id="coachSettingsBtn" onclick="toggleSettingsDropdown()" title="Board Size Settings">
                                 <i class="fas fa-cog"></i>
                             </button>
                             <div class="settings-dropdown-content" id="settingsDropdown">
