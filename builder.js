@@ -5323,7 +5323,138 @@
                 intro: 'Review your design, then download or request a quote.',
                 optional: false,
                 highlight: [Coach.SELECTORS.download],
-                renderAction(el) { el.textContent = this.intro; }
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    /* ── Intro ──────────────────────────────────────────── */
+                    const introP = document.createElement('p');
+                    introP.className = 'mb-3 small';
+                    introP.textContent = this.intro;
+                    el.appendChild(introP);
+
+                    /* ── Helper: safe size string ──────────────────────── */
+                    function sizeString() {
+                        if (typeof canvas === 'undefined' || !canvas) return '—';
+                        const w = canvas.realWidth;
+                        const h = canvas.realHeight;
+                        if (w == null || h == null) return '—';
+                        if (typeof currentUnit !== 'undefined' && currentUnit === 'inch' && typeof mmToInch !== 'undefined') {
+                            return (w * mmToInch).toFixed(2) + ' × ' + (h * mmToInch).toFixed(2) + ' in';
+                        }
+                        return Math.round(w) + ' × ' + Math.round(h) + ' mm';
+                    }
+
+                    /* ── Helper: material label ────────────────────────── */
+                    function materialLabel() {
+                        const raw = (Coach.state.holderObj && Coach.state.holderObj.materialType)
+                            || Coach.state.material
+                            || '—';
+                        if (raw === 'color') return 'Plastic';
+                        if (raw === '—') return '—';
+                        return raw.charAt(0).toUpperCase() + raw.slice(1);
+                    }
+
+                    /* ── Summary ────────────────────────────────────────── */
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'mb-3 p-2 rounded';
+                    summaryDiv.style.cssText = 'background:#f5f5f5; font-size:0.85rem;';
+
+                    const ul = document.createElement('ul');
+                    ul.className = 'mb-0 ps-3';
+
+                    function addItem(label, value) {
+                        const li = document.createElement('li');
+                        li.innerHTML = '<strong>' + label + ':</strong> ' + value;
+                        ul.appendChild(li);
+                    }
+
+                    /* Holder type & size */
+                    addItem('Holder', (Coach.state.holderType || '—') + ', ' + sizeString());
+
+                    /* Material */
+                    addItem('Material', materialLabel());
+
+                    /* Coins */
+                    const coinItems = [];
+                    if (typeof canvas !== 'undefined' && canvas && typeof canvas.getObjects === 'function') {
+                        const coinTally = {};
+                        canvas.getObjects().forEach(function(o) {
+                            if (o.shapeType === 'currency') {
+                                const key = o.coinValue || 'unknown';
+                                coinTally[key] = (coinTally[key] || 0) + 1;
+                            }
+                        });
+                        const keys = Object.keys(coinTally);
+                        if (keys.length > 0) {
+                            const totalCoins = keys.reduce(function(sum, k) { return sum + coinTally[k]; }, 0);
+                            const parts = keys.map(function(k) { return coinTally[k] + ' × ' + k; });
+                            coinItems.push(parts.join(', ') + ' (' + totalCoins + ' total)');
+                        }
+                    }
+                    addItem('Coins', coinItems.length ? coinItems[0] : 'No coins yet');
+
+                    /* Extras */
+                    if (typeof canvas !== 'undefined' && canvas && typeof canvas.getObjects === 'function') {
+                        const allObjs = canvas.getObjects();
+                        const textCount = allObjs.filter(function(o) { return o.shapeType === 'text'; }).length;
+                        const countryCount = allObjs.filter(function(o) { return o.shapeType === 'country'; }).length;
+                        const shapeCount = allObjs.filter(function(o) {
+                            return ['rectangle', 'circle', 'ellipse',
+                                    'rectangle-outline', 'circle-outline', 'ellipse-outline'].indexOf(o.shapeType) !== -1;
+                        }).length;
+                        let imageCount = allObjs.filter(function(o) {
+                            return o.shapeType === 'image' || o.shapeType === 'imported';
+                        }).length;
+                        if (Coach.state.holderType === 'imported') imageCount = Math.max(0, imageCount - 1);
+
+                        const extras = [];
+                        if (textCount > 0) extras.push(textCount + ' text label' + (textCount > 1 ? 's' : ''));
+                        if (countryCount > 0) extras.push(countryCount + ' country outline' + (countryCount > 1 ? 's' : ''));
+                        if (shapeCount > 0) extras.push(shapeCount + ' shape' + (shapeCount > 1 ? 's' : ''));
+                        if (imageCount > 0) extras.push(imageCount + ' image' + (imageCount > 1 ? 's' : ''));
+                        if (extras.length > 0) addItem('Extras', extras.join(', '));
+                    }
+
+                    summaryDiv.appendChild(ul);
+                    el.appendChild(summaryDiv);
+
+                    /* ── Buttons ────────────────────────────────────────── */
+                    const btnRow = document.createElement('div');
+                    btnRow.className = 'd-flex flex-column gap-2';
+
+                    /* Download SVG */
+                    const dlBtn = document.createElement('button');
+                    dlBtn.className = 'btn btn-success btn-sm';
+                    dlBtn.textContent = 'Download SVG';
+                    dlBtn.addEventListener('click', function() {
+                        if (typeof exportSVG === 'function') {
+                            Promise.resolve(exportSVG()).catch(function() {});
+                        }
+                    });
+                    btnRow.appendChild(dlBtn);
+
+                    /* Request a Quote */
+                    const quoteBtn = document.createElement('button');
+                    quoteBtn.className = 'btn btn-primary btn-sm';
+                    quoteBtn.textContent = 'Request a Quote';
+                    quoteBtn.addEventListener('click', async function() {
+                        if (typeof showQuoteForm !== 'function') return;
+                        await showQuoteForm();
+                        /* Pre-fill quote fields */
+                        const pn = document.getElementById('projectName');
+                        if (pn && !pn.value) {
+                            pn.value = Coach.state.projectName
+                                || ((Coach.state.occasion ? Coach.state.occasion + ' ' : '') + 'coin holder');
+                        }
+                        const notes = document.getElementById('userNotes');
+                        if (notes && Coach.state.occasion && notes.value.indexOf(Coach.state.occasion) === -1) {
+                            notes.value = (notes.value ? notes.value + '\n' : '') + 'Occasion: ' + Coach.state.occasion;
+                        }
+                    });
+                    btnRow.appendChild(quoteBtn);
+
+                    el.appendChild(btnRow);
+                }
             }
         ];
 
