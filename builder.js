@@ -4155,7 +4155,6 @@
                 <div id="coach-body"></div>
                 <div id="coach-footer">
                     <button id="coach-back" type="button">‹ Back</button>
-                    <button id="coach-skip" type="button">Skip</button>
                     <button id="coach-next" type="button">Next ›</button>
                     <div id="coach-dots"></div>
                 </div>
@@ -4936,8 +4935,8 @@
                     el.innerHTML = '';
 
                     // Suggested default holder size (prefilled, and auto-applied when a shape is picked)
-                    if (Coach.state.holderW == null) Coach.state.holderW = 100;
-                    if (Coach.state.holderH == null) Coach.state.holderH = 200;
+                    if (Coach.state.holderW == null) Coach.state.holderW = 200;
+                    if (Coach.state.holderH == null) Coach.state.holderH = 100;
 
                     // ── helpers ───────────────────────────────────────────
                     const makeBtn = (label, icon, active) => {
@@ -5050,7 +5049,8 @@
                     countryToggleBtn.dataset.shape = 'country';
                     countryToggleBtn.addEventListener('click', () => {
                         const visible = countryPanel.style.display !== 'none';
-                        countryPanel.style.display = visible ? 'none' : '';
+                        countryPanel.style.display = visible ? 'none' : 'flex';
+                        countryToggleBtn.classList.toggle('active', !visible);
                         if (!visible) markSelected(shapeGroup, 'country');
                     });
                     shapeGroup.appendChild(countryToggleBtn);
@@ -5058,8 +5058,14 @@
                     el.appendChild(shapeGroup);
 
                     // ── Country / custom panel (hidden by default) ─────────
-                    // Contains 6 country buttons + Upload SVG as the final button
-                    const countryPanel = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3 ps-1' });
+                    // Contains 6 country buttons + Upload SVG as the final button.
+                    // NOTE: do NOT use the Bootstrap "d-flex" class here — it is
+                    // "display:flex !important" and would override our inline
+                    // display:none, leaving the panel permanently visible.
+                    // We set flex layout via inline styles so we control display.
+                    const countryPanel = mkEl('div', { className: 'mb-3 ps-1' });
+                    countryPanel.style.flexWrap = 'wrap';
+                    countryPanel.style.gap = '8px';
                     // Hidden until the "Country / custom shape" button is pressed
                     countryPanel.style.display = 'none';
 
