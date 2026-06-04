@@ -4818,95 +4818,38 @@
                         }
                     };
 
+                    // ── FIX G: resize the holder object itself (in mm) ────
+                    const resizeHolder = (wMm, hMm, lockAspect) => {
+                        const obj = Coach.state.holderObj;
+                        if (!obj || typeof canvas === 'undefined' || !canvas) return;
+                        const scale = canvas.scale || 1;
+                        const curW = obj.getScaledWidth();
+                        const curH = obj.getScaledHeight();
+                        if (!curW || !curH) return;
+                        const ratioX = (wMm * scale) / curW;
+                        const ratioY = lockAspect ? ratioX : (hMm * scale) / curH;
+                        obj.scaleX *= ratioX;
+                        obj.scaleY *= ratioY;
+                        if (obj.shapeType === 'rectangle') {
+                            obj.realWidth  = wMm;
+                            obj.realHeight = lockAspect ? (wMm * curH / curW) : hMm;
+                        }
+                        obj.setCoords();
+                        canvas.requestRenderAll();
+                        if (typeof saveState === 'function') saveState();
+                    };
+
                     // ── 1. Intro ───────────────────────────────────────────
                     const intro = mkEl('p', { className: 'mb-3', textContent: this.intro });
                     el.appendChild(intro);
 
-                    // ── 2. Ordering hint ──────────────────────────────────
-                    const hint = mkEl('p', { className: 'small text-muted mb-3' });
-                    hint.textContent = 'Tip: set the size first, then choose a shape — that way coins you add later land at the right scale.';
-                    el.appendChild(hint);
-
-                    // ── 3. Size controls ──────────────────────────────────
-                    const sizeSection = mkEl('div', { className: 'mb-3' });
-
-                    const sizeLabel = mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Board size' });
-                    sizeSection.appendChild(sizeLabel);
-
-                    const sizeRow = mkEl('div', { className: 'd-flex flex-wrap gap-2 align-items-end' });
-
-                    // width input
-                    const wWrap = mkEl('div');
-                    wWrap.appendChild(Object.assign(mkEl('label', { htmlFor: 'coach-size-w', className: 'form-label small mb-0', textContent: 'Width' })));
-                    const wInput = mkEl('input', {
-                        type: 'number', id: 'coach-size-w', className: 'form-control form-control-sm',
-                        min: '1', step: '0.01', style: 'width:90px'
-                    });
-                    // Initialise from live toolbar or canvas
-                    const liveW = document.getElementById('customWidthToolbar');
-                    const liveH = document.getElementById('customHeightToolbar');
-                    wInput.value = liveW ? liveW.value : (typeof canvas !== 'undefined' && canvas ? canvas.realWidth : 390);
-                    wWrap.appendChild(wInput);
-                    sizeRow.appendChild(wWrap);
-
-                    // height input
-                    const hWrap = mkEl('div');
-                    hWrap.appendChild(Object.assign(mkEl('label', { htmlFor: 'coach-size-h', className: 'form-label small mb-0', textContent: 'Height' })));
-                    const hInput = mkEl('input', {
-                        type: 'number', id: 'coach-size-h', className: 'form-control form-control-sm',
-                        min: '1', step: '0.01', style: 'width:90px'
-                    });
-                    hInput.value = liveH ? liveH.value : (typeof canvas !== 'undefined' && canvas ? canvas.realHeight : 300);
-                    hWrap.appendChild(hInput);
-                    sizeRow.appendChild(hWrap);
-
-                    // unit toggle
-                    const unitWrap = mkEl('div', { className: 'd-flex gap-1' });
-                    const initUnit = (typeof currentUnit !== 'undefined') ? currentUnit : 'mm';
-                    let chosenUnit = initUnit;
-
-                    const btnMM   = makeBtn('MM',   null, initUnit === 'mm');
-                    btnMM.dataset.unit = 'mm';
-                    const btnInch = makeBtn('INCH', null, initUnit === 'inch');
-                    btnInch.dataset.unit = 'inch';
-
-                    [btnMM, btnInch].forEach(ub => {
-                        ub.addEventListener('click', () => {
-                            chosenUnit = ub.dataset.unit;
-                            [btnMM, btnInch].forEach(x => {
-                                const s = x.dataset.unit === chosenUnit;
-                                x.classList.toggle('active', s);
-                                x.style.backgroundColor = s ? '#cfe3cf' : '';
-                                x.style.color = s ? '#344734' : '';
-                                x.style.borderColor = s ? '#cfe3cf' : '';
-                            });
-                        });
-                        unitWrap.appendChild(ub);
-                    });
-                    sizeRow.appendChild(unitWrap);
-
-                    // Apply size button
-                    const applyBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Apply size' });
-                    applyBtn.addEventListener('click', () => {
-                        if (liveW) liveW.value = wInput.value;
-                        if (liveH) liveH.value = hInput.value;
-                        if (typeof setUnit === 'function' && chosenUnit !== (typeof currentUnit !== 'undefined' ? currentUnit : 'mm')) {
-                            setUnit(chosenUnit);
-                        }
-                        if (typeof applyCustomSize === 'function') applyCustomSize();
-                    });
-                    sizeRow.appendChild(applyBtn);
-
-                    sizeSection.appendChild(sizeRow);
-                    el.appendChild(sizeSection);
-
-                    // ── 4. Base-shape picker ──────────────────────────────
-                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2 mt-3', textContent: 'Choose a base shape' });
+                    // ── 2. Base-shape picker (FIX H) ──────────────────────
+                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a base shape' });
                     el.appendChild(shapeLabel);
 
-                    const shapeGroup = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3' });
+                    const shapeGroup = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-2' });
 
-                    // Rectangle
+                    // Row 1 btn: Rectangle
                     const rectBtn = makeBtn('Rectangle', 'fas fa-square-full', Coach.state.holderType === 'rectangle');
                     rectBtn.dataset.shape = 'rectangle';
                     rectBtn.addEventListener('click', () => {
@@ -4915,11 +4858,12 @@
                             captureHolder('rectangle');
                         }
                         markSelected(shapeGroup, 'rectangle');
-                        countryPicker.style.display = 'none';
+                        countryPanel.style.display = 'none';
+                        Coach.render();
                     });
                     shapeGroup.appendChild(rectBtn);
 
-                    // Circle
+                    // Row 1 btn: Circular
                     const circBtn = makeBtn('Circular', 'fas fa-circle', Coach.state.holderType === 'circle');
                     circBtn.dataset.shape = 'circle';
                     circBtn.addEventListener('click', () => {
@@ -4928,71 +4872,29 @@
                             captureHolder('circle');
                         }
                         markSelected(shapeGroup, 'circle');
-                        countryPicker.style.display = 'none';
+                        countryPanel.style.display = 'none';
+                        Coach.render();
                     });
                     shapeGroup.appendChild(circBtn);
 
-                    // Country outline
-                    const countryBtn = makeBtn('Country outline', 'fas fa-globe', Coach.state.holderType === 'country');
-                    countryBtn.dataset.shape = 'country';
-                    countryBtn.addEventListener('click', () => {
-                        const visible = countryPicker.style.display !== 'none';
-                        countryPicker.style.display = visible ? 'none' : '';
+                    // Row 1 btn: Country / custom shape (toggle)
+                    const countryToggleBtn = makeBtn('Country / custom shape', 'fas fa-globe',
+                        Coach.state.holderType === 'country' || Coach.state.holderType === 'imported');
+                    countryToggleBtn.dataset.shape = 'country';
+                    countryToggleBtn.addEventListener('click', () => {
+                        const visible = countryPanel.style.display !== 'none';
+                        countryPanel.style.display = visible ? 'none' : '';
                         if (!visible) markSelected(shapeGroup, 'country');
                     });
-                    shapeGroup.appendChild(countryBtn);
-
-                    // Upload SVG
-                    const svgBtn = makeBtn('Upload SVG', 'fas fa-upload', Coach.state.holderType === 'imported');
-                    svgBtn.dataset.shape = 'imported';
-                    svgBtn.addEventListener('click', () => {
-                        if (typeof canvas !== 'undefined' && canvas) {
-                            // Remove any previously-registered pending import handler to prevent stacking
-                            if (Coach._pendingImportHandler) {
-                                canvas.off('object:added', Coach._pendingImportHandler);
-                                Coach._pendingImportHandler = null;
-                            }
-                            if (Coach._pendingImportTimeout) {
-                                clearTimeout(Coach._pendingImportTimeout);
-                                Coach._pendingImportTimeout = null;
-                            }
-
-                            const handler = (e) => {
-                                const obj = e.target;
-                                // Ignore coins — a stray coin after a cancelled picker must not be captured as the holder
-                                if (obj && obj.shapeType === 'currency') {
-                                    return;
-                                }
-                                // Successful capture
-                                Coach.state.holderObj = obj;
-                                Coach.state.holderType = 'imported';
-                                if (obj) obj.coachHolderId = 'holder';
-                                canvas.off('object:added', handler);
-                                clearTimeout(Coach._pendingImportTimeout);
-                                Coach._pendingImportTimeout = null;
-                                Coach._pendingImportHandler = null;
-                                markSelected(shapeGroup, 'imported');
-                            };
-
-                            Coach._pendingImportHandler = handler;
-                            canvas.on('object:added', handler);
-
-                            // Safety timeout: if the file picker is cancelled the handler won't linger indefinitely
-                            Coach._pendingImportTimeout = setTimeout(() => {
-                                canvas.off('object:added', handler);
-                                Coach._pendingImportHandler = null;
-                                Coach._pendingImportTimeout = null;
-                            }, 120000);
-                        }
-                        document.getElementById('fileImport')?.click();
-                    });
-                    shapeGroup.appendChild(svgBtn);
+                    shapeGroup.appendChild(countryToggleBtn);
 
                     el.appendChild(shapeGroup);
 
-                    // ── 5. Country picker (hidden by default) ─────────────
-                    const countryPicker = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3' });
-                    countryPicker.style.display = Coach.state.holderType === 'country' ? '' : 'none';
+                    // ── Country / custom panel (hidden by default) ─────────
+                    // Contains 6 country buttons + Upload SVG as the final button
+                    const countryPanel = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-3 ps-1' });
+                    countryPanel.style.display =
+                        (Coach.state.holderType === 'country' || Coach.state.holderType === 'imported') ? '' : 'none';
 
                     const countries = [
                         { key: 'usa',       label: 'USA' },
@@ -5021,6 +4923,7 @@
                                     clearTimeout(Coach._pendingHolderTimeout);
                                     Coach._pendingHolderHandler = null;
                                     markSelected(shapeGroup, 'country');
+                                    Coach.render();
                                 };
                                 Coach._pendingHolderHandler = handler;
                                 Coach._pendingHolderTimeout = setTimeout(() => {
@@ -5031,7 +4934,7 @@
                             }
                             if (typeof addCountry === 'function') addCountry(key);
                             // Highlight chosen country button
-                            countryPicker.querySelectorAll('button').forEach(b => {
+                            countryPanel.querySelectorAll('button').forEach(b => {
                                 const sel = b.textContent.trim() === label;
                                 b.classList.toggle('active', sel);
                                 b.style.backgroundColor = sel ? '#cfe3cf' : '';
@@ -5039,12 +4942,126 @@
                                 b.style.borderColor = sel ? '#cfe3cf' : '';
                             });
                         });
-                        countryPicker.appendChild(cb);
+                        countryPanel.appendChild(cb);
                     });
 
-                    el.appendChild(countryPicker);
+                    // Upload SVG — last button in the country/custom panel
+                    const svgBtn = makeBtn('Upload SVG', 'fas fa-upload', Coach.state.holderType === 'imported');
+                    svgBtn.dataset.shape = 'imported';
+                    svgBtn.addEventListener('click', () => {
+                        if (typeof canvas !== 'undefined' && canvas) {
+                            // Remove any previously-registered pending import handler to prevent stacking
+                            if (Coach._pendingImportHandler) {
+                                canvas.off('object:added', Coach._pendingImportHandler);
+                                Coach._pendingImportHandler = null;
+                            }
+                            if (Coach._pendingImportTimeout) {
+                                clearTimeout(Coach._pendingImportTimeout);
+                                Coach._pendingImportTimeout = null;
+                            }
 
-                    // ── 6. Ready layouts (subtle) ─────────────────────────
+                            const handler = (e) => {
+                                const obj = e.target;
+                                // Ignore coins — a stray coin after a cancelled picker must not be captured as the holder
+                                if (obj && obj.shapeType === 'currency') {
+                                    return;
+                                }
+                                // Successful capture
+                                Coach.state.holderObj = obj;
+                                Coach.state.holderType = 'imported';
+                                if (obj) obj.coachHolderId = 'holder';
+                                canvas.off('object:added', handler);
+                                clearTimeout(Coach._pendingImportTimeout);
+                                Coach._pendingImportTimeout = null;
+                                Coach._pendingImportHandler = null;
+                                markSelected(shapeGroup, 'country'); // keep country toggle highlighted
+                                Coach.render();
+                            };
+
+                            Coach._pendingImportHandler = handler;
+                            canvas.on('object:added', handler);
+
+                            // Safety timeout: if the file picker is cancelled the handler won't linger indefinitely
+                            Coach._pendingImportTimeout = setTimeout(() => {
+                                canvas.off('object:added', handler);
+                                Coach._pendingImportHandler = null;
+                                Coach._pendingImportTimeout = null;
+                            }, 120000);
+                        }
+                        document.getElementById('fileImport')?.click();
+                    });
+                    countryPanel.appendChild(svgBtn);
+
+                    el.appendChild(countryPanel);
+
+                    // ── 3. Size controls (FIX G) ───────────────────────────
+                    const hasHolder = !!Coach.state.holderObj;
+                    const holderType = Coach.state.holderType;
+                    const lockAspect = holderType === 'country' || holderType === 'imported';
+
+                    const sizeSection = mkEl('div', { className: 'mb-3 mt-3' });
+                    const sizeLabel = mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Holder size' });
+                    sizeSection.appendChild(sizeLabel);
+
+                    if (!hasHolder) {
+                        const noHolder = mkEl('p', { className: 'small text-muted mb-0', textContent: 'Pick a shape first, then set its size.' });
+                        sizeSection.appendChild(noHolder);
+                    } else {
+                        const sizeRow = mkEl('div', { className: 'd-flex flex-wrap gap-2 align-items-end' });
+
+                        // Width input (always shown)
+                        const wWrap = mkEl('div');
+                        wWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-w', className: 'form-label small mb-0', textContent: 'Width (mm)' }));
+                        const wInput = mkEl('input', {
+                            type: 'number', id: 'coach-holder-w', className: 'form-control form-control-sm',
+                            min: '1', step: '0.1', style: 'width:90px'
+                        });
+                        // Seed from the holder's current dimensions
+                        if (typeof canvas !== 'undefined' && canvas && Coach.state.holderObj) {
+                            const scale = canvas.scale || 1;
+                            wInput.value = parseFloat((Coach.state.holderObj.getScaledWidth() / scale).toFixed(2));
+                        }
+                        wWrap.appendChild(wInput);
+                        sizeRow.appendChild(wWrap);
+
+                        // Height input — hidden for country/imported (aspect-locked)
+                        let hInput = null;
+                        if (!lockAspect) {
+                            const hWrap = mkEl('div');
+                            hWrap.appendChild(mkEl('label', { htmlFor: 'coach-holder-h', className: 'form-label small mb-0', textContent: 'Height (mm)' }));
+                            hInput = mkEl('input', {
+                                type: 'number', id: 'coach-holder-h', className: 'form-control form-control-sm',
+                                min: '1', step: '0.1', style: 'width:90px'
+                            });
+                            if (typeof canvas !== 'undefined' && canvas && Coach.state.holderObj) {
+                                const scale = canvas.scale || 1;
+                                hInput.value = parseFloat((Coach.state.holderObj.getScaledHeight() / scale).toFixed(2));
+                            }
+                            hWrap.appendChild(hInput);
+                            sizeRow.appendChild(hWrap);
+                        } else {
+                            // Aspect-locked hint
+                            const lockNote = mkEl('small', { className: 'text-muted align-self-end', textContent: '(aspect locked)' });
+                            sizeRow.appendChild(lockNote);
+                        }
+
+                        // Apply size button
+                        const applyBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Apply size' });
+                        applyBtn.addEventListener('click', () => {
+                            const w = parseFloat(wInput.value);
+                            const h = hInput ? parseFloat(hInput.value) : null;
+                            if (!isNaN(w) && w > 0) {
+                                resizeHolder(w, h, lockAspect);
+                            }
+                        });
+                        sizeRow.appendChild(applyBtn);
+
+                        sizeSection.appendChild(sizeRow);
+                    }
+
+                    el.appendChild(sizeSection);
+
+                    // ── 4. Ready layouts (subtle) ─────────────────────────
                     const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready layout:' });
                     el.appendChild(tmplLabel);
 
