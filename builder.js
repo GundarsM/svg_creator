@@ -4077,7 +4077,27 @@
                     tries++;
                     if (typeof canvas !== 'undefined' && canvas) {
                         clearInterval(poll);
-                        Coach.go(0);
+                        // Register autosave on canvas events
+                        ['object:added', 'object:modified', 'object:removed'].forEach(ev => {
+                            canvas.on(ev, () => Coach.persist.save());
+                        });
+                        // Add "Start over" button to header
+                        (function addStartOver() {
+                            const hdr = document.getElementById('coach-header');
+                            if (hdr && !document.getElementById('coach-startover')) {
+                                const btn = document.createElement('button');
+                                btn.id        = 'coach-startover';
+                                btn.type      = 'button';
+                                btn.title     = 'Start over';
+                                btn.textContent = '↺';
+                                btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:0.85rem;opacity:0.55;padding:0 2px;line-height:1;';
+                                btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+                                btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.55'; });
+                                btn.addEventListener('click', () => Coach.startOver());
+                                hdr.appendChild(btn);
+                            }
+                        }());
+                        Coach.persist.boot();
                     } else if (tries >= MAX_TRIES) {
                         clearInterval(poll);
                         console.warn('[Coach] engine canvas not found; running in text-only mode');
@@ -4092,6 +4112,7 @@
                 Coach.current = clamped;
                 Coach.clearHighlights();
                 Coach.render();
+                if (Coach.persist) Coach.persist.save();
             },
 
             next() { Coach.go(Coach.current + 1); },
@@ -4304,6 +4325,194 @@
                     dragHandle.style.cursor = 'grab';
                 });
             }
+        };
+
+        /* ── Coach.EXTRA_PROPS ───────────────────────────────────────── */
+        Coach.EXTRA_PROPS = [
+            'shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius',
+            'realRx', 'realRy', 'realFontSize', 'realCornerRadius',
+            'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId'
+        ];
+
+        /* ── Coach.persist ───────────────────────────────────────────── */
+        Coach.persist = {
+            KEY:      'hsc-builder-v1',
+            disabled: false,
+            _t:       null,
+            _noted:   false,
+
+            /* Serialise Coach.state without the live Fabric holderObj */
+            _serializableState() {
+                const s = Coach.state || {};
+                return {
+                    occasion:     s.occasion,
+                    projectName:  s.projectName,
+                    holderType:   s.holderType,
+                    material:     s.material,
+                    coins:        s.coins,
+                    coinCurrency: s.coinCurrency
+                };
+            },
+
+            /* Debounced save (~500 ms) */
+            save() {
+                if (Coach.persist._t) clearTimeout(Coach.persist._t);
+                Coach.persist._t = setTimeout(function() {
+                    Coach.persist._t = null;
+                    if (Coach.persist.disabled) return;
+                    if (typeof canvas === 'undefined' || !canvas) return;
+                    try {
+                        const payload = {
+                            canvasJSON: canvas.toJSON(Coach.EXTRA_PROPS),
+                            step:       Coach.current,
+                            state:      Coach.persist._serializableState()
+                        };
+                        localStorage.setItem(Coach.persist.KEY, JSON.stringify(payload));
+                    } catch (e) {
+                        Coach.persist.disabled = true;
+                        Coach.persist.note();
+                    }
+                }, 500);
+            },
+
+            /* One-time notice when storage is unavailable */
+            note() {
+                if (Coach.persist._noted) return;
+                Coach.persist._noted = true;
+                const bodyEl = document.getElementById('coach-body');
+                if (bodyEl) {
+                    const msg = document.createElement('p');
+                    msg.style.cssText = 'font-size:0.75rem;color:#888;margin-top:8px;';
+                    msg.textContent = "Heads up — your progress won't be saved on this device (private mode or storage full).";
+                    bodyEl.appendChild(msg);
+                } else {
+                    console.info("[Coach] Progress won't be saved on this device (private mode or storage full).");
+                }
+            },
+
+            /* Load saved payload (or null) */
+            load() {
+                try {
+                    const raw = localStorage.getItem(Coach.persist.KEY);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) {
+                    return null;
+                }
+            },
+
+            /* Remove saved state */
+            clear() {
+                try { localStorage.removeItem(Coach.persist.KEY); } catch (e) {}
+            },
+
+            /* Called from init when canvas is confirmed */
+            boot() {
+                const saved = Coach.persist.load();
+                if (saved && saved.canvasJSON) {
+                    Coach.persist.promptResume(saved);
+                } else {
+                    Coach.go(0);
+                }
+            },
+
+            /* Render a resume prompt into the coach bubble */
+            promptResume(saved) {
+                const titleEl = document.getElementById('coach-title');
+                const bodyEl  = document.getElementById('coach-body');
+                if (titleEl) titleEl.textContent = 'Welcome back';
+                if (!bodyEl) { Coach.go(0); return; }
+
+                bodyEl.innerHTML = '';
+
+                const msg = document.createElement('p');
+                msg.style.cssText = 'margin-bottom:10px;font-size:0.9rem;';
+                msg.textContent = 'You have an unfinished design. Would you like to pick up where you left off?';
+                bodyEl.appendChild(msg);
+
+                const btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex;gap:8px;';
+
+                const resumeBtn = document.createElement('button');
+                resumeBtn.type      = 'button';
+                resumeBtn.className = 'btn btn-primary btn-sm';
+                resumeBtn.textContent = 'Resume';
+                resumeBtn.addEventListener('click', function() {
+                    Coach.persist.resume(saved);
+                });
+
+                const freshBtn = document.createElement('button');
+                freshBtn.type      = 'button';
+                freshBtn.className = 'btn btn-outline-secondary btn-sm';
+                freshBtn.textContent = 'Start fresh';
+                freshBtn.addEventListener('click', function() {
+                    Coach.persist.clear();
+                    Coach.go(0);
+                });
+
+                btnRow.appendChild(resumeBtn);
+                btnRow.appendChild(freshBtn);
+                bodyEl.appendChild(btnRow);
+            },
+
+            /* Restore canvas + state from a saved payload */
+            resume(saved) {
+                canvas.loadFromJSON(saved.canvasJSON, function() {
+                    Coach.reapplyMaterials();
+                    Coach.state = Object.assign({}, Coach.state, saved.state || {});
+                    Coach.resolveHolder();
+                    canvas.renderAll();
+                    Coach.go(typeof saved.step === 'number' ? saved.step : 0);
+                });
+            }
+        };
+
+        /* ── Coach.reapplyMaterials ──────────────────────────────────── */
+        Coach.reapplyMaterials = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            canvas.getObjects().forEach(function(obj) {
+                if (obj.materialType && obj.materialType !== 'color') {
+                    if (typeof applyFill === 'function') {
+                        applyFill(obj, obj.materialType);
+                    }
+                }
+            });
+            canvas.requestRenderAll();
+        };
+
+        /* ── Coach.resolveHolder ─────────────────────────────────────── */
+        Coach.resolveHolder = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            const objs = canvas.getObjects();
+
+            // Primary: look for the stamped coachHolderId
+            let holder = objs.find(function(o) { return o.coachHolderId === 'holder'; }) || null;
+
+            // Fallback: largest non-coin object by scaled area
+            if (!holder) {
+                let maxArea = -1;
+                objs.forEach(function(o) {
+                    if (o.shapeType === 'currency') return;
+                    const area = o.getScaledWidth() * o.getScaledHeight();
+                    if (area > maxArea) { maxArea = area; holder = o; }
+                });
+            }
+
+            Coach.state.holderObj = holder || null;
+        };
+
+        /* ── Coach.startOver ─────────────────────────────────────────── */
+        Coach.startOver = function() {
+            if (!window.confirm('Start over? This clears your current design.')) return;
+            Coach.persist.clear();
+            if (typeof clearCanvas === 'function') {
+                clearCanvas();
+            } else if (typeof canvas !== 'undefined' && canvas) {
+                canvas.clear();
+                canvas.backgroundColor = '#ffffff';
+                canvas.requestRenderAll();
+            }
+            Coach.state = {};
+            Coach.go(0);
         };
 
         /* ── Coach.arrange ────────────────────────────────────────────
