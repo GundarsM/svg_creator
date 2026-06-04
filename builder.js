@@ -4666,7 +4666,128 @@
                 intro: 'Choose a wood finish or plastic colour.',
                 optional: false,
                 highlight: [Coach.SELECTORS.material],
-                renderAction(el) { el.textContent = this.intro; }
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    // ── Intro ─────────────────────────────────────────────
+                    const intro = document.createElement('p');
+                    intro.className = 'mb-3';
+                    intro.textContent = this.intro;
+                    el.appendChild(intro);
+
+                    // ── Resolve the holder object ─────────────────────────
+                    const obj = Coach.state.holderObj ||
+                        (typeof canvas !== 'undefined' && canvas ? canvas.getActiveObject() : null);
+
+                    if (!obj) {
+                        const nudge = document.createElement('p');
+                        nudge.className = 'text-warning mb-3';
+                        nudge.textContent = 'Add a holder first — go back to step 2.';
+                        el.appendChild(nudge);
+
+                        const backBtn = document.createElement('button');
+                        backBtn.type = 'button';
+                        backBtn.className = 'btn btn-sm btn-outline-light';
+                        backBtn.textContent = '← Back to Choose Holder';
+                        backBtn.addEventListener('click', () => Coach.go(1));
+                        el.appendChild(backBtn);
+                        return;
+                    }
+
+                    // ── Shared apply function ─────────────────────────────
+                    const applyMaterial = (fillType) => {
+                        if (typeof applyFill === 'function') applyFill(obj, fillType);
+                        if (typeof cascadeColorToContained === 'function') {
+                            const plastic = document.getElementById('fillColor')
+                                ? document.getElementById('fillColor').value
+                                : '#ffffff';
+                            cascadeColorToContained(obj, fillType, plastic);
+                        }
+                        // Keep engine's properties panel consistent
+                        const sel = document.getElementById('materialPreset');
+                        if (sel) sel.value = fillType;
+                        if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
+                        if (typeof saveState === 'function') saveState();
+                        Coach.state.material = fillType;
+                        // Re-render to reflect the new selection state
+                        this.renderAction(el);
+                    };
+
+                    const currentMaterial = Coach.state.material || null;
+
+                    const makeSelected = (isActive) => {
+                        if (isActive) {
+                            return { backgroundColor: '#cfe3cf', color: '#344734', borderColor: '#cfe3cf' };
+                        }
+                        return {};
+                    };
+
+                    // ── Wood finishes ─────────────────────────────────────
+                    const woodLabel = document.createElement('p');
+                    woodLabel.className = 'small fw-semibold mb-2';
+                    woodLabel.textContent = 'Wood finishes';
+                    el.appendChild(woodLabel);
+
+                    const woodRow = document.createElement('div');
+                    woodRow.className = 'd-flex gap-2 flex-wrap mb-3';
+                    el.appendChild(woodRow);
+
+                    const woodOptions = [
+                        { label: 'Birch', value: 'birch' },
+                        { label: 'Oak',   value: 'oak'   },
+                        { label: 'Walnut', value: 'walnut' },
+                    ];
+
+                    woodOptions.forEach(({ label, value }) => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn btn-sm btn-outline-light';
+                        btn.textContent = label;
+                        const isActive = currentMaterial === value;
+                        if (isActive) {
+                            btn.classList.add('active');
+                            Object.assign(btn.style, makeSelected(true));
+                        }
+                        btn.addEventListener('click', () => applyMaterial(value));
+                        woodRow.appendChild(btn);
+                    });
+
+                    // ── Plastic colour ────────────────────────────────────
+                    const plasticLabel = document.createElement('p');
+                    plasticLabel.className = 'small fw-semibold mb-2';
+                    plasticLabel.textContent = 'Plastic colour';
+                    el.appendChild(plasticLabel);
+
+                    const plasticRow = document.createElement('div');
+                    plasticRow.className = 'd-flex align-items-center gap-2 mb-2';
+                    el.appendChild(plasticRow);
+
+                    const engineColorInput = document.getElementById('fillColor');
+                    const defaultColor = engineColorInput ? engineColorInput.value : '#344734';
+
+                    const colorPicker = document.createElement('input');
+                    colorPicker.type = 'color';
+                    colorPicker.className = 'form-control form-control-color';
+                    colorPicker.value = defaultColor;
+                    colorPicker.title = 'Choose plastic colour';
+                    plasticRow.appendChild(colorPicker);
+
+                    const applyColorBtn = document.createElement('button');
+                    applyColorBtn.type = 'button';
+                    applyColorBtn.className = 'btn btn-sm btn-outline-light';
+                    const isColorActive = currentMaterial === 'color';
+                    if (isColorActive) {
+                        applyColorBtn.classList.add('active');
+                        Object.assign(applyColorBtn.style, makeSelected(true));
+                    }
+                    applyColorBtn.textContent = 'Apply colour';
+                    applyColorBtn.addEventListener('click', () => {
+                        const fillColorInput = document.getElementById('fillColor');
+                        if (fillColorInput) fillColorInput.value = colorPicker.value;
+                        applyMaterial('color');
+                    });
+                    plasticRow.appendChild(applyColorBtn);
+                },
             },
             {
                 id: 'coins',
