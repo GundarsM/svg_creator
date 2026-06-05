@@ -718,16 +718,26 @@
             }
 
             /* Action-button rows fill the bubble width; buttons share it equally
-               (1 button → full width, 2 → halves, 3 → thirds, etc.). */
+               (1 button → full width, 2 → halves, 3 → thirds, etc.).
+               .coach-btns gives the same uniform buttons to togglable panels whose
+               display is controlled inline (so we must NOT force display here). */
             #coach-body .coach-row {
                 display: flex !important;
                 flex-wrap: wrap;
-                gap: 8px;
+                gap: 6px;
                 width: 100%;
             }
-            #coach-body .coach-row > .btn {
+            #coach-body .coach-row > .btn,
+            #coach-body .coach-btns > .btn {
                 flex: 1 1 0;
-                min-width: 0;
+                min-width: max-content;   /* never shrink below the label → no word splitting */
+                white-space: nowrap;      /* keep each label on one line */
+                padding-left: 6px;        /* tighter margins so labels fit */
+                padding-right: 6px;
+            }
+            /* At most two buttons per row (used by the Arrange step) */
+            #coach-body .coach-row-2 > .btn {
+                flex-basis: calc(50% - 3px);
             }
 
             /* Responsive — mobile sheet */
@@ -5260,9 +5270,9 @@
                     // "display:flex !important" and would override our inline
                     // display:none, leaving the panel permanently visible.
                     // We set flex layout via inline styles so we control display.
-                    const countryPanel = mkEl('div', { className: 'mb-3 ps-1' });
+                    const countryPanel = mkEl('div', { className: 'coach-btns mb-3 ps-1' });
                     countryPanel.style.flexWrap = 'wrap';
-                    countryPanel.style.gap = '8px';
+                    countryPanel.style.gap = '6px';
                     // Hidden until the "Country / custom shape" button is pressed
                     countryPanel.style.display = 'none';
 
@@ -5914,9 +5924,9 @@
                         nudge.style.display = ok ? 'none' : '';
                     };
 
-                    // Layout buttons
+                    // Layout buttons — max two per row
                     const btnRow = document.createElement('div');
-                    btnRow.className = 'coach-row mb-3';
+                    btnRow.className = 'coach-row coach-row-2 mb-3';
 
                     const makeArrangeBtn = (label, iconClass, patternKey) => {
                         const btn = document.createElement('button');
@@ -6097,7 +6107,7 @@
                     ];
 
                     const countryGrid = document.createElement('div');
-                    countryGrid.className = 'd-flex flex-wrap gap-1';
+                    countryGrid.className = 'd-flex flex-wrap gap-1 coach-btns';
 
                     countries.forEach(({ key, label }) => {
                         const btn = document.createElement('button');
