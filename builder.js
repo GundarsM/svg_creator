@@ -4250,10 +4250,15 @@
                                 hdr.appendChild(btn);
                             }
                         }());
-                        // Make the engine's main "Start Over" button also reset the Coach
+                        // Make the engine's main "Start Over" button confirm AND reset the Coach.
+                        // (Coach.startOver sets _suppressClearReset, having already confirmed itself.)
                         if (typeof clearCanvas === 'function' && !clearCanvas._coachWrapped) {
                             const origClear = clearCanvas;
                             window.clearCanvas = function() {
+                                if (!Coach._suppressClearReset &&
+                                    !window.confirm('Start over? This clears your current design.')) {
+                                    return;
+                                }
                                 origClear.apply(this, arguments);
                                 if (!Coach._suppressClearReset) Coach.resetSelf();
                             };
@@ -4663,20 +4668,34 @@
            Scale a freshly-added decorative object (country outline / image)
            to match the holder's size, preserving aspect ratio (contain), and
            centre it on the holder. */
-        Coach.sizeToHolder = function(obj) {
+        Coach.sizeToHolder = function(obj, mode) {
             if (!obj || typeof canvas === 'undefined' || !canvas) return;
-            // Make sure we have a current holder reference.
-            if (!Coach.state.holderObj || canvas.getObjects().indexOf(Coach.state.holderObj) === -1) {
+            // Make sure we have a current holder reference (and that it isn't the
+            // object we're sizing — e.g. a freshly-added full-size image).
+            if (!Coach.state.holderObj
+                || canvas.getObjects().indexOf(Coach.state.holderObj) === -1
+                || Coach.state.holderObj === obj) {
                 Coach.resolveHolder();
             }
-            const holder = Coach.state.holderObj;
+            let holder = Coach.state.holderObj;
+            // resolveHolder may have picked the just-added object — find the largest other.
+            if (holder === obj) {
+                let maxArea = -1, alt = null;
+                canvas.getObjects().forEach(function(o) {
+                    if (o === obj || o.shapeType === 'currency') return;
+                    const a = o.getScaledWidth() * o.getScaledHeight();
+                    if (a > maxArea) { maxArea = a; alt = o; }
+                });
+                holder = alt;
+            }
             if (!holder || holder === obj) return;
             const hw = holder.getScaledWidth();
             const hh = holder.getScaledHeight();
             const ow = obj.getScaledWidth();
             const oh = obj.getScaledHeight();
             if (!hw || !hh || !ow || !oh) return;
-            const factor = Math.min(hw / ow, hh / oh);
+            // 'height' → match the holder's height (aspect preserved); default → contain in both.
+            const factor = (mode === 'height') ? (hh / oh) : Math.min(hw / ow, hh / oh);
             obj.scaleX *= factor;
             obj.scaleY *= factor;
             const c = holder.getCenterPoint();
@@ -6056,7 +6075,7 @@
                     }
 
                     /* Capture the next non-coin object added and size it to the holder. */
-                    function captureAndSize() {
+                    function captureAndSize(mode) {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         if (Coach._pendingSizeHandler) {
                             canvas.off('object:added', Coach._pendingSizeHandler);
@@ -6074,7 +6093,7 @@
                             canvas.off('object:added', handler);
                             clearTimeout(Coach._pendingSizeTimeout);
                             Coach._pendingSizeHandler = null;
-                            Coach.sizeToHolder(obj);
+                            Coach.sizeToHolder(obj, mode);
                             if (savedVP) { canvas.setViewportTransform(savedVP); canvas.requestRenderAll(); }
                         };
                         Coach._pendingSizeHandler = handler;
@@ -6214,7 +6233,7 @@
                     uploadBtn.className = 'btn btn-sm btn-outline-light mb-1';
                     uploadBtn.textContent = 'Upload image…';
                     uploadBtn.addEventListener('click', () => {
-                        captureAndSize(); // size the uploaded image to the holder
+                        captureAndSize('height'); // load image at the holder's height (aspect preserved)
                         document.getElementById('imageUpload')?.click();
                     });
 
