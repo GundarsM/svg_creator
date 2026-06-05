@@ -713,6 +713,8 @@
                 padding: 5px 14px !important;
                 line-height: 1.4 !important;
                 vertical-align: middle;
+                white-space: nowrap !important;   /* keep the ‹ / › on one line */
+                flex: 0 0 auto;                    /* don't let flexbox shrink & wrap them */
             }
 
             /* Responsive — mobile sheet */
@@ -4775,7 +4777,69 @@
             // Build position array — length === targets.length, inside first, perimeter for surplus
             let positions = [];
 
-            if (pattern === 'circle') {
+            if (pattern === 'shape') {
+                // Conform to the holder's actual silhouette (point-in-shape).
+                // Render a SOLID mask of the holder offscreen, then keep only grid
+                // cells whose coin footprint lies fully inside the mask.
+                let maskCanvas = null;
+                const saved = [];
+                const solidify = (o) => {
+                    saved.push([o, o.fill, o.opacity, o.stroke, o.strokeWidth]);
+                    o.set({ fill: '#000', opacity: 1, stroke: '#000', strokeWidth: 0 });
+                };
+                try {
+                    if (holder.type === 'group') holder.forEachObject(solidify);
+                    else solidify(holder);
+                    if (typeof holder.toCanvasElement === 'function') {
+                        maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false });
+                    }
+                } catch (e) { maskCanvas = null; }
+                // Restore the holder's real styling (no visible flash — canvas not re-rendered yet)
+                saved.forEach(([o, f, op, s, sw]) => o.set({ fill: f, opacity: op, stroke: s, strokeWidth: sw }));
+
+                if (maskCanvas) {
+                    const br = holder.getBoundingRect(true); // absolute bbox in canvas coords
+                    const mctx = maskCanvas.getContext('2d');
+                    let md = null;
+                    try { md = mctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height).data; } catch (e) { md = null; }
+                    if (md && br.width > 0 && br.height > 0) {
+                        const sxM = maskCanvas.width / br.width;
+                        const syM = maskCanvas.height / br.height;
+                        const insideAt = (px, py) => {
+                            const mx = Math.round((px - br.left) * sxM);
+                            const my = Math.round((py - br.top) * syM);
+                            if (mx < 0 || my < 0 || mx >= maskCanvas.width || my >= maskCanvas.height) return false;
+                            return md[(my * maskCanvas.width + mx) * 4 + 3] > 40;
+                        };
+                        const r = (maxFoot / 2) * 0.92; // coin radius used for the containment test
+                        const cols = Math.max(1, Math.floor(br.width / cell));
+                        const rows = Math.max(1, Math.floor(br.height / cell));
+                        const startX = br.left + (br.width - cols * cell) / 2 + cell / 2;
+                        const startY = br.top + (br.height - rows * cell) / 2 + cell / 2;
+                        for (let ry = 0; ry < rows && positions.length < targets.length; ry++) {
+                            for (let cx = 0; cx < cols && positions.length < targets.length; cx++) {
+                                const x = startX + cx * cell;
+                                const y = startY + ry * cell;
+                                // Center + 4 edge + 4 diagonal samples must all be inside the silhouette
+                                if (insideAt(x, y) &&
+                                    insideAt(x - r, y) && insideAt(x + r, y) &&
+                                    insideAt(x, y - r) && insideAt(x, y + r) &&
+                                    insideAt(x - r * 0.7, y - r * 0.7) && insideAt(x + r * 0.7, y + r * 0.7) &&
+                                    insideAt(x - r * 0.7, y + r * 0.7) && insideAt(x + r * 0.7, y - r * 0.7)) {
+                                    positions.push({ x, y });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Any coins that didn't fit inside the silhouette → outer perimeter (still visible, no overlap)
+                if (positions.length < targets.length) {
+                    positions = positions.concat(
+                        perimeterPositions(targets.length - positions.length, left, top, hw, hh, cell, hc)
+                    );
+                }
+            } else if (pattern === 'circle') {
                 // Concentric rings starting just inside the holder; overflow rings expand outward
                 let placed = 0, ring = 0;
                 while (placed < targets.length) {
@@ -5574,12 +5638,21 @@
                             textContent: '−'
                         });
 
-                        // Quantity display
-                        const qtyDisplay = mkEl('span', {
-                            className: 'small text-center',
-                            textContent: '1'
+                        // Quantity input — typeable for larger amounts (kept in sync with qty)
+                        const qtyInput = mkEl('input', {
+                            type: 'number', min: '0', step: '1', value: '1',
+                            className: 'form-control form-control-sm text-center px-1'
                         });
-                        qtyDisplay.style.minWidth = '20px';
+                        qtyInput.style.width = '50px';
+                        const setQty = (v) => {
+                            if (isNaN(v) || v < 0) v = 0;
+                            qty.value = v;
+                            qtyInput.value = v;
+                        };
+                        qtyInput.addEventListener('input', () => {
+                            const v = parseInt(qtyInput.value, 10);
+                            qty.value = (isNaN(v) || v < 0) ? 0 : v;
+                        });
 
                         // Plus button
                         const plusBtn = mkEl('button', {
@@ -5589,15 +5662,16 @@
                         });
 
                         minusBtn.addEventListener('click', () => {
-                            if (qty.value > 0) { qty.value--; qtyDisplay.textContent = qty.value; }
+                            const v = parseInt(qtyInput.value, 10) || 0;
+                            setQty(v > 0 ? v - 1 : 0);
                         });
                         plusBtn.addEventListener('click', () => {
-                            qty.value++;
-                            qtyDisplay.textContent = qty.value;
+                            const v = parseInt(qtyInput.value, 10) || 0;
+                            setQty(v + 1);
                         });
 
                         row.appendChild(minusBtn);
-                        row.appendChild(qtyDisplay);
+                        row.appendChild(qtyInput);
                         row.appendChild(plusBtn);
 
                         // Add button
@@ -5723,10 +5797,17 @@
                         return btn;
                     };
 
-                    btnRow.appendChild(makeArrangeBtn('Grid',   'fas fa-th',            'grid'));
-                    btnRow.appendChild(makeArrangeBtn('Circle', 'fas fa-circle-notch',  'circle'));
-                    btnRow.appendChild(makeArrangeBtn('Rows',   'fas fa-bars',          'rows'));
+                    btnRow.appendChild(makeArrangeBtn('Grid',         'fas fa-th',            'grid'));
+                    btnRow.appendChild(makeArrangeBtn('Circle',       'fas fa-circle-notch',  'circle'));
+                    btnRow.appendChild(makeArrangeBtn('Rows',         'fas fa-bars',          'rows'));
+                    btnRow.appendChild(makeArrangeBtn('Fit to shape', 'fas fa-draw-polygon',  'shape'));
                     el.appendChild(btnRow);
+
+                    // Hint for the shape-conforming layout
+                    const shapeHint = document.createElement('p');
+                    shapeHint.className = 'small text-muted mb-2';
+                    shapeHint.textContent = 'Fit to shape packs coins inside the holder outline (great for country shapes) with no overlap.';
+                    el.appendChild(shapeHint);
 
                     // Muted note
                     const note = document.createElement('p');
@@ -6057,6 +6138,13 @@
                         const notes = document.getElementById('userNotes');
                         if (notes && Coach.state.occasion && notes.value.indexOf(Coach.state.occasion) === -1) {
                             notes.value = (notes.value ? notes.value + '\n' : '') + 'Occasion: ' + Coach.state.occasion;
+                        }
+                        // Pre-fill Preferred material from the choice made in step 3
+                        const matSel = document.getElementById('preferredMaterial');
+                        const chosenMat = (Coach.state.holderObj && Coach.state.holderObj.materialType) || Coach.state.material;
+                        if (matSel && chosenMat) {
+                            // 'color' is plastic → the form's Acrylic / Plastic option ("acrylic")
+                            matSel.value = (chosenMat === 'color') ? 'acrylic' : chosenMat;
                         }
                     });
                     btnRow.appendChild(quoteBtn);
