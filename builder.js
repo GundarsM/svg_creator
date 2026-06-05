@@ -717,6 +717,19 @@
                 flex: 0 0 auto;                    /* don't let flexbox shrink & wrap them */
             }
 
+            /* Action-button rows fill the bubble width; buttons share it equally
+               (1 button → full width, 2 → halves, 3 → thirds, etc.). */
+            #coach-body .coach-row {
+                display: flex !important;
+                flex-wrap: wrap;
+                gap: 8px;
+                width: 100%;
+            }
+            #coach-body .coach-row > .btn {
+                flex: 1 1 0;
+                min-width: 0;
+            }
+
             /* Responsive — mobile sheet */
             @media (max-width: 768px) {
                 #coach-bubble {
@@ -4665,6 +4678,25 @@
                 canvas.backgroundColor = '#ffffff';
                 canvas.requestRenderAll();
             }
+            // Cancel any pending one-shot capture handlers / timeouts
+            if (typeof canvas !== 'undefined' && canvas) {
+                ['_pendingHolderHandler', '_pendingImportHandler', '_pendingSizeHandler'].forEach(h => {
+                    if (Coach[h]) { canvas.off('object:added', Coach[h]); Coach[h] = null; }
+                });
+            }
+            ['_pendingHolderTimeout', '_pendingImportTimeout', '_pendingSizeTimeout'].forEach(t => {
+                if (Coach[t]) { clearTimeout(Coach[t]); Coach[t] = null; }
+            });
+
+            // Reset the bubble to its just-loaded look (undo any drag, expand it)
+            const bubble = document.getElementById('coach-bubble');
+            if (bubble) {
+                bubble.style.left = '';
+                bubble.style.top = '';
+                bubble.style.right = '';
+                bubble.style.bottom = '';
+            }
+
             Coach.state = {};
             Coach.current = 0;
             Coach.visited = new Set();
@@ -4847,21 +4879,21 @@
                                 }
                             }
 
-                            const r        = maxFoot / 2;                  // largest coin radius (canvas px)
-                            const offset   = maxFoot * 0.10;               // breathing room from edge
-                            const insetMin = r + offset;                   // outermost ring inset (canvas px)
-                            // Thin shells (~r/2) used ONLY for ordering, so the outer contour is
-                            // laid down before stepping inward. Actual no-overlap spacing is minDist.
-                            const shell    = Math.max(r * 0.5, 1);
-                            const minDist  = cell;                         // center-to-center spacing
-                            const minDist2 = minDist * minDist;
+                            // Per-coin radius (canvas px) — each coin hugs the outline by ITS OWN
+                            // radius so the gap to the edge is the same for big and small coins.
+                            const coinR = targets.map(c => Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2);
+                            const minCoinR = Math.min.apply(null, coinR);
+                            const offset = maxFoot * 0.06;  // constant edge gap for every coin
+                            const gap    = maxFoot * 0.06;  // min gap between neighbouring coins
+                            const minNeed = minCoinR + offset; // smallest usable inset (smallest coin)
 
                             // Centroid in canvas coords (for angular ordering)
                             const cxC = br.left + (cxSum / cCount) / pxPerCanvas;
                             const cyC = br.top  + (cySum / cCount) / pxPerCanvas;
 
-                            // Candidate sampling step (finer than a coin so rings are well populated)
-                            const sampleStep = Math.max(2, r * 0.30);
+                            // Candidate sampling step (finer than the smallest coin so rings populate well)
+                            const sampleStep = Math.max(2, minCoinR * 0.35);
+                            const shell      = Math.max(minCoinR * 0.5, 1); // depth bucket for ordering
 
                             const distAtCanvas = (px, py) => {
                                 const mx = Math.round((px - br.left) * pxPerCanvas);
@@ -4871,32 +4903,65 @@
                                 return d >= INF ? 0 : d / pxPerCanvas; // canvas px
                             };
 
-                            // Build ring-ordered candidate list
+                            // Candidates: every inside point that could host at least the smallest coin.
+                            // d = distance from the edge (canvas px). Sort outer-first, then by angle so
+                            // a coin sweeps around the contour.
                             const candidates = [];
                             for (let py = br.top; py <= br.top + br.height; py += sampleStep) {
                                 for (let px = br.left; px <= br.left + br.width; px += sampleStep) {
                                     const dCanvas = distAtCanvas(px, py);
-                                    if (dCanvas < insetMin) continue;     // too close to edge for a coin
-                                    const ring = Math.floor((dCanvas - insetMin) / shell);
-                                    const ang  = Math.atan2(py - cyC, px - cxC);
-                                    candidates.push({ x: px, y: py, ring: ring, ang: ang });
+                                    if (dCanvas < minNeed) continue;
+                                    candidates.push({
+                                        x: px, y: py, d: dCanvas, used: false,
+                                        bucket: Math.floor(dCanvas / shell),
+                                        ang: Math.atan2(py - cyC, px - cxC)
+                                    });
                                 }
                             }
-                            // Outer ring first; within a ring, walk around by angle → traces the contour
-                            candidates.sort((a, b) => (a.ring - b.ring) || (a.ang - b.ang));
+                            candidates.sort((a, b) => (a.bucket - b.bucket) || (a.ang - b.ang));
 
-                            // Greedy placement with overlap rejection
-                            const placed = [];
-                            for (let k = 0; k < candidates.length && placed.length < targets.length; k++) {
-                                const cnd = candidates[k];
-                                let ok = true;
-                                for (let p = 0; p < placed.length; p++) {
-                                    const dx = placed[p].x - cnd.x, dy = placed[p].y - cnd.y;
-                                    if (dx * dx + dy * dy < minDist2) { ok = false; break; }
+                            // Place coins largest-first so big coins claim outline spots; smaller coins
+                            // then fill the gaps, each hugging the outline by `offset`.
+                            const order = targets.map((_, i) => i).sort((a, b) => coinR[b] - coinR[a]);
+                            const positionsByIndex = new Array(targets.length).fill(null);
+                            const placedCoins = [];
+
+                            for (let oi = 0; oi < order.length; oi++) {
+                                const idx = order[oi];
+                                const rc = coinR[idx];
+                                const need = rc + offset;          // coin edge sits ~offset from the outline
+                                let chosen = -1;
+                                for (let k = 0; k < candidates.length; k++) {
+                                    const cand = candidates[k];
+                                    if (cand.used || cand.d < need) continue;
+                                    let ok = true;
+                                    for (let p = 0; p < placedCoins.length; p++) {
+                                        const pc = placedCoins[p];
+                                        const dx = pc.x - cand.x, dy = pc.y - cand.y;
+                                        const md = pc.r + rc + gap; // size-aware spacing
+                                        if (dx * dx + dy * dy < md * md) { ok = false; break; }
+                                    }
+                                    if (ok) { chosen = k; break; }
                                 }
-                                if (ok) placed.push({ x: cnd.x, y: cnd.y });
+                                if (chosen >= 0) {
+                                    const c = candidates[chosen];
+                                    c.used = true;
+                                    placedCoins.push({ x: c.x, y: c.y, r: rc });
+                                    positionsByIndex[idx] = { x: c.x, y: c.y };
+                                }
                             }
-                            positions = placed;
+
+                            // Coins that couldn't fit inside → outer perimeter (keeps target alignment)
+                            const missing = [];
+                            for (let i = 0; i < positionsByIndex.length; i++) {
+                                if (!positionsByIndex[i]) missing.push(i);
+                            }
+                            if (missing.length) {
+                                const per = perimeterPositions(missing.length, left, top, hw, hh, cell, hc);
+                                missing.forEach((idx, k) => { positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y }; });
+                            }
+
+                            positions = positionsByIndex;
                         }
                     }
                 }
@@ -5145,7 +5210,7 @@
                     const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a base shape' });
                     el.appendChild(shapeLabel);
 
-                    const shapeGroup = mkEl('div', { className: 'd-flex flex-wrap gap-2 mb-2' });
+                    const shapeGroup = mkEl('div', { className: 'coach-row mb-2' });
 
                     // Row 1 btn: Rectangle
                     const rectBtn = makeBtn('Rectangle', 'fas fa-square', Coach.state.holderType === 'rectangle');
@@ -5176,7 +5241,7 @@
                     shapeGroup.appendChild(circBtn);
 
                     // Row 1 btn: Country / custom shape (toggle)
-                    const countryToggleBtn = makeBtn('Country / custom shape', 'fas fa-draw-polygon',
+                    const countryToggleBtn = makeBtn('Country / SVG', 'fas fa-draw-polygon',
                         Coach.state.holderType === 'country' || Coach.state.holderType === 'imported');
                     countryToggleBtn.dataset.shape = 'country';
                     countryToggleBtn.addEventListener('click', () => {
@@ -5393,7 +5458,7 @@
                     const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready layout:' });
                     el.appendChild(tmplLabel);
 
-                    const tmplRow = mkEl('div', { className: 'd-flex flex-wrap gap-2' });
+                    const tmplRow = mkEl('div', { className: 'coach-row' });
 
                     const templates = [
                         { key: 'germany-euro', label: 'Rectangle Coin Display' },
@@ -5510,7 +5575,7 @@
                     el.appendChild(woodLabel);
 
                     const woodRow = document.createElement('div');
-                    woodRow.className = 'd-flex gap-2 flex-wrap mb-3';
+                    woodRow.className = 'coach-row mb-3';
                     el.appendChild(woodRow);
 
                     const woodOptions = [
@@ -5662,7 +5727,7 @@
                     const activeCurrency = Coach.state.coinCurrency || 'euro';
 
                     /* ── Currency tab buttons ──────────────────────────── */
-                    const tabRow = mkEl('div', { className: 'd-flex gap-2 mb-3' });
+                    const tabRow = mkEl('div', { className: 'coach-row mb-3' });
                     Object.entries(CURRENCIES).forEach(([key, cur]) => {
                         const isActive = key === activeCurrency;
                         const tab = mkEl('button', {
@@ -5804,7 +5869,7 @@
                         updateTally();
                         autoArrangeRows();
                     });
-                    const addAllWrap = mkEl('div', { className: 'd-flex justify-content-center mb-3' });
+                    const addAllWrap = mkEl('div', { className: 'coach-row mb-3' });
                     addAllWrap.appendChild(addAllBtn);
                     el.appendChild(addAllWrap);
 
@@ -5851,7 +5916,7 @@
 
                     // Layout buttons
                     const btnRow = document.createElement('div');
-                    btnRow.className = 'd-flex flex-wrap gap-2 mb-3';
+                    btnRow.className = 'coach-row mb-3';
 
                     const makeArrangeBtn = (label, iconClass, patternKey) => {
                         const btn = document.createElement('button');
@@ -6057,7 +6122,10 @@
                         countryToggleBtn.textContent = hidden ? 'Hide countries' : 'Choose country…';
                     });
 
-                    el.appendChild(countryToggleBtn);
+                    const countryToggleRow = document.createElement('div');
+                    countryToggleRow.className = 'coach-row mb-2';
+                    countryToggleRow.appendChild(countryToggleBtn);
+                    el.appendChild(countryToggleRow);
                     el.appendChild(countryPanel);
 
                     /* ── 3. Upload a logo / image ────────────────────── */
@@ -6071,7 +6139,10 @@
                         document.getElementById('imageUpload')?.click();
                     });
 
-                    el.appendChild(uploadBtn);
+                    const uploadRow = document.createElement('div');
+                    uploadRow.className = 'coach-row';
+                    uploadRow.appendChild(uploadBtn);
+                    el.appendChild(uploadRow);
                 },
             },
             {
