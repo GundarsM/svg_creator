@@ -592,8 +592,9 @@
             #coach-dots {
                 display: flex;
                 flex-direction: row;
+                flex-wrap: wrap;
                 align-items: center;
-                gap: 5px;
+                gap: 2px;
                 margin-left: auto;
             }
 
@@ -4355,14 +4356,12 @@
                     const dot = document.createElement('span');
                     dot.style.cssText = [
                         'display:inline-block',
-                        'width:10px',
-                        'height:10px',
+                        'width:8px',
+                        'height:8px',
                         'border-radius:50%',
-                        'margin:0 3px',
+                        'margin:0 1px',
                         'cursor:pointer',
-                        'font-size:8px',
-                        'line-height:10px',
-                        'text-align:center',
+                        'flex:0 0 auto',
                         'vertical-align:middle',
                         'transition:background 0.2s'
                     ].join(';');
@@ -5124,9 +5123,9 @@
 
             const HOLE_R   = 2.1;                 // mm — drawn hole radius (4.2 mm dia)
             const OFFSET   = 12;                  // mm — inset of the fixture perimeter
-            const CLEAR    = 5;                   // mm — extra clearance ring around a hole
+            const KEEPOUT  = 6.0;                 // mm — clearance radius measured from the hole centre
             const holeRpx  = HOLE_R * scale;
-            const keepoutPx = (HOLE_R + CLEAR) * scale;
+            const keepoutPx = KEEPOUT * scale;
 
             const placed = [];                    // {x,y} in canvas px
 
@@ -5164,8 +5163,9 @@
             } else if (type === 'circle' || type === 'circle-outline') {
                 const R = Math.min(hw, hh) / 2 - OFFSET * scale;
                 if (R > 0) {
+                    // start at top, rotated 30° clockwise, then every 60°
                     for (let i = 0; i < 6; i++) {
-                        const a = -Math.PI / 2 + i * (Math.PI / 3);
+                        const a = -Math.PI / 2 + Math.PI / 6 + i * (Math.PI / 3);
                         tryPlace(hc.x + R * Math.cos(a), hc.y + R * Math.sin(a));
                     }
                 }
@@ -5242,13 +5242,32 @@
                             }
                             band.sort((a, b) => a.ang - b.ang);
 
-                            const spacingPx = 100 * scale;
-                            let acc = spacingPx, prev = null;
-                            for (let i = 0; i < band.length; i++) {
-                                const pt = band[i];
-                                if (prev) acc += Math.hypot(pt.x - prev.x, pt.y - prev.y);
-                                prev = pt;
-                                if (acc >= spacingPx && tryPlace(pt.x, pt.y)) acc = 0;
+                            if (band.length) {
+                                // Cumulative arc length around the (closed) contour loop.
+                                const cum = [0];
+                                for (let i = 1; i < band.length; i++) {
+                                    cum[i] = cum[i - 1] + Math.hypot(band[i].x - band[i - 1].x, band[i].y - band[i - 1].y);
+                                }
+                                const closeSeg = Math.hypot(
+                                    band[0].x - band[band.length - 1].x,
+                                    band[0].y - band[band.length - 1].y);
+                                const total = cum[cum.length - 1] + closeSeg;
+
+                                // At least 5 holes, otherwise ~100 mm apart — spread on all sides.
+                                const N = Math.max(5, Math.round(total / (100 * scale)));
+                                let bi = 0;
+                                for (let k = 0; k < N; k++) {
+                                    const targetArc = (k * total) / N;
+                                    while (bi < band.length - 1 && cum[bi + 1] <= targetArc) bi++;
+                                    if (!tryPlace(band[bi].x, band[bi].y)) {
+                                        // nearest spot clashes a coin — search neighbours along the contour
+                                        for (let off = 1; off < band.length; off++) {
+                                            const a = band[(bi + off) % band.length];
+                                            const b = band[(bi - off + band.length) % band.length];
+                                            if (tryPlace(a.x, a.y) || tryPlace(b.x, b.y)) break;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
