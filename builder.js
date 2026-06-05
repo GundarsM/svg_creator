@@ -5097,6 +5097,186 @@
             return true;
         };
 
+        /* ── Coach.addFixtures ────────────────────────────────────────
+           Place 4.2 mm mounting-hole circles on a perimeter offset 12 mm inward
+           from the holder outline (real fixtures are 8 mm). A hole's keep-out
+           (hole radius + 5 mm) must not clash with any coin slot.
+           • Rectangle → 2 on the top edge + 2 on the bottom edge (none on sides)
+           • Circle    → 6 equally spaced
+           • Irregular → as many as fit, ~100 mm apart along the offset contour
+           Returns the number of fixtures placed, or false if there's no holder. */
+        Coach.addFixtures = function() {
+            if (typeof canvas === 'undefined' || !canvas) return false;
+
+            let holder = Coach.state.holderObj;
+            if (!holder || canvas.getObjects().indexOf(holder) === -1) {
+                if (typeof Coach.resolveHolder === 'function') Coach.resolveHolder();
+                holder = Coach.state.holderObj;
+            }
+            if (!holder) return false;
+
+            const scale = canvas.scale || 1;
+
+            // Remove any fixtures from a previous run so re-clicking re-computes cleanly.
+            canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
+
+            const coins = canvas.getObjects().filter(o => o.shapeType === 'currency');
+
+            const HOLE_R   = 2.1;                 // mm — drawn hole radius (4.2 mm dia)
+            const OFFSET   = 12;                  // mm — inset of the fixture perimeter
+            const CLEAR    = 5;                   // mm — extra clearance ring around a hole
+            const holeRpx  = HOLE_R * scale;
+            const keepoutPx = (HOLE_R + CLEAR) * scale;
+
+            const placed = [];                    // {x,y} in canvas px
+
+            function clearOfCoins(x, y) {
+                for (let i = 0; i < coins.length; i++) {
+                    const c = coins[i];
+                    const cc = c.getCenterPoint();
+                    const cr = Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2;
+                    const dx = cc.x - x, dy = cc.y - y;
+                    if (Math.hypot(dx, dy) < keepoutPx + cr) return false;
+                }
+                return true;
+            }
+            function tryPlace(x, y) {
+                for (let i = 0; i < placed.length; i++) {
+                    if (Math.hypot(placed[i].x - x, placed[i].y - y) < 2 * keepoutPx) return false;
+                }
+                if (!clearOfCoins(x, y)) return false;
+                placed.push({ x: x, y: y });
+                return true;
+            }
+
+            const type = holder.shapeType || '';
+            const hc = holder.getCenterPoint();
+            const hw = holder.getScaledWidth();
+            const hh = holder.getScaledHeight();
+
+            if (type === 'rectangle' || type === 'rectangle-outline') {
+                const left = hc.x - hw / 2;
+                const top  = hc.y - hh / 2;
+                const yTop = top + OFFSET * scale;
+                const yBot = top + hh - OFFSET * scale;
+                const xs = [left + hw * (1 / 3), left + hw * (2 / 3)]; // 2 across, spread
+                [yTop, yBot].forEach(yy => xs.forEach(xx => tryPlace(xx, yy)));
+            } else if (type === 'circle' || type === 'circle-outline') {
+                const R = Math.min(hw, hh) / 2 - OFFSET * scale;
+                if (R > 0) {
+                    for (let i = 0; i < 6; i++) {
+                        const a = -Math.PI / 2 + i * (Math.PI / 3);
+                        tryPlace(hc.x + R * Math.cos(a), hc.y + R * Math.sin(a));
+                    }
+                }
+            } else {
+                // Irregular (country / imported / ellipse): mask + distance transform,
+                // collect the 12 mm-inset contour, walk it placing a hole every ~100 mm.
+                let maskCanvas = null;
+                const saved = [];
+                const solidify = (o) => {
+                    saved.push([o, o.fill, o.opacity, o.stroke, o.strokeWidth]);
+                    o.set({ fill: '#000', opacity: 1, stroke: '#000', strokeWidth: 0 });
+                };
+                try {
+                    if (holder.type === 'group') holder.forEachObject(solidify);
+                    else solidify(holder);
+                    if (typeof holder.toCanvasElement === 'function') {
+                        maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false });
+                    }
+                } catch (e) { maskCanvas = null; }
+                saved.forEach(([o, f, op, s, sw]) => o.set({ fill: f, opacity: op, stroke: s, strokeWidth: sw }));
+
+                if (maskCanvas) {
+                    const br = holder.getBoundingRect(true);
+                    const W = maskCanvas.width, H = maskCanvas.height;
+                    const ctx = maskCanvas.getContext('2d');
+                    let md = null;
+                    try { md = ctx.getImageData(0, 0, W, H).data; } catch (e) { md = null; }
+                    if (md && br.width > 0 && br.height > 0 && W > 1 && H > 1) {
+                        const pxPerCanvas = W / br.width;
+                        const SQRT2 = Math.SQRT2, INF = 1e9;
+                        const N = W * H;
+                        const dist = new Float32Array(N);
+                        let cxSum = 0, cySum = 0, cCount = 0;
+                        for (let i = 0; i < N; i++) {
+                            const inside = md[i * 4 + 3] > 40;
+                            dist[i] = inside ? INF : 0;
+                            if (inside) { cxSum += i % W; cySum += (i / W) | 0; cCount++; }
+                        }
+                        if (cCount > 0) {
+                            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+                                const i = y * W + x; if (dist[i] === 0) continue;
+                                let m = dist[i];
+                                if (x > 0)             m = Math.min(m, dist[i - 1] + 1);
+                                if (y > 0)             m = Math.min(m, dist[i - W] + 1);
+                                if (x > 0 && y > 0)    m = Math.min(m, dist[i - W - 1] + SQRT2);
+                                if (x < W - 1 && y > 0) m = Math.min(m, dist[i - W + 1] + SQRT2);
+                                dist[i] = m;
+                            }
+                            for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+                                const i = y * W + x; if (dist[i] === 0) continue;
+                                let m = dist[i];
+                                if (x < W - 1)             m = Math.min(m, dist[i + 1] + 1);
+                                if (y < H - 1)             m = Math.min(m, dist[i + W] + 1);
+                                if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + SQRT2);
+                                if (x > 0 && y < H - 1)     m = Math.min(m, dist[i + W - 1] + SQRT2);
+                                dist[i] = m;
+                            }
+
+                            const cxC = br.left + (cxSum / cCount) / pxPerCanvas;
+                            const cyC = br.top  + (cySum / cCount) / pxPerCanvas;
+                            const targetMask = (OFFSET * scale) * pxPerCanvas;        // mask px
+                            const bandMask   = Math.max(1.5, 1.2 * pxPerCanvas);      // tolerance
+                            const step       = Math.max(1, Math.round(pxPerCanvas));  // ~1 canvas px
+
+                            const band = [];
+                            for (let my = 0; my < H; my += step) for (let mx = 0; mx < W; mx += step) {
+                                const d = dist[my * W + mx];
+                                if (d >= INF) continue;
+                                if (Math.abs(d - targetMask) <= bandMask) {
+                                    const px = br.left + mx / pxPerCanvas;
+                                    const py = br.top  + my / pxPerCanvas;
+                                    band.push({ x: px, y: py, ang: Math.atan2(py - cyC, px - cxC) });
+                                }
+                            }
+                            band.sort((a, b) => a.ang - b.ang);
+
+                            const spacingPx = 100 * scale;
+                            let acc = spacingPx, prev = null;
+                            for (let i = 0; i < band.length; i++) {
+                                const pt = band[i];
+                                if (prev) acc += Math.hypot(pt.x - prev.x, pt.y - prev.y);
+                                prev = pt;
+                                if (acc >= spacingPx && tryPlace(pt.x, pt.y)) acc = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Materialise the placed positions as fixture-hole circles.
+            placed.forEach(p => {
+                const fx = new fabric.Circle({
+                    radius: holeRpx,
+                    left: p.x, top: p.y,
+                    originX: 'center', originY: 'center',
+                    fill: '#ffffff',
+                    stroke: '#5c3316',
+                    strokeWidth: 0.5,
+                    strokeUniform: true
+                });
+                fx.shapeType = 'fixture';
+                fx.realDiameter = HOLE_R * 2;
+                fx.setCoords();
+                canvas.add(fx);
+            });
+
+            canvas.requestRenderAll();
+            if (typeof saveState === 'function') saveState();
+            return placed.length;
+        };
+
         /* ── Shared DOM helper (used across multiple steps) ─────────── */
         const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
@@ -6244,6 +6424,56 @@
                 },
             },
             {
+                id: 'fixtures',
+                title: 'Add fixtures',
+                intro: 'Add mounting fixture holes around the holder.',
+                optional: true,
+                highlight: [],
+                renderAction(el) {
+                    el.innerHTML = '';
+
+                    const intro = mkEl('p', { className: 'mb-2', textContent: this.intro });
+                    el.appendChild(intro);
+
+                    const note = mkEl('p', { className: 'small text-muted mb-3', textContent:
+                        '4.2 mm holes are placed ~12 mm inside the outline (for 8 mm fixtures). Rectangles get 2 on the top and 2 on the bottom edge, circles 6 evenly spaced, and irregular shapes as many as fit ~100 mm apart. Any spot that would clash with a coin slot is skipped.' });
+                    el.appendChild(note);
+
+                    const nudge = mkEl('p', { className: 'small text-warning mb-2' });
+                    nudge.style.display = 'none';
+                    el.appendChild(nudge);
+
+                    const row = mkEl('div', { className: 'coach-row coach-row-2 mb-2' });
+
+                    const addBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add fixtures' });
+                    addBtn.addEventListener('click', () => {
+                        const n = Coach.addFixtures();
+                        if (n === false || n == null) {
+                            nudge.textContent = 'Add a holder first (step 2).';
+                            nudge.style.display = '';
+                        } else if (n === 0) {
+                            nudge.textContent = 'No room for fixtures without clashing with coins — move some coins inward and try again.';
+                            nudge.style.display = '';
+                        } else {
+                            nudge.style.display = 'none';
+                        }
+                    });
+
+                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Clear fixtures' });
+                    clearBtn.addEventListener('click', () => {
+                        if (typeof canvas === 'undefined' || !canvas) return;
+                        canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
+                        canvas.requestRenderAll();
+                        if (typeof saveState === 'function') saveState();
+                        nudge.style.display = 'none';
+                    });
+
+                    row.appendChild(addBtn);
+                    row.appendChild(clearBtn);
+                    el.appendChild(row);
+                },
+            },
+            {
                 id: 'review',
                 title: 'Review & request',
                 intro: 'Review your design, then download or request a quote.',
@@ -6332,12 +6562,14 @@
                             return o.shapeType === 'image' || o.shapeType === 'imported';
                         }).length;
                         if (Coach.state.holderType === 'imported') imageCount = Math.max(0, imageCount - 1);
+                        const fixtureCount = allObjs.filter(function(o) { return o.shapeType === 'fixture'; }).length;
 
                         const extras = [];
                         if (textCount > 0) extras.push(textCount + ' text label' + (textCount > 1 ? 's' : ''));
                         if (countryCount > 0) extras.push(countryCount + ' country outline' + (countryCount > 1 ? 's' : ''));
                         if (shapeCount > 0) extras.push(shapeCount + ' shape' + (shapeCount > 1 ? 's' : ''));
                         if (imageCount > 0) extras.push(imageCount + ' image' + (imageCount > 1 ? 's' : ''));
+                        if (fixtureCount > 0) extras.push(fixtureCount + ' fixture hole' + (fixtureCount > 1 ? 's' : ''));
                         if (extras.length > 0) addItem('Extras', extras.join(', '));
                     }
 
