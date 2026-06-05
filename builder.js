@@ -4250,6 +4250,15 @@
                                 hdr.appendChild(btn);
                             }
                         }());
+                        // Make the engine's main "Start Over" button also reset the Coach
+                        if (typeof clearCanvas === 'function' && !clearCanvas._coachWrapped) {
+                            const origClear = clearCanvas;
+                            window.clearCanvas = function() {
+                                origClear.apply(this, arguments);
+                                if (!Coach._suppressClearReset) Coach.resetSelf();
+                            };
+                            window.clearCanvas._coachWrapped = true;
+                        }
                         Coach.persist.boot();
                     } else if (tries >= MAX_TRIES) {
                         clearInterval(poll);
@@ -4677,17 +4686,12 @@
             if (typeof saveState === 'function') saveState();
         };
 
-        /* ── Coach.startOver ─────────────────────────────────────────── */
-        Coach.startOver = function() {
-            if (!window.confirm('Start over? This clears your current design.')) return;
+        /* ── Coach.resetSelf ─────────────────────────────────────────────
+           Reset ONLY the Coach (state, step, visited, bubble, saved progress).
+           Does NOT touch the canvas — callers clear that first. Shared by the
+           Coach's own "Start over" and the engine's main "Start Over" button. */
+        Coach.resetSelf = function() {
             Coach.persist.clear();
-            if (typeof clearCanvas === 'function') {
-                clearCanvas();
-            } else if (typeof canvas !== 'undefined' && canvas) {
-                canvas.clear();
-                canvas.backgroundColor = '#ffffff';
-                canvas.requestRenderAll();
-            }
             // Cancel any pending one-shot capture handlers / timeouts
             if (typeof canvas !== 'undefined' && canvas) {
                 ['_pendingHolderHandler', '_pendingImportHandler', '_pendingSizeHandler'].forEach(h => {
@@ -4712,6 +4716,25 @@
             Coach.visited = new Set();
             Coach.expand();
             Coach.go(0);
+        };
+
+        /* ── Coach.startOver ─────────────────────────────────────────── */
+        Coach.startOver = function() {
+            if (!window.confirm('Start over? This clears your current design.')) return;
+            // Suppress the wrapped clearCanvas's auto-reset so we reset exactly once.
+            Coach._suppressClearReset = true;
+            try {
+                if (typeof clearCanvas === 'function') {
+                    clearCanvas();
+                } else if (typeof canvas !== 'undefined' && canvas) {
+                    canvas.clear();
+                    canvas.backgroundColor = '#ffffff';
+                    canvas.requestRenderAll();
+                }
+            } finally {
+                Coach._suppressClearReset = false;
+            }
+            Coach.resetSelf();
         };
 
         /* ── Coach.collapse / expand ──────────────────────────────────── */
@@ -4820,6 +4843,8 @@
             let positions = [];
 
             if (pattern === 'shape') {
+                // Each press rotates which coin is placed first → a fresh pattern every click.
+                Coach._fitRot = (Coach._fitRot || 0) + 1;
                 // Follow the holder's OUTLINE: inset the silhouette by ~one coin radius and
                 // place coins along that contour, then step inward by ~2r for each successive
                 // ring (concentric, outline-following). Implemented with a distance transform:
@@ -4932,7 +4957,12 @@
 
                             // Place coins largest-first so big coins claim outline spots; smaller coins
                             // then fill the gaps, each hugging the outline by `offset`.
-                            const order = targets.map((_, i) => i).sort((a, b) => coinR[b] - coinR[a]);
+                            let order = targets.map((_, i) => i).sort((a, b) => coinR[b] - coinR[a]);
+                            // Rotate the placement order so repeated presses re-organise the layout
+                            if (order.length > 1) {
+                                const rot = (Coach._fitRot - 1) % order.length; // 0 on the first press
+                                if (rot > 0) order = order.slice(rot).concat(order.slice(0, rot));
+                            }
                             const positionsByIndex = new Array(targets.length).fill(null);
                             const placedCoins = [];
 
@@ -5071,7 +5101,7 @@
                     // Occasion buttons
                     const occasions = ['Gift', 'Travel memento', 'Collection display', 'Milestone'];
                     const btnGroup = document.createElement('div');
-                    btnGroup.className = 'd-flex flex-wrap gap-2 mb-3';
+                    btnGroup.className = 'coach-row coach-row-2 mb-3';
 
                     const makeBtn = (label) => {
                         const btn = document.createElement('button');
@@ -5846,6 +5876,40 @@
                     });
                     el.appendChild(denom);
 
+                    /* ── Custom coin (any label + real diameter in mm) ─────── */
+                    const customWrap = mkEl('div', { className: 'mt-1 mb-2' });
+                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1', textContent: 'Custom coin' }));
+                    const customRow = mkEl('div', { className: 'd-flex align-items-end gap-2' });
+
+                    const labelWrap = mkEl('div');
+                    labelWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Label' }));
+                    const customLabel = mkEl('input', { type: 'text', className: 'form-control form-control-sm', placeholder: 'e.g. ½ oz' });
+                    customLabel.style.width = '90px';
+                    labelWrap.appendChild(customLabel);
+                    customRow.appendChild(labelWrap);
+
+                    const diaWrap = mkEl('div');
+                    diaWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: '⌀ mm' }));
+                    const customDia = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
+                    customDia.style.width = '64px';
+                    diaWrap.appendChild(customDia);
+                    customRow.appendChild(diaWrap);
+
+                    const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
+                    customAdd.addEventListener('click', () => {
+                        const lab = customLabel.value.trim() || 'Coin';
+                        const d = parseFloat(customDia.value);
+                        if (!d || d <= 0 || typeof addSingleCoin !== 'function') return;
+                        addSingleCoin(lab, d);
+                        Coach.state.coins = Coach.state.coins || {};
+                        Coach.state.coins[lab] = (Coach.state.coins[lab] || 0) + 1;
+                        updateTally();
+                        autoArrangeRows();
+                    });
+                    customRow.appendChild(customAdd);
+                    customWrap.appendChild(customRow);
+                    el.appendChild(customWrap);
+
                     /* ── Auto-arrange helper: tidy coins into rows inside the holder ── */
                     function autoArrangeRows() {
                         if (typeof canvas === 'undefined' || !canvas) return;
@@ -5999,6 +6063,10 @@
                             clearTimeout(Coach._pendingSizeTimeout);
                             Coach._pendingSizeHandler = null;
                         }
+                        // Snapshot the viewport so we can undo the engine's "auto-centre on add",
+                        // which otherwise pans to a JPG/PNG dropped at a fixed corner and shoves the
+                        // rest of the design out of the visible frame. Nothing should jump.
+                        const savedVP = canvas.viewportTransform ? canvas.viewportTransform.slice() : null;
                         const handler = (e) => {
                             const obj = e.target;
                             // Only size country outlines / images — never coins or text
@@ -6007,6 +6075,7 @@
                             clearTimeout(Coach._pendingSizeTimeout);
                             Coach._pendingSizeHandler = null;
                             Coach.sizeToHolder(obj);
+                            if (savedVP) { canvas.setViewportTransform(savedVP); canvas.requestRenderAll(); }
                         };
                         Coach._pendingSizeHandler = handler;
                         canvas.on('object:added', handler);
