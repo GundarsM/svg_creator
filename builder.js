@@ -6478,6 +6478,31 @@
                         }
                     });
 
+                    // Add one free-floating hole to position by hand.
+                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add single hole' });
+                    singleBtn.addEventListener('click', () => {
+                        if (typeof canvas === 'undefined' || !canvas) return;
+                        const scale = canvas.scale || 1;
+                        const fx = new fabric.Circle({
+                            radius: 2.1 * scale,
+                            left: canvas.width / 2,
+                            top: canvas.height / 2,
+                            originX: 'center', originY: 'center',
+                            fill: '#ffffff',
+                            stroke: '#5c3316',
+                            strokeWidth: 0.5,
+                            strokeUniform: true
+                        });
+                        fx.shapeType = 'fixture';
+                        fx.realDiameter = 4.2;
+                        fx.setCoords();
+                        canvas.add(fx);
+                        canvas.setActiveObject(fx); // selected → ready to drag into place
+                        canvas.requestRenderAll();
+                        if (typeof saveState === 'function') saveState();
+                        nudge.style.display = 'none';
+                    });
+
                     const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Clear fixtures' });
                     clearBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
@@ -6488,6 +6513,7 @@
                     });
 
                     row.appendChild(addBtn);
+                    row.appendChild(singleBtn);
                     row.appendChild(clearBtn);
                     el.appendChild(row);
                 },
