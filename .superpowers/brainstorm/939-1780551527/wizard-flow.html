@@ -1,0 +1,38 @@
+<h2>Proposed guided flow</h2>
+<p class="subtitle">The assistant walks the customer through these stages, one at a time. At every stage the full canvas + properties panel stay editable — the assistant only <em>suggests</em> and <em>guides</em>. Does this sequence match your vision?</p>
+
+<style>
+  .flow { display: flex; flex-direction: column; gap: 0; max-width: 720px; margin: 0 auto; }
+  .step { display: flex; gap: 16px; align-items: flex-start; padding: 14px 18px; background: #dbdbdb; color: #222; border-radius: 10px; position: relative; }
+  .step .num { flex: 0 0 34px; height: 34px; border-radius: 50%; background: #344734; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; }
+  .step .body h3 { margin: 0 0 4px; font-size: 17px; color: #344734; }
+  .step .body p { margin: 0; font-size: 13.5px; line-height: 1.4; color: #444; }
+  .connector { width: 2px; height: 18px; background: #344734; margin-left: 34px; opacity: 0.5; }
+  .editfree { text-align: center; margin-top: 22px; padding: 12px; border: 1px dashed #344734; border-radius: 10px; background: #f0f4f0; color: #344734; font-size: 14px; max-width: 720px; margin-left:auto; margin-right:auto; }
+  .tag { display:inline-block; font-size:11px; background:#344734; color:#fff; border-radius:4px; padding:1px 7px; margin-left:8px; vertical-align:middle; }
+</style>
+
+<div class="flow">
+  <div class="step"><div class="num">1</div><div class="body"><h3>Welcome &amp; occasion</h3><p>"What are we making today?" — gift, travel memento, collection display, milestone. Sets a friendly tone and pre-fills the project name. Skippable.</p></div></div>
+  <div class="connector"></div>
+  <div class="step"><div class="num">2</div><div class="body"><h3>Choose the holder<span class="tag">template + size</span></h3><p>Rectangle or circular holder, and overall size (in mm/inch). Maps to the existing templates &amp; canvas sizing.</p></div></div>
+  <div class="connector"></div>
+  <div class="step"><div class="num">3</div><div class="body"><h3>Pick the material<span class="tag">material presets</span></h3><p>Wood finish (oak, walnut…) or plastic colour. Uses the existing material/fill presets; previews on the holder live.</p></div></div>
+  <div class="connector"></div>
+  <div class="step"><div class="num">4</div><div class="body"><h3>Add your coins<span class="tag">currency</span></h3><p>Choose currency (€ / $ / £), which denominations, and how many of each. Coins drop onto the holder at correct real-world diameters.</p></div></div>
+  <div class="connector"></div>
+  <div class="step"><div class="num">5</div><div class="body"><h3>Arrange the layout</h3><p>"Want me to tidy these into a grid / circle / rows?" One-click auto-arrange, or drag freely. Assistant suggests, never forces.</p></div></div>
+  <div class="connector"></div>
+  <div class="step"><div class="num">6</div><div class="body"><h3>Personalise<span class="tag">text + country + shapes</span></h3><p>Add a title/engraving, a country outline, decorative shapes or an uploaded logo.</p></div></div>
+  <div class="connector"></div>
+  <div class="step"><div class="num">7</div><div class="body"><h3>Review &amp; request</h3><p>Plain-language summary of the design, then download the SVG or send a quote request (existing FormSubmit flow).</p></div></div>
+</div>
+
+<div class="editfree">⟳ At <strong>every</strong> step the customer can ignore the assistant and edit anything directly. The assistant tracks what's on the canvas and adapts its suggestions.</div>
+
+<h3 style="text-align:center; margin-top:28px;">Which best describes your reaction?</h3>
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)"><div class="letter">A</div><div class="content"><h3>This is right</h3><p>The sequence and stages match what I want.</p></div></div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)"><div class="letter">B</div><div class="content"><h3>Right stages, wrong order</h3><p>Good pieces, but I'd reorder some.</p></div></div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)"><div class="letter">C</div><div class="content"><h3>Add / remove stages</h3><p>Something's missing or shouldn't be here.</p></div></div>
+</div>

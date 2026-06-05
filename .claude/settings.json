@@ -17,7 +17,8 @@
       "NotebookEdit",
       "TodoRead",
       "TodoWrite",
-      "WebSearch"
+      "WebSearch",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\GundarsM\\\\Documents\\\\svg_editor\\\\builder.js\" | Measure-Object -Line\\).Lines)"
     ]
   }
 }

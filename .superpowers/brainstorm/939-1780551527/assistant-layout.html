@@ -1,0 +1,77 @@
+<h2>Where should the assistant live?</h2>
+<p class="subtitle">All three keep the full editable canvas. The difference is where the guidance + step controls sit. Wireframes — not final styling.</p>
+
+<style>
+  .lay { display:flex; flex-direction:column; gap:6px; }
+  .wf { border:2px solid #344734; border-radius:8px; overflow:hidden; background:#fff; height:230px; display:flex; }
+  .wf-col { display:flex; flex-direction:column; }
+  .asst { background:#344734; color:#fff; padding:8px; font-size:11px; line-height:1.35; }
+  .asst b { color:#cfe3cf; }
+  .canvas { flex:1; background:repeating-linear-gradient(45deg,#f3f3f3,#f3f3f3 10px,#ececec 10px,#ececec 20px); display:flex; align-items:center; justify-content:center; color:#888; font-size:12px; position:relative; }
+  .coin { width:26px; height:26px; border-radius:50%; background:#c9a23a; border:2px solid #a8841f; position:absolute; }
+  .props { background:#dbdbdb; color:#333; padding:8px; font-size:10.5px; width:78px; }
+  .barbtns { background:#344734; color:#fff; font-size:10px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center; }
+  .chip { background:#cfe3cf; color:#234; border-radius:10px; padding:1px 7px; font-size:10px; }
+  .float { position:absolute; right:8px; bottom:8px; width:120px; background:#344734; color:#fff; border-radius:10px; padding:8px; font-size:10.5px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+  .cardttl { color:#344734; }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="left" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;">
+      <div class="wf">
+        <div class="asst" style="width:130px;">
+          <div class="chip">Step 3 / 7</div>
+          <p style="margin:6px 0 4px;"><b>Pick the material</b></p>
+          <p>Choose a wood finish or plastic colour. I'll apply it to the holder.</p>
+          <p style="margin-top:6px;">[ Oak ] [ Walnut ]<br>[ Black ] [ White ]</p>
+          <p style="margin-top:6px;">‹ Back &nbsp; Next ›</p>
+        </div>
+        <div class="canvas">canvas
+          <span class="coin" style="left:50%;top:40%;"></span>
+        </div>
+        <div class="props">Properties<br><br>Fill ▢<br>Size ▢<br>Rotate ▢</div>
+      </div>
+    </div>
+    <div class="card-body"><h3 class="cardttl">A · Left guide panel</h3><p>Assistant is a left column with the current step + only the controls that step needs. Canvas center, properties right. Most "wizard-like".</p></div>
+  </div>
+
+  <div class="card" data-choice="bottom" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;">
+      <div class="wf" style="flex-direction:column;">
+        <div style="flex:1; display:flex;">
+          <div class="canvas">canvas
+            <span class="coin" style="left:45%;top:35%;"></span>
+            <span class="coin" style="left:58%;top:50%;"></span>
+          </div>
+          <div class="props">Properties<br><br>Fill ▢<br>Size ▢</div>
+        </div>
+        <div class="asst" style="border-top:2px solid #cfe3cf;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span><span class="chip">Step 4/7</span> &nbsp;<b>Add your coins</b> — pick currency &amp; amount</span>
+            <span>‹ Back &nbsp; Next ›</span>
+          </div>
+          <p style="margin-top:5px;">[ € ] [ $ ] [ £ ]&nbsp;&nbsp; 1c · 2c · 5c · …</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3 class="cardttl">B · Bottom guide bar</h3><p>Canvas gets maximum width. Assistant is a docked bar along the bottom with step text + contextual controls + Back/Next. Feels like a "wizard footer".</p></div>
+  </div>
+
+  <div class="card" data-choice="float" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;">
+      <div class="wf">
+        <div class="wf-col" style="width:70px; background:#dbdbdb; color:#333; font-size:10px; padding:6px;">Tools<br><br>Coins<br>Country<br>Shapes<br>Text<br>Upload</div>
+        <div class="canvas">full editor
+          <span class="coin" style="left:40%;top:40%;"></span>
+          <div class="float"><b style="color:#cfe3cf;">Assistant</b><p style="margin:4px 0 0;">Nice! Now let's pick a material. Tap here →</p><p style="margin-top:5px;">‹ Skip &nbsp; Next ›</p></div>
+        </div>
+        <div class="props">Properties</div>
+      </div>
+    </div>
+    <div class="card-body"><h3 class="cardttl">C · Floating coach</h3><p>The full free editor is the page; the assistant is a movable/collapsible bubble that points to the real controls (coachmarks). Most freedom, least "led".</p></div>
+  </div>
+
+</div>
+<p class="subtitle" style="text-align:center; margin-top:14px;">Click the layout that fits best — or tell me what to combine.</p>
