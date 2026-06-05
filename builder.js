@@ -4697,7 +4697,7 @@
                 msg.innerHTML = '&#127881; You\'re all set! Use <strong>Download SVG</strong> or <strong>Request a Quote</strong> above. Reopen this helper anytime.';
                 bodyEl.appendChild(msg);
             }
-            setTimeout(function() { Coach.collapse(); }, 1800);
+            setTimeout(function() { Coach.collapse(); }, 2800);
         };
 
         /* ── Coach.arrange ────────────────────────────────────────────
@@ -4778,9 +4778,12 @@
             let positions = [];
 
             if (pattern === 'shape') {
-                // Conform to the holder's actual silhouette (point-in-shape).
-                // Render a SOLID mask of the holder offscreen, then keep only grid
-                // cells whose coin footprint lies fully inside the mask.
+                // Follow the holder's OUTLINE: inset the silhouette by ~one coin radius and
+                // place coins along that contour, then step inward by ~2r for each successive
+                // ring (concentric, outline-following). Implemented with a distance transform:
+                // every interior pixel knows its distance to the edge, so a "ring" is the set
+                // of pixels at a target inset distance. Coins are placed ordered around the
+                // centroid (so they trace the contour) and rejected if they'd overlap.
                 let maskCanvas = null;
                 const saved = [];
                 const solidify = (o) => {
@@ -4799,36 +4802,101 @@
 
                 if (maskCanvas) {
                     const br = holder.getBoundingRect(true); // absolute bbox in canvas coords
+                    const W = maskCanvas.width, H = maskCanvas.height;
                     const mctx = maskCanvas.getContext('2d');
                     let md = null;
-                    try { md = mctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height).data; } catch (e) { md = null; }
-                    if (md && br.width > 0 && br.height > 0) {
-                        const sxM = maskCanvas.width / br.width;
-                        const syM = maskCanvas.height / br.height;
-                        const insideAt = (px, py) => {
-                            const mx = Math.round((px - br.left) * sxM);
-                            const my = Math.round((py - br.top) * syM);
-                            if (mx < 0 || my < 0 || mx >= maskCanvas.width || my >= maskCanvas.height) return false;
-                            return md[(my * maskCanvas.width + mx) * 4 + 3] > 40;
-                        };
-                        const r = (maxFoot / 2) * 0.92; // coin radius used for the containment test
-                        const cols = Math.max(1, Math.floor(br.width / cell));
-                        const rows = Math.max(1, Math.floor(br.height / cell));
-                        const startX = br.left + (br.width - cols * cell) / 2 + cell / 2;
-                        const startY = br.top + (br.height - rows * cell) / 2 + cell / 2;
-                        for (let ry = 0; ry < rows && positions.length < targets.length; ry++) {
-                            for (let cx = 0; cx < cols && positions.length < targets.length; cx++) {
-                                const x = startX + cx * cell;
-                                const y = startY + ry * cell;
-                                // Center + 4 edge + 4 diagonal samples must all be inside the silhouette
-                                if (insideAt(x, y) &&
-                                    insideAt(x - r, y) && insideAt(x + r, y) &&
-                                    insideAt(x, y - r) && insideAt(x, y + r) &&
-                                    insideAt(x - r * 0.7, y - r * 0.7) && insideAt(x + r * 0.7, y + r * 0.7) &&
-                                    insideAt(x - r * 0.7, y + r * 0.7) && insideAt(x + r * 0.7, y - r * 0.7)) {
-                                    positions.push({ x, y });
+                    try { md = mctx.getImageData(0, 0, W, H).data; } catch (e) { md = null; }
+
+                    if (md && br.width > 0 && br.height > 0 && W > 1 && H > 1) {
+                        const pxPerCanvas = W / br.width;          // mask px per canvas px (≈ sy too)
+                        const SQRT2 = Math.SQRT2, INF = 1e9;
+
+                        // inside[i] = 1 where silhouette is opaque
+                        const N = W * H;
+                        const dist = new Float32Array(N);
+                        let cxSum = 0, cySum = 0, cCount = 0;
+                        for (let i = 0; i < N; i++) {
+                            const inside = md[i * 4 + 3] > 40;
+                            dist[i] = inside ? INF : 0;
+                            if (inside) { cxSum += (i % W); cySum += ((i / W) | 0); cCount++; }
+                        }
+                        if (cCount > 0) {
+                            // Distance transform (2-pass chamfer 1 / √2), in mask pixels
+                            for (let y = 0; y < H; y++) {
+                                for (let x = 0; x < W; x++) {
+                                    const i = y * W + x;
+                                    if (dist[i] === 0) continue;
+                                    let m = dist[i];
+                                    if (x > 0)            m = Math.min(m, dist[i - 1] + 1);
+                                    if (y > 0)            m = Math.min(m, dist[i - W] + 1);
+                                    if (x > 0 && y > 0)   m = Math.min(m, dist[i - W - 1] + SQRT2);
+                                    if (x < W - 1 && y > 0) m = Math.min(m, dist[i - W + 1] + SQRT2);
+                                    dist[i] = m;
                                 }
                             }
+                            for (let y = H - 1; y >= 0; y--) {
+                                for (let x = W - 1; x >= 0; x--) {
+                                    const i = y * W + x;
+                                    if (dist[i] === 0) continue;
+                                    let m = dist[i];
+                                    if (x < W - 1)             m = Math.min(m, dist[i + 1] + 1);
+                                    if (y < H - 1)             m = Math.min(m, dist[i + W] + 1);
+                                    if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + SQRT2);
+                                    if (x > 0 && y < H - 1)     m = Math.min(m, dist[i + W - 1] + SQRT2);
+                                    dist[i] = m;
+                                }
+                            }
+
+                            const r        = maxFoot / 2;                  // largest coin radius (canvas px)
+                            const offset   = maxFoot * 0.10;               // breathing room from edge
+                            const insetMin = r + offset;                   // outermost ring inset (canvas px)
+                            // Thin shells (~r/2) used ONLY for ordering, so the outer contour is
+                            // laid down before stepping inward. Actual no-overlap spacing is minDist.
+                            const shell    = Math.max(r * 0.5, 1);
+                            const minDist  = cell;                         // center-to-center spacing
+                            const minDist2 = minDist * minDist;
+
+                            // Centroid in canvas coords (for angular ordering)
+                            const cxC = br.left + (cxSum / cCount) / pxPerCanvas;
+                            const cyC = br.top  + (cySum / cCount) / pxPerCanvas;
+
+                            // Candidate sampling step (finer than a coin so rings are well populated)
+                            const sampleStep = Math.max(2, r * 0.30);
+
+                            const distAtCanvas = (px, py) => {
+                                const mx = Math.round((px - br.left) * pxPerCanvas);
+                                const my = Math.round((py - br.top) * pxPerCanvas);
+                                if (mx < 0 || my < 0 || mx >= W || my >= H) return 0;
+                                const d = dist[my * W + mx];
+                                return d >= INF ? 0 : d / pxPerCanvas; // canvas px
+                            };
+
+                            // Build ring-ordered candidate list
+                            const candidates = [];
+                            for (let py = br.top; py <= br.top + br.height; py += sampleStep) {
+                                for (let px = br.left; px <= br.left + br.width; px += sampleStep) {
+                                    const dCanvas = distAtCanvas(px, py);
+                                    if (dCanvas < insetMin) continue;     // too close to edge for a coin
+                                    const ring = Math.floor((dCanvas - insetMin) / shell);
+                                    const ang  = Math.atan2(py - cyC, px - cxC);
+                                    candidates.push({ x: px, y: py, ring: ring, ang: ang });
+                                }
+                            }
+                            // Outer ring first; within a ring, walk around by angle → traces the contour
+                            candidates.sort((a, b) => (a.ring - b.ring) || (a.ang - b.ang));
+
+                            // Greedy placement with overlap rejection
+                            const placed = [];
+                            for (let k = 0; k < candidates.length && placed.length < targets.length; k++) {
+                                const cnd = candidates[k];
+                                let ok = true;
+                                for (let p = 0; p < placed.length; p++) {
+                                    const dx = placed[p].x - cnd.x, dy = placed[p].y - cnd.y;
+                                    if (dx * dx + dy * dy < minDist2) { ok = false; break; }
+                                }
+                                if (ok) placed.push({ x: cnd.x, y: cnd.y });
+                            }
+                            positions = placed;
                         }
                     }
                 }
