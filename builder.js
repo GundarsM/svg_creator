@@ -4618,6 +4618,7 @@
             resume(saved) {
                 canvas.loadFromJSON(saved.canvasJSON, function() {
                     Coach.reapplyMaterials();
+                    Coach.reapplyFixtureLocks();
                     Coach.state = Object.assign({}, Coach.state, saved.state || {});
                     Coach.resolveHolder();
                     canvas.renderAll();
@@ -4637,6 +4638,26 @@
                     if (typeof applyFill === 'function') {
                         applyFill(obj, obj.materialType);
                     }
+                }
+            });
+            canvas.requestRenderAll();
+        };
+
+        /* ── Coach.reapplyFixtureLocks ───────────────────────────────────
+           Fabric doesn't serialise the lock/control flags, so restore them on
+           loaded fixture holes after a resume. */
+        Coach.reapplyFixtureLocks = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            canvas.getObjects().forEach(function(obj) {
+                if (obj.shapeType === 'fixture') {
+                    obj.set({
+                        hasControls: false,
+                        lockScalingX: true,
+                        lockScalingY: true,
+                        lockUniScaling: true,
+                        lockRotation: true
+                    });
+                    obj.setCoords();
                 }
             });
             canvas.requestRenderAll();
@@ -5096,6 +5117,30 @@
             return true;
         };
 
+        /* ── Coach.makeFixtureCircle ──────────────────────────────────
+           A 4.2 mm fixture hole: locked size/rotation and no transform handles
+           (so it can't be accidentally resized) but still freely movable. */
+        Coach.makeFixtureCircle = function(x, y, scale) {
+            const fx = new fabric.Circle({
+                radius: 2.1 * scale,
+                left: x, top: y,
+                originX: 'center', originY: 'center',
+                fill: '#ffffff',
+                stroke: '#5c3316',
+                strokeWidth: 0.5,
+                strokeUniform: true,
+                hasControls: false,   // hide the resize/rotate box
+                lockScalingX: true,
+                lockScalingY: true,
+                lockUniScaling: true,
+                lockRotation: true
+            });
+            fx.shapeType = 'fixture';
+            fx.realDiameter = 4.2;
+            fx.setCoords();
+            return fx;
+        };
+
         /* ── Coach.addFixtures ────────────────────────────────────────
            Place 4.2 mm mounting-hole circles on a perimeter offset 12 mm inward
            from the holder outline (real fixtures are 8 mm). A hole's keep-out
@@ -5276,19 +5321,7 @@
 
             // Materialise the placed positions as fixture-hole circles.
             placed.forEach(p => {
-                const fx = new fabric.Circle({
-                    radius: holeRpx,
-                    left: p.x, top: p.y,
-                    originX: 'center', originY: 'center',
-                    fill: '#ffffff',
-                    stroke: '#5c3316',
-                    strokeWidth: 0.5,
-                    strokeUniform: true
-                });
-                fx.shapeType = 'fixture';
-                fx.realDiameter = HOLE_R * 2;
-                fx.setCoords();
-                canvas.add(fx);
+                canvas.add(Coach.makeFixtureCircle(p.x, p.y, scale));
             });
 
             canvas.requestRenderAll();
@@ -6483,19 +6516,7 @@
                     singleBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         const scale = canvas.scale || 1;
-                        const fx = new fabric.Circle({
-                            radius: 2.1 * scale,
-                            left: canvas.width / 2,
-                            top: canvas.height / 2,
-                            originX: 'center', originY: 'center',
-                            fill: '#ffffff',
-                            stroke: '#5c3316',
-                            strokeWidth: 0.5,
-                            strokeUniform: true
-                        });
-                        fx.shapeType = 'fixture';
-                        fx.realDiameter = 4.2;
-                        fx.setCoords();
+                        const fx = Coach.makeFixtureCircle(canvas.width / 2, canvas.height / 2, scale);
                         canvas.add(fx);
                         canvas.setActiveObject(fx); // selected → ready to drag into place
                         canvas.requestRenderAll();
