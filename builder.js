@@ -4969,7 +4969,8 @@
                             const coinR = targets.map(c => Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2);
                             const minCoinR = Math.min.apply(null, coinR);
                             const offset = maxFoot * 0.06 + 4 * (canvas.scale || 1);  // edge gap (+4mm further in)
-                            const gap    = maxFoot * 0.06;                            // min gap between neighbouring coins
+                            const minGapPx = 3 * (canvas.scale || 1);                 // never closer than 3 mm edge-to-edge
+                            const gap    = Math.max(maxFoot * 0.06, minGapPx);        // min gap between neighbouring coins
                             const minNeed = minCoinR + offset; // smallest usable inset (smallest coin)
 
                             // Centroid in canvas coords (for angular ordering)
@@ -5042,12 +5043,14 @@
                             }
 
                             // Coins the greedy pass couldn't seat → drop each into the emptiest
-                            // INTERIOR spot (max clearance to placed coins) so they stay inside the
-                            // shape rather than being flung onto an outer perimeter.
+                            // INTERIOR spot, but ONLY if it keeps >= 3 mm clearance from every
+                            // placed coin. If no such spot exists, send the coin to the outer
+                            // perimeter rather than overlapping a neighbour inside.
                             const missing = [];
                             for (let i = 0; i < positionsByIndex.length; i++) {
                                 if (!positionsByIndex[i]) missing.push(i);
                             }
+                            const overflow = [];
                             missing.forEach((idx) => {
                                 const rc = coinR[idx];
                                 let best = null, bestScore = -Infinity;
@@ -5062,13 +5065,21 @@
                                     }
                                     if (minSlack > bestScore) { bestScore = minSlack; best = cand; }
                                 }
-                                if (best) {
+                                if (best && bestScore >= minGapPx) {
                                     placedCoins.push({ x: best.x, y: best.y, r: rc });
                                     positionsByIndex[idx] = { x: best.x, y: best.y };
                                 } else {
-                                    positionsByIndex[idx] = { x: hc.x, y: hc.y };
+                                    overflow.push(idx); // no room inside with 3 mm clearance → go outside
                                 }
                             });
+
+                            // Place overflow coins on the outer perimeter (visible, never overlapping).
+                            if (overflow.length) {
+                                const per = perimeterPositions(overflow.length, left, top, hw, hh, cell, hc);
+                                overflow.forEach((idx, k) => {
+                                    positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y };
+                                });
+                            }
 
                             positions = positionsByIndex;
                         }
