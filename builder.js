@@ -4968,7 +4968,7 @@
                             // radius so the gap to the edge is the same for big and small coins.
                             const coinR = targets.map(c => Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2);
                             const minCoinR = Math.min.apply(null, coinR);
-                            const offset = maxFoot * 0.06 + 2 * (canvas.scale || 1);  // edge gap (+2mm further in)
+                            const offset = maxFoot * 0.06 + 4 * (canvas.scale || 1);  // edge gap (+4mm further in)
                             const gap    = maxFoot * 0.06;                            // min gap between neighbouring coins
                             const minNeed = minCoinR + offset; // smallest usable inset (smallest coin)
 
