@@ -4602,8 +4602,12 @@
 
                 const freshBtn = document.createElement('button');
                 freshBtn.type      = 'button';
-                freshBtn.className = 'btn btn-outline-secondary btn-sm';
+                freshBtn.className = 'btn btn-sm';
                 freshBtn.textContent = 'Start fresh';
+                // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
+                freshBtn.style.setProperty('background', '#ffc107', 'important');
+                freshBtn.style.setProperty('color', '#333', 'important');
+                freshBtn.style.setProperty('border-color', '#e0a800', 'important');
                 freshBtn.addEventListener('click', function() {
                     Coach.persist.clear();
                     Coach.go(0);
@@ -5313,29 +5317,40 @@
                             }
                             band.sort((a, b) => a.ang - b.ang);
 
-                            if (band.length) {
+                            // Collapse the 2-D band to one point per small angle bin → a clean
+                            // ordered loop. The raw band zig-zags radially, which hugely
+                            // over-counts the perimeter and spawned far too many fixtures.
+                            const BINS = 360;
+                            const loop = [];
+                            let lastBin = -1;
+                            for (let i = 0; i < band.length; i++) {
+                                const b = Math.floor((band[i].ang + Math.PI) / (2 * Math.PI) * BINS);
+                                if (b !== lastBin) { loop.push(band[i]); lastBin = b; }
+                            }
+
+                            if (loop.length) {
                                 // Cumulative arc length around the (closed) contour loop.
                                 const cum = [0];
-                                for (let i = 1; i < band.length; i++) {
-                                    cum[i] = cum[i - 1] + Math.hypot(band[i].x - band[i - 1].x, band[i].y - band[i - 1].y);
+                                for (let i = 1; i < loop.length; i++) {
+                                    cum[i] = cum[i - 1] + Math.hypot(loop[i].x - loop[i - 1].x, loop[i].y - loop[i - 1].y);
                                 }
                                 const closeSeg = Math.hypot(
-                                    band[0].x - band[band.length - 1].x,
-                                    band[0].y - band[band.length - 1].y);
+                                    loop[0].x - loop[loop.length - 1].x,
+                                    loop[0].y - loop[loop.length - 1].y);
                                 const total = cum[cum.length - 1] + closeSeg;
 
-                                // At least 5 holes, otherwise ~100 mm apart — spread on all sides.
+                                // ~100 mm apart, but at least 5 holes spread on all sides.
                                 const N = Math.max(5, Math.round(total / (100 * scale)));
-                                let bi = 0;
+                                let li = 0;
                                 for (let k = 0; k < N; k++) {
                                     const targetArc = (k * total) / N;
-                                    while (bi < band.length - 1 && cum[bi + 1] <= targetArc) bi++;
-                                    if (!tryPlace(band[bi].x, band[bi].y)) {
-                                        // nearest spot clashes a coin — search neighbours along the contour
-                                        for (let off = 1; off < band.length; off++) {
-                                            const a = band[(bi + off) % band.length];
-                                            const b = band[(bi - off + band.length) % band.length];
-                                            if (tryPlace(a.x, a.y) || tryPlace(b.x, b.y)) break;
+                                    while (li < loop.length - 1 && cum[li + 1] <= targetArc) li++;
+                                    if (!tryPlace(loop[li].x, loop[li].y)) {
+                                        // nearest spot clashes a coin — search neighbours along the loop
+                                        for (let off = 1; off < loop.length; off++) {
+                                            const a = loop[(li + off) % loop.length];
+                                            const c = loop[(li - off + loop.length) % loop.length];
+                                            if (tryPlace(a.x, a.y) || tryPlace(c.x, c.y)) break;
                                         }
                                     }
                                 }
