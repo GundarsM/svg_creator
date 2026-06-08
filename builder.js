@@ -4882,6 +4882,19 @@
                 return out;
             }
 
+            // Fixture holes already on the canvas — coins must keep their edge >= 5 mm
+            // from a fixture's centre (mirrors the keep-out used when fixtures are placed).
+            const fixtures = canvas.getObjects()
+                .filter(o => o.shapeType === 'fixture')
+                .map(f => { const c = f.getCenterPoint(); return { x: c.x, y: c.y }; });
+            const fixtureClearPx = 5 * (canvas.scale || 1);
+            function clearOfFixtures(x, y, rc) {
+                for (let i = 0; i < fixtures.length; i++) {
+                    if (Math.hypot(fixtures[i].x - x, fixtures[i].y - y) < rc + fixtureClearPx) return false;
+                }
+                return true;
+            }
+
             // A plain rectangle fits best as a centred grid — the contour algorithm
             // would hug the perimeter and cram coins into the corners.
             if (pattern === 'shape' &&
@@ -5025,6 +5038,7 @@
                                 for (let k = 0; k < candidates.length; k++) {
                                     const cand = candidates[k];
                                     if (cand.used || cand.d < need) continue;
+                                    if (!clearOfFixtures(cand.x, cand.y, rc)) continue; // keep 5 mm off fixtures
                                     let ok = true;
                                     for (let p = 0; p < placedCoins.length; p++) {
                                         const pc = placedCoins[p];
@@ -5057,6 +5071,7 @@
                                 for (let k = 0; k < candidates.length; k++) {
                                     const cand = candidates[k];
                                     if (cand.d < rc + offset) continue; // coin must fit inside here
+                                    if (!clearOfFixtures(cand.x, cand.y, rc)) continue; // keep 5 mm off fixtures
                                     let minSlack = Infinity;
                                     for (let p = 0; p < placedCoins.length; p++) {
                                         const pc = placedCoins[p];
@@ -6755,6 +6770,19 @@
                 }
             }
         ];
+
+        /* ── Reorder: Fixtures comes before Coins ─────────────────────
+           Fixture holes are added first so coin placement (Fit to shape)
+           can keep coins clear of them. New order:
+           Occasion → Holder → Material → Fixtures → Coins → Arrange → Personalize → Review */
+        (function reorderFixtures() {
+            const fi = Coach.steps.findIndex(s => s.id === 'fixtures');
+            if (fi === -1) return;
+            const [fx] = Coach.steps.splice(fi, 1);
+            const ci = Coach.steps.findIndex(s => s.id === 'coins');
+            if (ci === -1) { Coach.steps.push(fx); return; }
+            Coach.steps.splice(ci, 0, fx);
+        }());
 
         /* ── Wire navigation buttons ──────────────────────────────── */
         (function wireButtons() {
