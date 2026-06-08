@@ -4878,6 +4878,13 @@
                 return out;
             }
 
+            // A plain rectangle fits best as a centred grid — the contour algorithm
+            // would hug the perimeter and cram coins into the corners.
+            if (pattern === 'shape' &&
+                (holder.shapeType === 'rectangle' || holder.shapeType === 'rectangle-outline')) {
+                pattern = 'grid';
+            }
+
             // Build position array — length === targets.length, inside first, perimeter for surplus
             let positions = [];
 
@@ -4957,8 +4964,8 @@
                             // radius so the gap to the edge is the same for big and small coins.
                             const coinR = targets.map(c => Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2);
                             const minCoinR = Math.min.apply(null, coinR);
-                            const offset = maxFoot * 0.06;  // constant edge gap for every coin
-                            const gap    = maxFoot * 0.06;  // min gap between neighbouring coins
+                            const offset = maxFoot * 0.06 + 2 * scale;  // edge gap (+2mm further in)
+                            const gap    = maxFoot * 0.06;              // min gap between neighbouring coins
                             const minNeed = minCoinR + offset; // smallest usable inset (smallest coin)
 
                             // Centroid in canvas coords (for angular ordering)
@@ -5030,15 +5037,34 @@
                                 }
                             }
 
-                            // Coins that couldn't fit inside → outer perimeter (keeps target alignment)
+                            // Coins the greedy pass couldn't seat → drop each into the emptiest
+                            // INTERIOR spot (max clearance to placed coins) so they stay inside the
+                            // shape rather than being flung onto an outer perimeter.
                             const missing = [];
                             for (let i = 0; i < positionsByIndex.length; i++) {
                                 if (!positionsByIndex[i]) missing.push(i);
                             }
-                            if (missing.length) {
-                                const per = perimeterPositions(missing.length, left, top, hw, hh, cell, hc);
-                                missing.forEach((idx, k) => { positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y }; });
-                            }
+                            missing.forEach((idx) => {
+                                const rc = coinR[idx];
+                                let best = null, bestScore = -Infinity;
+                                for (let k = 0; k < candidates.length; k++) {
+                                    const cand = candidates[k];
+                                    if (cand.d < rc + offset) continue; // coin must fit inside here
+                                    let minSlack = Infinity;
+                                    for (let p = 0; p < placedCoins.length; p++) {
+                                        const pc = placedCoins[p];
+                                        const slack = Math.hypot(pc.x - cand.x, pc.y - cand.y) - (pc.r + rc);
+                                        if (slack < minSlack) minSlack = slack;
+                                    }
+                                    if (minSlack > bestScore) { bestScore = minSlack; best = cand; }
+                                }
+                                if (best) {
+                                    placedCoins.push({ x: best.x, y: best.y, r: rc });
+                                    positionsByIndex[idx] = { x: best.x, y: best.y };
+                                } else {
+                                    positionsByIndex[idx] = { x: hc.x, y: hc.y };
+                                }
+                            });
 
                             positions = positionsByIndex;
                         }
@@ -5168,7 +5194,7 @@
 
             const HOLE_R   = 2.1;                 // mm — drawn hole radius (4.2 mm dia)
             const OFFSET   = 12;                  // mm — inset of the fixture perimeter
-            const KEEPOUT  = 6.0;                 // mm — clearance radius measured from the hole centre
+            const KEEPOUT  = 5.0;                 // mm — clearance radius measured from the hole centre
             const holeRpx  = HOLE_R * scale;
             const keepoutPx = KEEPOUT * scale;
 
