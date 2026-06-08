@@ -5339,20 +5339,35 @@
                                     loop[0].y - loop[loop.length - 1].y);
                                 const total = cum[cum.length - 1] + closeSeg;
 
-                                // ~100 mm apart, but at least 5 holes spread on all sides.
-                                const N = Math.max(5, Math.round(total / (100 * scale)));
-                                let li = 0;
-                                for (let k = 0; k < N; k++) {
-                                    const targetArc = (k * total) / N;
-                                    while (li < loop.length - 1 && cum[li + 1] <= targetArc) li++;
-                                    if (!tryPlace(loop[li].x, loop[li].y)) {
-                                        // nearest spot clashes a coin — search neighbours along the loop
-                                        for (let off = 1; off < loop.length; off++) {
-                                            const a = loop[(li + off) % loop.length];
-                                            const c = loop[(li - off + loop.length) % loop.length];
-                                            if (tryPlace(a.x, a.y) || tryPlace(c.x, c.y)) break;
+                                // Greedy walk: place a hole as soon as we've travelled >= spacing
+                                // since the last one AND the spot is clear of coins and not within
+                                // ~spacing of an existing fixture. This keeps a consistent ~100 mm
+                                // gap, skips coin-blocked spots (waiting for the next clear point),
+                                // and fills every place a fixture actually fits.
+                                const walk = (spacingPx) => {
+                                    placed.length = 0;
+                                    const minFixGap = spacingPx * 0.8;
+                                    let lastArc = -Infinity;
+                                    for (let i = 0; i < loop.length; i++) {
+                                        if (cum[i] - lastArc < spacingPx) continue;
+                                        const pt = loop[i];
+                                        if (!clearOfCoins(pt.x, pt.y)) continue;
+                                        let tooNear = false;
+                                        for (let p = 0; p < placed.length; p++) {
+                                            if (Math.hypot(placed[p].x - pt.x, placed[p].y - pt.y) < minFixGap) { tooNear = true; break; }
                                         }
+                                        if (tooNear) continue;
+                                        placed.push({ x: pt.x, y: pt.y });
+                                        lastArc = cum[i];
                                     }
+                                };
+
+                                const spacing100 = 100 * scale;
+                                walk(spacing100);
+                                // At least 5 where the perimeter allows (small shapes pack closer).
+                                if (placed.length < 5 && total > 0) {
+                                    const tighter = Math.min(spacing100, total / 5);
+                                    if (tighter < spacing100) walk(tighter);
                                 }
                             }
                         }
