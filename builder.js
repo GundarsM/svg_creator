@@ -4895,13 +4895,6 @@
                 return true;
             }
 
-            // A plain rectangle fits best as a centred grid — the contour algorithm
-            // would hug the perimeter and cram coins into the corners.
-            if (pattern === 'shape' &&
-                (holder.shapeType === 'rectangle' || holder.shapeType === 'rectangle-outline')) {
-                pattern = 'grid';
-            }
-
             // Build position array — length === targets.length, inside first, perimeter for surplus
             let positions = [];
 
