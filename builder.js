@@ -5998,6 +5998,9 @@
                         if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
                         if (typeof saveState === 'function') saveState();
                         Coach.state.material = fillType;
+                        // Recolour any existing fixtures to match the new material
+                        // (no-arg re-derives the default; an explicit finish still wins).
+                        if (typeof Coach.applyFixtureColor === 'function') Coach.applyFixtureColor();
                         // Re-render to reflect the new selection state
                         Coach.render();
                     };
