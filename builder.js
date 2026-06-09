@@ -5012,8 +5012,12 @@
                             }
                             candidates.sort((a, b) => (a.bucket - b.bucket) || (a.ang - b.ang));
 
-                            // Place coins largest-first so big coins claim outline spots; smaller coins
-                            // then fill the gaps, each hugging the outline by `offset`.
+                            // Farthest-point fill (largest coin first): each coin takes the
+                            // interior candidate that MAXIMISES the smaller of (a) its distance
+                            // to the outline and (b) its edge-to-edge clearance to every placed
+                            // coin. This spreads coins evenly through the whole shape — it never
+                            // hugs corners — and because every candidate is an interior point,
+                            // no coin ever lands outside the contour. Fixtures are kept clear.
                             let order = targets.map((_, i) => i).sort((a, b) => coinR[b] - coinR[a]);
                             // Rotate the placement order so repeated presses re-organise the layout
                             if (order.length > 1) {
@@ -5026,67 +5030,31 @@
                             for (let oi = 0; oi < order.length; oi++) {
                                 const idx = order[oi];
                                 const rc = coinR[idx];
-                                const need = rc + offset;          // coin edge sits ~offset from the outline
-                                let chosen = -1;
-                                for (let k = 0; k < candidates.length; k++) {
-                                    const cand = candidates[k];
-                                    if (cand.used || cand.d < need) continue;
-                                    if (!clearOfFixtures(cand.x, cand.y, rc)) continue; // keep 5 mm off fixtures
-                                    let ok = true;
-                                    for (let p = 0; p < placedCoins.length; p++) {
-                                        const pc = placedCoins[p];
-                                        const dx = pc.x - cand.x, dy = pc.y - cand.y;
-                                        const md = pc.r + rc + gap; // size-aware spacing
-                                        if (dx * dx + dy * dy < md * md) { ok = false; break; }
-                                    }
-                                    if (ok) { chosen = k; break; }
-                                }
-                                if (chosen >= 0) {
-                                    const c = candidates[chosen];
-                                    c.used = true;
-                                    placedCoins.push({ x: c.x, y: c.y, r: rc });
-                                    positionsByIndex[idx] = { x: c.x, y: c.y };
-                                }
-                            }
-
-                            // Coins the greedy pass couldn't seat → drop each into the emptiest
-                            // INTERIOR spot, but ONLY if it keeps >= 3 mm clearance from every
-                            // placed coin. If no such spot exists, send the coin to the outer
-                            // perimeter rather than overlapping a neighbour inside.
-                            const missing = [];
-                            for (let i = 0; i < positionsByIndex.length; i++) {
-                                if (!positionsByIndex[i]) missing.push(i);
-                            }
-                            const overflow = [];
-                            missing.forEach((idx) => {
-                                const rc = coinR[idx];
+                                const need = rc + offset;          // coin edge sits >= offset from the outline
                                 let best = null, bestScore = -Infinity;
                                 for (let k = 0; k < candidates.length; k++) {
                                     const cand = candidates[k];
-                                    if (cand.d < rc + offset) continue; // coin must fit inside here
+                                    if (cand.used || cand.d < need) continue;        // must fit inside here
                                     if (!clearOfFixtures(cand.x, cand.y, rc)) continue; // keep 5 mm off fixtures
-                                    let minSlack = Infinity;
+                                    // Score = min(margin past the required inset, clearance to nearest coin).
+                                    let score = cand.d - need;
                                     for (let p = 0; p < placedCoins.length; p++) {
                                         const pc = placedCoins[p];
-                                        const slack = Math.hypot(pc.x - cand.x, pc.y - cand.y) - (pc.r + rc);
-                                        if (slack < minSlack) minSlack = slack;
+                                        const slack = Math.hypot(pc.x - cand.x, pc.y - cand.y) - (pc.r + rc + gap);
+                                        if (slack < score) score = slack;
                                     }
-                                    if (minSlack > bestScore) { bestScore = minSlack; best = cand; }
+                                    if (score > bestScore) { bestScore = score; best = cand; }
                                 }
-                                if (best && bestScore >= minGapPx) {
+                                if (best) {
+                                    best.used = true;
                                     placedCoins.push({ x: best.x, y: best.y, r: rc });
                                     positionsByIndex[idx] = { x: best.x, y: best.y };
-                                } else {
-                                    overflow.push(idx); // no room inside with 3 mm clearance → go outside
                                 }
-                            });
+                            }
 
-                            // Place overflow coins on the outer perimeter (visible, never overlapping).
-                            if (overflow.length) {
-                                const per = perimeterPositions(overflow.length, left, top, hw, hh, cell, hc);
-                                overflow.forEach((idx, k) => {
-                                    positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y };
-                                });
+                            // Any coin that found no interior candidate at all (tiny holder) → centre.
+                            for (let i = 0; i < positionsByIndex.length; i++) {
+                                if (!positionsByIndex[i]) positionsByIndex[i] = { x: hc.x, y: hc.y };
                             }
 
                             positions = positionsByIndex;
