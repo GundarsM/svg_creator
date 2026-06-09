@@ -5216,15 +5216,31 @@
             return true;
         };
 
+        /* ── Fixture finish colour ───────────────────────────────────
+           Black → dark grey, Silver → light grey. Default: silver. */
+        Coach.FIXTURE_COLORS = { black: '#3a3a3a', silver: '#c8c8c8' };
+        Coach.fixtureFill = function() {
+            return Coach.FIXTURE_COLORS[Coach.state.fixtureColor] || Coach.FIXTURE_COLORS.silver;
+        };
+        Coach.applyFixtureColor = function(which) {
+            if (which === 'black' || which === 'silver') Coach.state.fixtureColor = which;
+            const fill = Coach.fixtureFill();
+            if (typeof canvas !== 'undefined' && canvas) {
+                canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => o.set('fill', fill));
+                canvas.requestRenderAll();
+                if (typeof saveState === 'function') saveState();
+            }
+        };
+
         /* ── Coach.makeFixtureCircle ──────────────────────────────────
-           A 4.2 mm fixture hole: locked size/rotation and no transform handles
+           An 8.0 mm fixture hole: locked size/rotation and no transform handles
            (so it can't be accidentally resized) but still freely movable. */
         Coach.makeFixtureCircle = function(x, y, scale) {
             const fx = new fabric.Circle({
-                radius: 2.1 * scale,
+                radius: 4.0 * scale,
                 left: x, top: y,
                 originX: 'center', originY: 'center',
-                fill: '#ffffff',
+                fill: Coach.fixtureFill(),
                 stroke: '#5c3316',
                 strokeWidth: 0.5,
                 strokeUniform: true,
@@ -5235,14 +5251,14 @@
                 lockRotation: true
             });
             fx.shapeType = 'fixture';
-            fx.realDiameter = 4.2;
+            fx.realDiameter = 8.0;
             fx.setCoords();
             return fx;
         };
 
         /* ── Coach.addFixtures ────────────────────────────────────────
-           Place 4.2 mm mounting-hole circles on a perimeter offset 12 mm inward
-           from the holder outline (real fixtures are 8 mm). A hole's keep-out
+           Place 8.0 mm mounting-hole circles on a perimeter offset 12 mm inward
+           from the holder outline. A hole's keep-out
            (hole radius + 5 mm) must not clash with any coin slot.
            • Rectangle → 2 on the top edge + 2 on the bottom edge (none on sides)
            • Circle    → 6 equally spaced
@@ -6617,10 +6633,6 @@
                     const intro = mkEl('p', { className: 'mb-2', textContent: this.intro });
                     el.appendChild(intro);
 
-                    const note = mkEl('p', { className: 'small text-muted mb-3', textContent:
-                        '4.2 mm holes are placed ~12 mm inside the outline (for 8 mm fixtures). Rectangles get 2 on the top and 2 on the bottom edge, circles 6 evenly spaced, and irregular shapes as many as fit ~100 mm apart. Any spot that would clash with a coin slot is skipped.' });
-                    el.appendChild(note);
-
                     const nudge = mkEl('p', { className: 'small text-warning mb-2' });
                     nudge.style.display = 'none';
                     el.appendChild(nudge);
@@ -6667,6 +6679,32 @@
                     row.appendChild(singleBtn);
                     row.appendChild(clearBtn);
                     el.appendChild(row);
+
+                    // Fixture finish: Black (dark grey) or Silver (light grey)
+                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture finish' }));
+                    const colorRow = mkEl('div', { className: 'coach-row coach-row-2 mb-1' });
+                    const current = Coach.state.fixtureColor || 'silver';
+                    [['black', 'Black'], ['silver', 'Silver']].forEach(([key, label]) => {
+                        const b = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: label });
+                        if (current === key) {
+                            b.classList.add('active');
+                            b.style.backgroundColor = '#cfe3cf';
+                            b.style.color = '#344734';
+                            b.style.borderColor = '#cfe3cf';
+                        }
+                        b.addEventListener('click', () => {
+                            Coach.applyFixtureColor(key);
+                            colorRow.querySelectorAll('button').forEach(btn => {
+                                const sel = btn.textContent === label;
+                                btn.classList.toggle('active', sel);
+                                btn.style.backgroundColor = sel ? '#cfe3cf' : '';
+                                btn.style.color = sel ? '#344734' : '';
+                                btn.style.borderColor = sel ? '#cfe3cf' : '';
+                            });
+                        });
+                        colorRow.appendChild(b);
+                    });
+                    el.appendChild(colorRow);
                 },
             },
             {
