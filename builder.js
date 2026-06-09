@@ -5215,6 +5215,11 @@
             }
             if (!holder) return false;
 
+            // Deselect first — a selected holder draws its controls/overlay on top,
+            // so freshly-added fixtures wouldn't appear until the object is deselected.
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+
             const scale = canvas.scale || 1;
 
             // Remove any fixtures from a previous run so re-clicking re-computes cleanly.
