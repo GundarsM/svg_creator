@@ -5217,10 +5217,16 @@
         };
 
         /* ── Fixture finish colour ───────────────────────────────────
-           Black → dark grey, Silver → light grey. Default: silver. */
+           Black → dark grey, Silver → light grey. Default derives from the
+           material: any wood → black, plastic (or none) → silver. */
         Coach.FIXTURE_COLORS = { black: '#3a3a3a', silver: '#c8c8c8' };
+        Coach.fixtureColorKey = function() {
+            if (Coach.state.fixtureColor) return Coach.state.fixtureColor; // explicit choice wins
+            const mat = (Coach.state.holderObj && Coach.state.holderObj.materialType) || Coach.state.material;
+            return (mat && mat !== 'color') ? 'black' : 'silver';
+        };
         Coach.fixtureFill = function() {
-            return Coach.FIXTURE_COLORS[Coach.state.fixtureColor] || Coach.FIXTURE_COLORS.silver;
+            return Coach.FIXTURE_COLORS[Coach.fixtureColorKey()] || Coach.FIXTURE_COLORS.silver;
         };
         Coach.applyFixtureColor = function(which) {
             if (which === 'black' || which === 'silver') Coach.state.fixtureColor = which;
@@ -6280,7 +6286,7 @@
 
                     const labelWrap = mkEl('div');
                     labelWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Label' }));
-                    const customLabel = mkEl('input', { type: 'text', className: 'form-control form-control-sm', placeholder: 'e.g. ½ oz' });
+                    const customLabel = mkEl('input', { type: 'text', className: 'form-control form-control-sm', placeholder: 'e.g. 2€' });
                     customLabel.style.width = '90px';
                     labelWrap.appendChild(customLabel);
                     customRow.appendChild(labelWrap);
@@ -6683,7 +6689,7 @@
                     // Fixture finish: Black (dark grey) or Silver (light grey)
                     el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture finish' }));
                     const colorRow = mkEl('div', { className: 'coach-row coach-row-2 mb-1' });
-                    const current = Coach.state.fixtureColor || 'silver';
+                    const current = Coach.fixtureColorKey();
                     [['black', 'Black'], ['silver', 'Silver']].forEach(([key, label]) => {
                         const b = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: label });
                         if (current === key) {
