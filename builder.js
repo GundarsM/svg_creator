@@ -5161,6 +5161,49 @@
                 }
             }
 
+            // Keep coins clear of fixtures for EVERY pattern. The geometric layouts
+            // (grid / rows / circle) place coins on fixed slots with no fixture check;
+            // the contour ('shape') pass already avoids fixtures, so this leaves it be.
+            // Any coin whose slot overlaps a fixture is nudged outward (spiral search)
+            // to the nearest spot that clears fixtures AND already-placed coins.
+            if (fixtures.length) {
+                const minCoinGap = Math.max(maxFoot * 0.06, 3 * (canvas.scale || 1));
+                const placedNow = [];
+                const clearOfPlaced = (x, y, rc) => {
+                    for (let p = 0; p < placedNow.length; p++) {
+                        const pc = placedNow[p];
+                        if (Math.hypot(pc.x - x, pc.y - y) < pc.r + rc + minCoinGap) return false;
+                    }
+                    return true;
+                };
+                for (let i = 0; i < targets.length; i++) {
+                    const rc = Math.max(targets[i].getScaledWidth(), targets[i].getScaledHeight()) / 2;
+                    const p = positions[i] || { x: hc.x, y: hc.y };
+                    if (clearOfFixtures(p.x, p.y, rc) && clearOfPlaced(p.x, p.y, rc)) {
+                        placedNow.push({ x: p.x, y: p.y, r: rc });
+                        continue;
+                    }
+                    const stepR = Math.max(rc * 0.4, 4);
+                    let found = null;
+                    for (let ring = 1; ring <= 80 && !found; ring++) {
+                        const R = ring * stepR;
+                        const n = Math.max(8, Math.floor((2 * Math.PI * R) / stepR));
+                        for (let a = 0; a < n; a++) {
+                            const ang = (a / n) * 2 * Math.PI;
+                            const nx = p.x + R * Math.cos(ang);
+                            const ny = p.y + R * Math.sin(ang);
+                            if (clearOfFixtures(nx, ny, rc) && clearOfPlaced(nx, ny, rc)) {
+                                found = { x: nx, y: ny };
+                                break;
+                            }
+                        }
+                    }
+                    const fp = found || p;
+                    positions[i] = fp;
+                    placedNow.push({ x: fp.x, y: fp.y, r: rc });
+                }
+            }
+
             // Apply positions
             targets.forEach((c, i) => {
                 const p = positions[i] || { x: hc.x, y: hc.y };
