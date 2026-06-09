@@ -5323,7 +5323,7 @@
                 const top  = hc.y - hh / 2;
                 const yTop = top + OFFSET * scale;
                 const yBot = top + hh - OFFSET * scale;
-                const xs = [left + hw * (1 / 3), left + hw * (2 / 3)]; // 2 across, spread
+                const xs = [left + hw * (1 / 6), left + hw * (5 / 6)]; // 1/6 in from each side edge
                 [yTop, yBot].forEach(yy => xs.forEach(xx => tryPlace(xx, yy)));
             } else if (type === 'circle' || type === 'circle-outline') {
                 const R = Math.min(hw, hh) / 2 - OFFSET * scale;
