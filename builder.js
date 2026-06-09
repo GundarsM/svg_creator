@@ -5606,7 +5606,16 @@
                             const obj = canvas.getActiveObject();
                             Coach.state.holderObj = obj;
                             Coach.state.holderType = type;
-                            if (obj) obj.coachHolderId = 'holder';
+                            if (obj) {
+                                obj.coachHolderId = 'holder';
+                                // Engine gives filled rect/circle a default birch material;
+                                // strip it so no base shape has a material yet (chosen in step 3).
+                                if (obj.materialType && obj.materialType !== 'color') {
+                                    obj.set('fill', '#ffffff');
+                                    obj.materialType = 'color';
+                                    canvas.requestRenderAll();
+                                }
+                            }
                             applyStoredSize();
                         }
                     };
