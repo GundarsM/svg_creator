@@ -4849,9 +4849,15 @@
             const pad  = maxFoot * 0.15;
             const cell = maxFoot + pad;
 
-            // Inside capacity of the holder
-            const colsIn = Math.max(1, Math.floor(hw / cell));
-            const rowsIn = Math.max(1, Math.floor(hh / cell));
+            // Keep coins clear of the holder wall: their centres stay at least the
+            // largest coin's radius + 4 mm in from the edge (matches the rectangle grid).
+            const edgeInset = maxFoot / 2 + 4 * (canvas.scale || 1);
+            const usableW   = Math.max(cell, hw - 2 * edgeInset);
+            const usableH   = Math.max(cell, hh - 2 * edgeInset);
+
+            // Inside capacity of the holder (within the inset usable area)
+            const colsIn = Math.max(1, Math.floor(usableW / cell));
+            const rowsIn = Math.max(1, Math.floor(usableH / cell));
 
             // Helper: place `count` surplus coins on an expanding rectangular perimeter
             // around the holder so they are visible and non-overlapping.
@@ -5141,27 +5147,42 @@
                     );
                 }
             } else if (pattern === 'circle') {
-                // Concentric rings starting just inside the holder; overflow rings expand outward
+                // Concentric rings that stay INSIDE the holder. The outermost ring sits at
+                // the inset edge (radius - coinR - 4mm); successive rings step inward by `cell`.
+                // Coins that don't fit inside spill to the outer perimeter (clearly outside),
+                // never crowding the holder wall.
+                const Rmax = Math.min(hw, hh) / 2 - edgeInset;
                 let placed = 0, ring = 0;
-                while (placed < targets.length) {
-                    const R = (Math.min(hw, hh) / 2 - cell / 2) + ring * cell;
-                    if (R <= 0) {
-                        // Holder too small for any ring — fall back to perimeter spiral
-                        positions = positions.concat(
-                            perimeterPositions(targets.length - placed, left, top, hw, hh, cell, hc)
-                        );
-                        break;
+                if (Rmax <= 0) {
+                    // Holder too small for any inside ring — everything goes to the perimeter
+                    positions = perimeterPositions(targets.length, left, top, hw, hh, cell, hc);
+                } else {
+                    while (placed < targets.length) {
+                        const R = Rmax - ring * cell;
+                        if (R < cell / 2) {
+                            // Centre slot for one coin, then spill the rest outside
+                            if (placed < targets.length) {
+                                positions.push({ x: hc.x, y: hc.y });
+                                placed++;
+                            }
+                            if (placed < targets.length) {
+                                positions = positions.concat(
+                                    perimeterPositions(targets.length - placed, left, top, hw, hh, cell, hc)
+                                );
+                                placed = targets.length;
+                            }
+                            break;
+                        }
+                        const ringCap = Math.max(1, Math.floor(Math.PI / Math.asin(Math.min(1, cell / (2 * R)))));
+                        const n = Math.min(ringCap, targets.length - placed);
+                        for (let i = 0; i < n; i++) {
+                            const theta = -Math.PI / 2 + i * (2 * Math.PI / n);
+                            positions.push({ x: hc.x + R * Math.cos(theta), y: hc.y + R * Math.sin(theta) });
+                        }
+                        placed += n;
+                        ring++;
+                        if (ring > 50) break; // safety
                     }
-                    // Max coins on this ring without overlap
-                    const ringCap = Math.max(1, Math.floor(Math.PI / Math.asin(Math.min(1, cell / (2 * R)))));
-                    const n = Math.min(ringCap, targets.length - placed);
-                    for (let i = 0; i < n; i++) {
-                        const theta = -Math.PI / 2 + i * (2 * Math.PI / n);
-                        positions.push({ x: hc.x + R * Math.cos(theta), y: hc.y + R * Math.sin(theta) });
-                    }
-                    placed += n;
-                    ring++;
-                    if (ring > 50) break; // safety
                 }
             } else {
                 // 'grid' or 'rows'
