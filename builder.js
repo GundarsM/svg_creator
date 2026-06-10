@@ -4589,8 +4589,10 @@
                 msg.textContent = 'You have an unfinished design. Would you like to pick up where you left off?';
                 bodyEl.appendChild(msg);
 
+                // coach-row gives its .btn children equal width (flex:1 1 0),
+                // matching every other button row in the helper.
                 const btnRow = document.createElement('div');
-                btnRow.style.cssText = 'display:flex;gap:8px;';
+                btnRow.className = 'coach-row coach-row-2';
 
                 const resumeBtn = document.createElement('button');
                 resumeBtn.type      = 'button';
