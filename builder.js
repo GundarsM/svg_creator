@@ -5241,10 +5241,25 @@
                 // concentric rings (circle) — rather than hugging the contour like Fit to shape.
                 const slots = [];
                 if (pattern === 'circle') {
-                    // Concentric rings centred on the silhouette centroid, outermost first.
-                    const cx = field.centroid.x, cy = field.centroid.y;
-                    const Rmax = Math.max(hw, hh) / 2;
-                    for (let R = Rmax; R >= cell / 2; R -= cell) {
+                    // Genuine concentric rings sized to the LARGEST circle that fits inside
+                    // the shape, centred on the shape's most-interior point (the pixel with
+                    // the greatest distance-to-edge). Because every ring lies within that
+                    // inscribed circle, the rings are COMPLETE (so it actually looks circular)
+                    // and every coin is structurally inside the outline — no edge overlap,
+                    // regardless of distance-field granularity. (The old code generated
+                    // full-extent rings then filtered out the ones over the edge, leaving a
+                    // scattered, random-looking subset.)
+                    let cx = field.centroid.x, cy = field.centroid.y, R0 = field.distAt(cx, cy);
+                    const scan = Math.max(4, cell * 0.5);
+                    for (let y = top; y <= top + hh; y += scan) {
+                        for (let x = left; x <= left + hw; x += scan) {
+                            const d = field.distAt(x, y);
+                            if (d > R0) { R0 = d; cx = x; cy = y; }
+                        }
+                    }
+                    // Outermost ring keeps the largest coin fully inside the inscribed circle.
+                    const Router = R0 - maxR - edgeMarginPx;
+                    for (let R = Router; R >= cell / 2; R -= cell) {
                         const ringCap = Math.max(1, Math.floor(Math.PI / Math.asin(Math.min(1, cell / (2 * R)))));
                         for (let i = 0; i < ringCap; i++) {
                             const theta = -Math.PI / 2 + i * (2 * Math.PI / ringCap);
