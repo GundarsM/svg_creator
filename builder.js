@@ -4974,6 +4974,20 @@
                 return true;
             }
 
+            // For irregular holders (ellipse / country / imported SVG) the bounding-box
+            // grid/rows/circle would drop coins on or over the real edge. We keep the
+            // geometric LOOK by generating the pattern's slots across the holder and
+            // keeping only those that fall INSIDE the real silhouette (distance field) —
+            // NOT by relocating stray coins afterwards, which collapses the pattern onto
+            // the outline and makes every layout look like "Fit to shape".
+            const IRREGULAR = pattern !== 'shape' && !(
+                holder.shapeType === 'rectangle'  || holder.shapeType === 'rectangle-outline' ||
+                holder.shapeType === 'circle'     || holder.shapeType === 'circle-outline');
+            const field = IRREGULAR ? Coach._holderDistanceField(holder) : null;
+            const edgeMarginPx = 4 * (canvas.scale || 1);   // coin edge >= 4 mm inside the outline
+            const maxR = maxFoot / 2;
+            const insideOK = (x, y, rc) => !field ? true : field.distAt(x, y) >= rc + edgeMarginPx;
+
             // Build position array — length === targets.length, inside first, perimeter for surplus
             let positions = [];
 
@@ -5219,6 +5233,62 @@
                         perimeterPositions(targets.length - positions.length, left, top, hw, hh, cell, hc)
                     );
                 }
+            } else if (IRREGULAR && field) {
+                // Irregular holder: generate the pattern's slots over the holder, then keep
+                // only those inside the silhouette AND clear of fixtures, preserving order.
+                // Coins fill the valid slots; any surplus spills to the outer perimeter. This
+                // keeps the named look — aligned lattice (grid), centred horizontal rows (rows),
+                // concentric rings (circle) — rather than hugging the contour like Fit to shape.
+                const slots = [];
+                if (pattern === 'circle') {
+                    // Concentric rings centred on the silhouette centroid, outermost first.
+                    const cx = field.centroid.x, cy = field.centroid.y;
+                    const Rmax = Math.max(hw, hh) / 2;
+                    for (let R = Rmax; R >= cell / 2; R -= cell) {
+                        const ringCap = Math.max(1, Math.floor(Math.PI / Math.asin(Math.min(1, cell / (2 * R)))));
+                        for (let i = 0; i < ringCap; i++) {
+                            const theta = -Math.PI / 2 + i * (2 * Math.PI / ringCap);
+                            slots.push({ x: cx + R * Math.cos(theta), y: cy + R * Math.sin(theta) });
+                        }
+                    }
+                    slots.push({ x: cx, y: cy }); // centre last
+                } else if (pattern === 'rows') {
+                    // Horizontal rows spaced by `cell`; each row centred across the inside
+                    // x-extent at that height, so rows follow the shape's width (clearly rows).
+                    const scanStep = Math.max(2, cell * 0.12);
+                    for (let y = top + cell / 2; y <= top + hh; y += cell) {
+                        let xmin = null, xmax = null;
+                        for (let x = left; x <= left + hw; x += scanStep) {
+                            if (insideOK(x, y, maxR)) { if (xmin === null) xmin = x; xmax = x; }
+                        }
+                        if (xmin === null) continue;
+                        const span  = xmax - xmin;
+                        const count = Math.max(1, Math.floor(span / cell) + 1);
+                        const sx    = (xmin + xmax) / 2 - (count - 1) * cell / 2;
+                        for (let c = 0; c < count; c++) slots.push({ x: sx + c * cell, y });
+                    }
+                } else {
+                    // 'grid' — a fixed square lattice anchored on the holder centre (aligned
+                    // rows AND columns), keeping only intersections inside the silhouette.
+                    const colsTot = Math.max(1, Math.ceil(hw / cell) + 1);
+                    const rowsTot = Math.max(1, Math.ceil(hh / cell) + 1);
+                    const gx = hc.x - (colsTot - 1) * cell / 2;
+                    const gy = hc.y - (rowsTot - 1) * cell / 2;
+                    for (let r = 0; r < rowsTot; r++) {
+                        for (let c = 0; c < colsTot; c++) {
+                            slots.push({ x: gx + c * cell, y: gy + r * cell });
+                        }
+                    }
+                }
+
+                const valid = slots.filter(s => insideOK(s.x, s.y, maxR) && clearOfFixtures(s.x, s.y, maxR));
+                const nIn = Math.min(targets.length, valid.length);
+                for (let i = 0; i < nIn; i++) positions.push(valid[i]);
+                if (targets.length > nIn) {
+                    positions = positions.concat(
+                        perimeterPositions(targets.length - nIn, left, top, hw, hh, cell, hc)
+                    );
+                }
             } else if (pattern === 'circle') {
                 // Concentric rings that stay INSIDE the holder. The outermost ring sits at
                 // the inset edge (radius - coinR - 4mm); successive rings step inward by `cell`.
@@ -5289,24 +5359,13 @@
             }
 
             // Final repair pass for the geometric layouts (grid / rows / circle).
-            // The 'shape' pass already follows the real outline and avoids fixtures.
-            // Here we (a) keep coins clear of fixtures, and (b) for irregular holders
-            // — whose bounding box is far bigger than the silhouette — clamp every
-            // coin INSIDE the real outline (distance field), since a bbox grid would
-            // otherwise drop coins on/over the edge. Both are enforced by the same
-            // spiral search, which nudges an offending coin to the nearest spot that
-            // satisfies all the active constraints.
-            const IRREGULAR = pattern !== 'shape' && !(
-                holder.shapeType === 'rectangle'  || holder.shapeType === 'rectangle-outline' ||
-                holder.shapeType === 'circle'     || holder.shapeType === 'circle-outline');
-            const field = IRREGULAR ? Coach._holderDistanceField(holder) : null;
-            const edgeMarginPx = 4 * (canvas.scale || 1); // coin edge >= 4 mm inside the outline
-            const insideOK = (x, y, rc) => {
-                if (!field) return true;
-                return field.distAt(x, y) >= rc + edgeMarginPx;
-            };
-
-            if (fixtures.length || field) {
+            // The 'shape' pass already follows the outline; irregular holders already
+            // filtered their slots inside the silhouette above. So this only nudges a
+            // coin whose slot overlaps a fixture to the nearest clear spot — it runs only
+            // when fixtures exist and never relocates coins onto the outline (which would
+            // make grid/rows/circle look like Fit to shape). insideOK keeps any nudge
+            // inside the silhouette for irregular holders; it's a no-op for regular ones.
+            if (fixtures.length) {
                 const minCoinGap = Math.max(maxFoot * 0.06, 3 * (canvas.scale || 1));
                 const placedNow = [];
                 const clearOfPlaced = (x, y, rc) => {
@@ -5317,33 +5376,24 @@
                     return true;
                 };
                 const ok = (x, y, rc) => clearOfFixtures(x, y, rc) && clearOfPlaced(x, y, rc) && insideOK(x, y, rc);
-                // Spiral searches outward from `p`; for irregular shapes we also seed a
-                // search from the centroid so coins stranded outside snap back inside.
                 const search = (p, rc) => {
                     const stepR = Math.max(rc * 0.4, 4);
-                    const tryFrom = (sx, sy) => {
-                        for (let ring = 1; ring <= 120; ring++) {
-                            const R = ring * stepR;
-                            const n = Math.max(8, Math.floor((2 * Math.PI * R) / stepR));
-                            for (let a = 0; a < n; a++) {
-                                const ang = (a / n) * 2 * Math.PI;
-                                const nx = sx + R * Math.cos(ang);
-                                const ny = sy + R * Math.sin(ang);
-                                if (ok(nx, ny, rc)) return { x: nx, y: ny };
-                            }
+                    for (let ring = 1; ring <= 120; ring++) {
+                        const R = ring * stepR;
+                        const n = Math.max(8, Math.floor((2 * Math.PI * R) / stepR));
+                        for (let a = 0; a < n; a++) {
+                            const ang = (a / n) * 2 * Math.PI;
+                            const nx = p.x + R * Math.cos(ang);
+                            const ny = p.y + R * Math.sin(ang);
+                            if (ok(nx, ny, rc)) return { x: nx, y: ny };
                         }
-                        return null;
-                    };
-                    let found = tryFrom(p.x, p.y);
-                    if (!found && field) found = tryFrom(field.centroid.x, field.centroid.y);
-                    return found;
+                    }
+                    return null;
                 };
                 for (let i = 0; i < targets.length; i++) {
                     const rc = Math.max(targets[i].getScaledWidth(), targets[i].getScaledHeight()) / 2;
                     let p = positions[i] || { x: hc.x, y: hc.y };
-                    if (!ok(p.x, p.y, rc)) {
-                        p = search(p, rc) || p;
-                    }
+                    if (!ok(p.x, p.y, rc)) p = search(p, rc) || p;
                     positions[i] = p;
                     placedNow.push({ x: p.x, y: p.y, r: rc });
                 }
