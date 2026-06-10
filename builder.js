@@ -4810,12 +4810,83 @@
             setTimeout(function() { Coach.collapse(); }, 2800);
         };
 
+        /* ── Coach._holderDistanceField ───────────────────────────────
+           Rasterise the holder silhouette and run a distance transform so we
+           can ask "how far inside the real outline is this point?" (canvas px,
+           0 = outside). Used to clamp the geometric layouts (grid/rows/circle)
+           inside irregular shapes, whose bounding box is much larger than the
+           silhouette. Returns null if the mask can't be read. */
+        Coach._holderDistanceField = function(holder) {
+            if (typeof canvas === 'undefined' || !canvas || !holder) return null;
+            let maskCanvas = null;
+            const saved = [];
+            const solidify = (o) => {
+                saved.push([o, o.fill, o.opacity, o.stroke, o.strokeWidth]);
+                o.set({ fill: '#000', opacity: 1, stroke: '#000', strokeWidth: 0 });
+            };
+            try {
+                if (holder.type === 'group') holder.forEachObject(solidify);
+                else solidify(holder);
+                if (typeof holder.toCanvasElement === 'function') {
+                    maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false });
+                }
+            } catch (e) { maskCanvas = null; }
+            saved.forEach(([o, f, op, s, sw]) => o.set({ fill: f, opacity: op, stroke: s, strokeWidth: sw }));
+            if (!maskCanvas) return null;
+
+            const br = holder.getBoundingRect(true);
+            const W = maskCanvas.width, H = maskCanvas.height;
+            const ctx = maskCanvas.getContext('2d');
+            let md = null;
+            try { md = ctx.getImageData(0, 0, W, H).data; } catch (e) { md = null; }
+            if (!md || br.width <= 0 || br.height <= 0 || W <= 1 || H <= 1) return null;
+
+            const pxPerCanvas = W / br.width;
+            const SQRT2 = Math.SQRT2, INF = 1e9, N = W * H;
+            const dist = new Float32Array(N);
+            let sx = 0, sy = 0, c = 0;
+            for (let i = 0; i < N; i++) {
+                const inside = md[i * 4 + 3] > 40;
+                dist[i] = inside ? INF : 0;
+                if (inside) { sx += i % W; sy += (i / W) | 0; c++; }
+            }
+            if (!c) return null;
+            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+                const i = y * W + x; if (dist[i] === 0) continue;
+                let m = dist[i];
+                if (x > 0)             m = Math.min(m, dist[i - 1] + 1);
+                if (y > 0)             m = Math.min(m, dist[i - W] + 1);
+                if (x > 0 && y > 0)    m = Math.min(m, dist[i - W - 1] + SQRT2);
+                if (x < W - 1 && y > 0) m = Math.min(m, dist[i - W + 1] + SQRT2);
+                dist[i] = m;
+            }
+            for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+                const i = y * W + x; if (dist[i] === 0) continue;
+                let m = dist[i];
+                if (x < W - 1)             m = Math.min(m, dist[i + 1] + 1);
+                if (y < H - 1)             m = Math.min(m, dist[i + W] + 1);
+                if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + SQRT2);
+                if (x > 0 && y < H - 1)     m = Math.min(m, dist[i + W - 1] + SQRT2);
+                dist[i] = m;
+            }
+            return {
+                centroid: { x: br.left + (sx / c) / pxPerCanvas, y: br.top + (sy / c) / pxPerCanvas },
+                distAt(px, py) {
+                    const mx = Math.round((px - br.left) * pxPerCanvas);
+                    const my = Math.round((py - br.top) * pxPerCanvas);
+                    if (mx < 0 || my < 0 || mx >= W || my >= H) return 0;
+                    const d = dist[my * W + mx];
+                    return d >= INF ? 0 : d / pxPerCanvas;
+                }
+            };
+        };
+
         /* ── Coach.arrange ────────────────────────────────────────────
            Arranges coins that lie inside the holder's bounding box into
            one of three patterns.  Containment test is axis-aligned bbox
-           (good enough for rectangles, circles, ellipses).  Point-in-path
-           for irregular shapes (country / imported SVG) is a stretch goal
-           not implemented here. */
+           (good enough for rectangles, circles, ellipses).  Irregular
+           shapes (ellipse / country / imported SVG) additionally clamp the
+           geometric layouts inside the real silhouette via a distance field. */
         Coach.arrange = function(pattern) {
             // Guard: canvas must exist
             if (typeof canvas === 'undefined' || !canvas) return false;
@@ -5217,12 +5288,25 @@
                 }
             }
 
-            // Keep coins clear of fixtures for EVERY pattern. The geometric layouts
-            // (grid / rows / circle) place coins on fixed slots with no fixture check;
-            // the contour ('shape') pass already avoids fixtures, so this leaves it be.
-            // Any coin whose slot overlaps a fixture is nudged outward (spiral search)
-            // to the nearest spot that clears fixtures AND already-placed coins.
-            if (fixtures.length) {
+            // Final repair pass for the geometric layouts (grid / rows / circle).
+            // The 'shape' pass already follows the real outline and avoids fixtures.
+            // Here we (a) keep coins clear of fixtures, and (b) for irregular holders
+            // — whose bounding box is far bigger than the silhouette — clamp every
+            // coin INSIDE the real outline (distance field), since a bbox grid would
+            // otherwise drop coins on/over the edge. Both are enforced by the same
+            // spiral search, which nudges an offending coin to the nearest spot that
+            // satisfies all the active constraints.
+            const IRREGULAR = pattern !== 'shape' && !(
+                holder.shapeType === 'rectangle'  || holder.shapeType === 'rectangle-outline' ||
+                holder.shapeType === 'circle'     || holder.shapeType === 'circle-outline');
+            const field = IRREGULAR ? Coach._holderDistanceField(holder) : null;
+            const edgeMarginPx = 4 * (canvas.scale || 1); // coin edge >= 4 mm inside the outline
+            const insideOK = (x, y, rc) => {
+                if (!field) return true;
+                return field.distAt(x, y) >= rc + edgeMarginPx;
+            };
+
+            if (fixtures.length || field) {
                 const minCoinGap = Math.max(maxFoot * 0.06, 3 * (canvas.scale || 1));
                 const placedNow = [];
                 const clearOfPlaced = (x, y, rc) => {
@@ -5232,31 +5316,36 @@
                     }
                     return true;
                 };
-                for (let i = 0; i < targets.length; i++) {
-                    const rc = Math.max(targets[i].getScaledWidth(), targets[i].getScaledHeight()) / 2;
-                    const p = positions[i] || { x: hc.x, y: hc.y };
-                    if (clearOfFixtures(p.x, p.y, rc) && clearOfPlaced(p.x, p.y, rc)) {
-                        placedNow.push({ x: p.x, y: p.y, r: rc });
-                        continue;
-                    }
+                const ok = (x, y, rc) => clearOfFixtures(x, y, rc) && clearOfPlaced(x, y, rc) && insideOK(x, y, rc);
+                // Spiral searches outward from `p`; for irregular shapes we also seed a
+                // search from the centroid so coins stranded outside snap back inside.
+                const search = (p, rc) => {
                     const stepR = Math.max(rc * 0.4, 4);
-                    let found = null;
-                    for (let ring = 1; ring <= 80 && !found; ring++) {
-                        const R = ring * stepR;
-                        const n = Math.max(8, Math.floor((2 * Math.PI * R) / stepR));
-                        for (let a = 0; a < n; a++) {
-                            const ang = (a / n) * 2 * Math.PI;
-                            const nx = p.x + R * Math.cos(ang);
-                            const ny = p.y + R * Math.sin(ang);
-                            if (clearOfFixtures(nx, ny, rc) && clearOfPlaced(nx, ny, rc)) {
-                                found = { x: nx, y: ny };
-                                break;
+                    const tryFrom = (sx, sy) => {
+                        for (let ring = 1; ring <= 120; ring++) {
+                            const R = ring * stepR;
+                            const n = Math.max(8, Math.floor((2 * Math.PI * R) / stepR));
+                            for (let a = 0; a < n; a++) {
+                                const ang = (a / n) * 2 * Math.PI;
+                                const nx = sx + R * Math.cos(ang);
+                                const ny = sy + R * Math.sin(ang);
+                                if (ok(nx, ny, rc)) return { x: nx, y: ny };
                             }
                         }
+                        return null;
+                    };
+                    let found = tryFrom(p.x, p.y);
+                    if (!found && field) found = tryFrom(field.centroid.x, field.centroid.y);
+                    return found;
+                };
+                for (let i = 0; i < targets.length; i++) {
+                    const rc = Math.max(targets[i].getScaledWidth(), targets[i].getScaledHeight()) / 2;
+                    let p = positions[i] || { x: hc.x, y: hc.y };
+                    if (!ok(p.x, p.y, rc)) {
+                        p = search(p, rc) || p;
                     }
-                    const fp = found || p;
-                    positions[i] = fp;
-                    placedNow.push({ x: fp.x, y: fp.y, r: rc });
+                    positions[i] = p;
+                    placedNow.push({ x: p.x, y: p.y, r: rc });
                 }
             }
 
