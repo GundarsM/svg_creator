@@ -4657,12 +4657,46 @@
             if (typeof canvas === 'undefined' || !canvas) return;
             canvas.getObjects().forEach(function(obj) {
                 if (obj.materialType && obj.materialType !== 'color') {
-                    if (typeof applyFill === 'function') {
+                    if (obj.shapeType === 'imported') {
+                        Coach.applyWoodToImported(obj, obj.materialType);
+                    } else if (typeof applyFill === 'function') {
                         applyFill(obj, obj.materialType);
                     }
                 }
             });
             canvas.requestRenderAll();
+        };
+
+        /* ── Coach.applyWoodToImported ───────────────────────────────────
+           Imported SVG vectors are groups with transparent fills, so the engine's
+           applyFill only recolours their stroke for wood finishes — leaving them a
+           flat colour with no texture (integrated outlines get the wood pattern
+           because applyFill fills standalone shapes directly). This forces the wood
+           pattern onto imported vectors (and every child of grouped imports) so they
+           match integrated outlines. No-op for the 'color' finish. */
+        Coach.applyWoodToImported = function(obj, fillType) {
+            if (!obj || !fillType || fillType === 'color') return;
+            if (typeof woodPatterns === 'undefined') return;
+            if (!woodPatterns[fillType] && typeof createWoodPattern === 'function') {
+                woodPatterns[fillType] = new fabric.Pattern({
+                    source: createWoodPattern(fillType),
+                    repeat: 'repeat'
+                });
+            }
+            const pat = woodPatterns[fillType];
+            if (!pat) return;
+            const fillOne = function(o) {
+                if (o.type === 'text' || o.type === 'i-text') return;
+                o.set('fill', pat);
+                o.materialType = fillType;
+            };
+            if (obj.type === 'group' && typeof obj.forEachObject === 'function') {
+                obj.forEachObject(fillOne);
+            } else {
+                fillOne(obj);
+            }
+            obj.materialType = fillType;
+            obj.setCoords();
         };
 
         /* ── Coach.reapplyFixtureLocks ───────────────────────────────────
@@ -6263,6 +6297,11 @@
                     // ── Shared apply function ─────────────────────────────
                     const applyMaterial = (fillType) => {
                         if (typeof applyFill === 'function') applyFill(obj, fillType);
+                        // Imported vectors have transparent fills, so applyFill skips the
+                        // wood texture for them — force it on so they match integrated outlines.
+                        if (fillType !== 'color' && obj.shapeType === 'imported') {
+                            Coach.applyWoodToImported(obj, fillType);
+                        }
                         if (typeof cascadeColorToContained === 'function') {
                             const plastic = document.getElementById('fillColor')
                                 ? document.getElementById('fillColor').value
