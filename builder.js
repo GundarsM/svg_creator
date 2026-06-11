@@ -4235,6 +4235,14 @@
                         ['object:added', 'object:modified', 'object:removed'].forEach(ev => {
                             canvas.on(ev, () => Coach.persist.save());
                         });
+                        // Imported SVG vectors → thin 0.07 outline (hairline cut line).
+                        canvas.on('object:added', (e) => {
+                            const o = e.target;
+                            if (o && o.shapeType === 'imported') {
+                                Coach.normalizeImportedStroke(o);
+                                canvas.requestRenderAll();
+                            }
+                        });
                         // Add "Start over" button to header
                         (function addStartOver() {
                             const hdr = document.getElementById('coach-header');
@@ -4625,6 +4633,7 @@
                 canvas.loadFromJSON(saved.canvasJSON, function() {
                     Coach.reapplyMaterials();
                     Coach.reapplyFixtureLocks();
+                    Coach.reapplyImportedStrokes();
                     Coach.state = Object.assign({}, Coach.state, saved.state || {});
                     Coach.resolveHolder();
                     canvas.renderAll();
@@ -4665,6 +4674,41 @@
                     });
                     obj.setCoords();
                 }
+            });
+            canvas.requestRenderAll();
+        };
+
+        /* ── Coach.normalizeImportedStroke ───────────────────────────────
+           Imported SVG vectors get a thin 0.07 (uniform) outline — the hairline
+           cut line laser cutters expect. Applies to the object and, for grouped
+           imports, every child path. A stroke colour is added only when the path
+           has none, so a 0.07 line is actually visible. */
+        Coach.normalizeImportedStroke = function(obj) {
+            if (!obj) return;
+            const apply = function(o) {
+                const noStroke = !o.stroke || o.stroke === 'transparent' || o.stroke === 'none';
+                o.set({
+                    strokeWidth: 0.07,
+                    strokeUniform: true,
+                    stroke: noStroke ? '#000000' : o.stroke
+                });
+            };
+            if (obj.type === 'group' && typeof obj.forEachObject === 'function') {
+                obj.forEachObject(apply);
+                obj.set({ strokeWidth: 0.07, strokeUniform: true });
+            } else {
+                apply(obj);
+            }
+            obj.setCoords();
+        };
+
+        /* ── Coach.reapplyImportedStrokes ────────────────────────────────
+           Re-thin every imported vector after a resume (loadFromJSON keeps the
+           saved stroke width, which we want overridden back to 0.07). */
+        Coach.reapplyImportedStrokes = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            canvas.getObjects().forEach(function(obj) {
+                if (obj.shapeType === 'imported') Coach.normalizeImportedStroke(obj);
             });
             canvas.requestRenderAll();
         };
