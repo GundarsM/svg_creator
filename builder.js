@@ -4688,6 +4688,7 @@
             const fillOne = function(o) {
                 if (o.type === 'text' || o.type === 'i-text') return;
                 o.set('fill', pat);
+                o.dirty = true;          // invalidate the object cache so the texture repaints
                 o.materialType = fillType;
             };
             if (obj.type === 'group' && typeof obj.forEachObject === 'function') {
@@ -4695,8 +4696,10 @@
             } else {
                 fillOne(obj);
             }
+            obj.dirty = true;
             obj.materialType = fillType;
             obj.setCoords();
+            if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
         };
 
         /* ── Coach.reapplyFixtureLocks ───────────────────────────────────
@@ -6298,9 +6301,13 @@
                     const applyMaterial = (fillType) => {
                         if (typeof applyFill === 'function') applyFill(obj, fillType);
                         // Imported vectors have transparent fills, so applyFill skips the
-                        // wood texture for them — force it on so they match integrated outlines.
-                        if (fillType !== 'color' && obj.shapeType === 'imported') {
-                            Coach.applyWoodToImported(obj, fillType);
+                        // wood texture for them — force it on EVERY imported object (the
+                        // engine adds each SVG path as its own object) so they match
+                        // integrated outlines.
+                        if (fillType !== 'color' && typeof canvas !== 'undefined' && canvas) {
+                            canvas.getObjects()
+                                .filter(o => o.shapeType === 'imported')
+                                .forEach(o => Coach.applyWoodToImported(o, fillType));
                         }
                         if (typeof cascadeColorToContained === 'function') {
                             const plastic = document.getElementById('fillColor')
