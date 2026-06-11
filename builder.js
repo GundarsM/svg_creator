@@ -5234,47 +5234,18 @@
                     );
                 }
             } else if (pattern === 'outside') {
-                // Ring ALL coins just OUTSIDE the holder, hugging its contour. March a ray
-                // from the shape's centre outward to find the contour radius at each angle,
-                // then sit the coin one radius + margin beyond it. Walk the angle by each
-                // coin's arc so neighbours don't overlap; when a full loop is used, step the
-                // whole halo further out and continue. Works for any holder (computes its own
-                // distance field when the geometric `field` above is null, e.g. a rectangle).
-                const f = field || Coach._holderDistanceField(holder);
-                if (!f) {
-                    // No silhouette available — fall back to an expanding rectangular halo.
-                    positions = perimeterPositions(targets.length, left, top, hw, hh, cell, hc);
-                } else {
-                    const cx = f.centroid.x, cy = f.centroid.y;
-                    const marchStep = Math.max(2, cell * 0.12);
-                    const maxMarch  = Math.max(hw, hh) * 1.2;
-                    const boundaryR = (theta) => {
-                        const dx = Math.cos(theta), dy = Math.sin(theta);
-                        let lastInside = 0;
-                        for (let r = 0; r <= maxMarch; r += marchStep) {
-                            if (f.distAt(cx + r * dx, cy + r * dy) > 0) lastInside = r;
-                            else if (lastInside > 0) break; // first exit after being inside
-                        }
-                        return lastInside;
-                    };
-                    const gap = Math.max(maxFoot * 0.06, 3 * (canvas.scale || 1));
-                    const n = targets.length;
-                    const out = new Array(n).fill(null);
-                    let theta = -Math.PI / 2, ringExtra = 0, placed = 0, guard = 0;
-                    while (placed < n && guard < 100000) {
-                        guard++;
-                        const rc = Math.max(targets[placed].getScaledWidth(), targets[placed].getScaledHeight()) / 2;
-                        const rB = boundaryR(theta) || (Math.max(hw, hh) / 2);
-                        const R  = rB + rc + edgeMarginPx + ringExtra;
-                        out[placed] = { x: cx + R * Math.cos(theta), y: cy + R * Math.sin(theta) };
-                        placed++;
-                        theta += (2 * rc + gap) / R; // arc step so neighbours don't overlap
-                        if (theta >= -Math.PI / 2 + 2 * Math.PI) {
-                            theta = -Math.PI / 2;
-                            ringExtra += maxFoot + gap; // next loop further out
-                        }
-                    }
-                    positions = out;
+                // Move ALL coins OUTSIDE the holder, stacked in tidy rows just above it.
+                // The block is centred on the holder's width; the first (bottom) row sits a
+                // gap above the holder's top edge and rows stack upward in row order.
+                const gap     = Math.max(maxFoot * 0.06, 3 * (canvas.scale || 1));
+                const cols    = Math.max(1, Math.floor(hw / cell));
+                const blockW  = (cols - 1) * cell;
+                const startX  = hc.x - blockW / 2;
+                const firstY  = top - gap - maxR; // bottom row, just above the holder
+                for (let i = 0; i < targets.length; i++) {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    positions.push({ x: startX + col * cell, y: firstY - row * cell });
                 }
             } else if (IRREGULAR && field) {
                 // Irregular holder: generate the pattern's slots over the holder, then keep
@@ -6701,13 +6672,20 @@
                     btnRow.appendChild(makeArrangeBtn('Circle',       'fas fa-circle-notch',  'circle'));
                     btnRow.appendChild(makeArrangeBtn('Rows',         'fas fa-bars',          'rows'));
                     btnRow.appendChild(makeArrangeBtn('Fit to shape', 'fas fa-draw-polygon',  'shape'));
-                    btnRow.appendChild(makeArrangeBtn('All outside',  'far fa-circle',        'outside'));
+
+                    // Yellow accent button — moves all coins into tidy rows above the holder.
+                    const outsideBtn = makeArrangeBtn('Reposition to outside', 'fas fa-arrow-up', 'outside');
+                    // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
+                    outsideBtn.style.setProperty('background', '#ffc107', 'important');
+                    outsideBtn.style.setProperty('color', '#333', 'important');
+                    outsideBtn.style.setProperty('border-color', '#e0a800', 'important');
+                    btnRow.appendChild(outsideBtn);
                     el.appendChild(btnRow);
 
                     // Hint for the shape-conforming layout
                     const shapeHint = document.createElement('p');
                     shapeHint.className = 'small text-muted mb-2';
-                    shapeHint.textContent = 'Fit to shape packs coins inside the holder outline (great for country shapes) with no overlap. All outside rings the coins around the outside of the contour.';
+                    shapeHint.textContent = 'Fit to shape packs coins inside the holder outline (great for country shapes) with no overlap. Reposition to outside stacks the coins in rows just above the holder.';
                     el.appendChild(shapeHint);
 
                     // Muted note
