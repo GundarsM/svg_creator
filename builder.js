@@ -4676,14 +4676,21 @@
            match integrated outlines. No-op for the 'color' finish. */
         Coach.applyWoodToImported = function(obj, fillType) {
             if (!obj || !fillType || fillType === 'color') return;
-            if (typeof woodPatterns === 'undefined') return;
-            if (!woodPatterns[fillType] && typeof createWoodPattern === 'function') {
-                woodPatterns[fillType] = new fabric.Pattern({
-                    source: createWoodPattern(fillType),
-                    repeat: 'repeat'
-                });
+            // Resolve a wood Pattern without depending on the engine's `woodPatterns`
+            // binding being reachable from this script — fall back to a Coach-local cache.
+            let pat = null;
+            try { if (typeof woodPatterns !== 'undefined' && woodPatterns) pat = woodPatterns[fillType]; } catch (e) {}
+            if (!pat) {
+                Coach._woodCache = Coach._woodCache || {};
+                if (!Coach._woodCache[fillType] && typeof createWoodPattern === 'function') {
+                    Coach._woodCache[fillType] = new fabric.Pattern({
+                        source: createWoodPattern(fillType),
+                        repeat: 'repeat'
+                    });
+                    try { if (typeof woodPatterns !== 'undefined' && woodPatterns) woodPatterns[fillType] = Coach._woodCache[fillType]; } catch (e) {}
+                }
+                pat = Coach._woodCache[fillType];
             }
-            const pat = woodPatterns[fillType];
             if (!pat) return;
             const fillOne = function(o) {
                 if (o.type === 'text' || o.type === 'i-text') return;
