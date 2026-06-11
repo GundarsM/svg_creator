@@ -4906,6 +4906,48 @@
             return false;
         };
 
+        /* ── Coach image engraving tint ──────────────────────────────────
+           Recolour a PNG/image to the engraving brown (#5c3316) used for cut/
+           engrave areas elsewhere. A BlendColor 'tint' at alpha 1 sets every
+           pixel's RGB to the brown while keeping the alpha, so the image becomes
+           a solid-brown silhouette. The filter serialises with the image, so it
+           survives a resume; isImageBrown detects it by colour. */
+        Coach.IMAGE_BROWN = '#5c3316';
+
+        Coach.isImageBrown = function(img) {
+            if (!img || !Array.isArray(img.filters)) return false;
+            return img.filters.some(function(f) {
+                return f && f._coachBrown;
+            }) || img.filters.some(function(f) {
+                return f && f.color && String(f.color).toLowerCase() === Coach.IMAGE_BROWN &&
+                       (f.mode === 'tint');
+            });
+        };
+
+        Coach.tintImageBrown = function(img, on) {
+            if (!img || img.type !== 'image') return;
+            if (typeof fabric === 'undefined' || !fabric.Image ||
+                !fabric.Image.filters || !fabric.Image.filters.BlendColor) return;
+            // Drop any existing brown tint first (so toggling off is clean).
+            img.filters = (img.filters || []).filter(function(f) {
+                const isBrown = f && (f._coachBrown ||
+                    (f.color && String(f.color).toLowerCase() === Coach.IMAGE_BROWN && f.mode === 'tint'));
+                return !isBrown;
+            });
+            if (on) {
+                const f = new fabric.Image.filters.BlendColor({
+                    color: Coach.IMAGE_BROWN,
+                    mode: 'tint',
+                    alpha: 1
+                });
+                f._coachBrown = true;
+                img.filters.push(f);
+            }
+            img.applyFilters();
+            if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
+            if (typeof saveState === 'function') saveState();
+        };
+
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
         Coach.resolveHolder = function() {
             if (typeof canvas === 'undefined' || !canvas) return;
@@ -7171,6 +7213,39 @@
                     uploadRow.className = 'coach-row';
                     uploadRow.appendChild(uploadBtn);
                     el.appendChild(uploadRow);
+
+                    // Recolour an image to the engraving brown (#5c3316) and back. Acts on
+                    // the selected image, or the most recently added one if none is selected.
+                    const tintNudge = mkEl('p', { className: 'small text-warning mb-1' });
+                    tintNudge.style.display = 'none';
+                    const tintRow = mkEl('div', { className: 'coach-row mt-1' });
+                    const tintBtn = mkEl('button', {
+                        type: 'button',
+                        className: 'btn btn-sm btn-outline-light',
+                        textContent: 'Engrave colour (brown)'
+                    });
+                    const pickImage = function() {
+                        if (typeof canvas === 'undefined' || !canvas) return null;
+                        const active = canvas.getActiveObject();
+                        if (active && active.type === 'image') return active;
+                        const imgs = canvas.getObjects().filter(function(o) { return o.type === 'image'; });
+                        return imgs.length ? imgs[imgs.length - 1] : null;
+                    };
+                    tintBtn.addEventListener('click', function() {
+                        const img = pickImage();
+                        if (!img) {
+                            tintNudge.textContent = 'Add an image first, then recolour it.';
+                            tintNudge.style.display = '';
+                            return;
+                        }
+                        tintNudge.style.display = 'none';
+                        const turnOn = !Coach.isImageBrown(img);
+                        Coach.tintImageBrown(img, turnOn);
+                        tintBtn.textContent = turnOn ? 'Restore image colour' : 'Engrave colour (brown)';
+                    });
+                    tintRow.appendChild(tintBtn);
+                    el.appendChild(tintRow);
+                    el.appendChild(tintNudge);
                 },
             },
             {
