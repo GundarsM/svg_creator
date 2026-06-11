@@ -7244,6 +7244,13 @@
                         const imgs = canvas.getObjects().filter(function(o) { return o.type === 'image'; });
                         return imgs.length ? imgs[imgs.length - 1] : null;
                     };
+                    // Reflect the current target image's state in the button label.
+                    const syncTintLabel = function() {
+                        const img = pickImage();
+                        tintBtn.textContent = (img && Coach.isImageBrown(img))
+                            ? 'Restore image colour'
+                            : 'Engrave colour (brown)';
+                    };
                     tintBtn.addEventListener('click', function() {
                         const img = pickImage();
                         if (!img) {
@@ -7252,13 +7259,24 @@
                             return;
                         }
                         tintNudge.style.display = 'none';
-                        const turnOn = !Coach.isImageBrown(img);
-                        Coach.tintImageBrown(img, turnOn);
-                        tintBtn.textContent = turnOn ? 'Restore image colour' : 'Engrave colour (brown)';
+                        Coach.tintImageBrown(img, !Coach.isImageBrown(img));
+                        syncTintLabel();
                     });
                     tintRow.appendChild(tintBtn);
                     el.appendChild(tintRow);
                     el.appendChild(tintNudge);
+
+                    // Keep the label correct as the customer selects different images.
+                    // Drop the previous step-render's listeners first so they don't stack.
+                    if (typeof canvas !== 'undefined' && canvas) {
+                        const SEL_EVENTS = ['selection:created', 'selection:updated', 'selection:cleared'];
+                        if (Coach._tintSyncHandler) {
+                            SEL_EVENTS.forEach(function(ev) { canvas.off(ev, Coach._tintSyncHandler); });
+                        }
+                        Coach._tintSyncHandler = syncTintLabel;
+                        SEL_EVENTS.forEach(function(ev) { canvas.on(ev, Coach._tintSyncHandler); });
+                    }
+                    syncTintLabel();
                 },
             },
             {
