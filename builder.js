@@ -4236,10 +4236,16 @@
                             canvas.on(ev, () => Coach.persist.save());
                         });
                         // Imported SVG vectors → thin 0.07 outline (hairline cut line).
+                        // Country outlines → always the bottom layer, even if added later.
                         canvas.on('object:added', (e) => {
                             const o = e.target;
-                            if (o && o.shapeType === 'imported') {
+                            if (!o) return;
+                            if (o.shapeType === 'imported') {
                                 Coach.normalizeImportedStroke(o);
+                                canvas.requestRenderAll();
+                            }
+                            if (o.shapeType === 'country') {
+                                canvas.sendToBack(o);
                                 canvas.requestRenderAll();
                             }
                         });
@@ -4634,6 +4640,7 @@
                     Coach.reapplyMaterials();
                     Coach.reapplyFixtureLocks();
                     Coach.reapplyImportedStrokes();
+                    Coach.reapplyCountryToBack();
                     Coach.state = Object.assign({}, Coach.state, saved.state || {});
                     Coach.resolveHolder();
                     canvas.renderAll();
@@ -4710,6 +4717,15 @@
             canvas.getObjects().forEach(function(obj) {
                 if (obj.shapeType === 'imported') Coach.normalizeImportedStroke(obj);
             });
+            canvas.requestRenderAll();
+        };
+
+        /* ── Coach.reapplyCountryToBack ──────────────────────────────────
+           Keep country outlines on the bottom layer after a resume. */
+        Coach.reapplyCountryToBack = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            canvas.getObjects().filter(function(o) { return o.shapeType === 'country'; })
+                .forEach(function(o) { canvas.sendToBack(o); });
             canvas.requestRenderAll();
         };
 
@@ -6973,7 +6989,7 @@
                     });
 
                     // Add one free-floating hole to position by hand.
-                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add single hole' });
+                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add single fixture' });
                     singleBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         const scale = canvas.scale || 1;
