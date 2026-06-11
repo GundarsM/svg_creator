@@ -4655,13 +4655,17 @@
         /* ── Coach.reapplyMaterials ──────────────────────────────────── */
         Coach.reapplyMaterials = function() {
             if (typeof canvas === 'undefined' || !canvas) return;
+            // Non-imported first (these may cascade flat colours onto contained objects)...
             canvas.getObjects().forEach(function(obj) {
-                if (obj.materialType && obj.materialType !== 'color') {
-                    if (obj.shapeType === 'imported') {
-                        Coach.applyWoodToImported(obj, obj.materialType);
-                    } else if (typeof applyFill === 'function') {
-                        applyFill(obj, obj.materialType);
-                    }
+                if (obj.materialType && obj.materialType !== 'color' &&
+                    obj.shapeType !== 'imported' && typeof applyFill === 'function') {
+                    applyFill(obj, obj.materialType);
+                }
+            });
+            // ...then imported wood LAST so the texture isn't stomped by a cascade.
+            canvas.getObjects().forEach(function(obj) {
+                if (obj.materialType && obj.materialType !== 'color' && obj.shapeType === 'imported') {
+                    Coach.applyWoodToImported(obj, obj.materialType);
                 }
             });
             canvas.requestRenderAll();
@@ -6307,20 +6311,22 @@
                     // ── Shared apply function ─────────────────────────────
                     const applyMaterial = (fillType) => {
                         if (typeof applyFill === 'function') applyFill(obj, fillType);
-                        // Imported vectors have transparent fills, so applyFill skips the
-                        // wood texture for them — force it on EVERY imported object (the
-                        // engine adds each SVG path as its own object) so they match
-                        // integrated outlines.
-                        if (fillType !== 'color' && typeof canvas !== 'undefined' && canvas) {
-                            canvas.getObjects()
-                                .filter(o => o.shapeType === 'imported')
-                                .forEach(o => Coach.applyWoodToImported(o, fillType));
-                        }
                         if (typeof cascadeColorToContained === 'function') {
                             const plastic = document.getElementById('fillColor')
                                 ? document.getElementById('fillColor').value
                                 : '#ffffff';
                             cascadeColorToContained(obj, fillType, plastic);
+                        }
+                        // Imported vectors have transparent fills, so applyFill skips the
+                        // wood texture for them — force it on EVERY imported object (the
+                        // engine adds each SVG path as its own object) so they match
+                        // integrated outlines. MUST run AFTER cascadeColorToContained, which
+                        // would otherwise recolour the other imported paths flat brown and
+                        // stomp the texture we just applied.
+                        if (fillType !== 'color' && typeof canvas !== 'undefined' && canvas) {
+                            canvas.getObjects()
+                                .filter(o => o.shapeType === 'imported')
+                                .forEach(o => Coach.applyWoodToImported(o, fillType));
                         }
                         // Guarantee plastic colour is applied regardless of engine input state
                         if (fillType === 'color') {
