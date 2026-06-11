@@ -4907,41 +4907,50 @@
         };
 
         /* ── Coach image engraving tint ──────────────────────────────────
-           Recolour a PNG/image to the engraving brown (#5c3316) used for cut/
-           engrave areas elsewhere. A BlendColor 'tint' at alpha 1 sets every
-           pixel's RGB to the brown while keeping the alpha, so the image becomes
-           a solid-brown silhouette. The filter serialises with the image, so it
-           survives a resume; isImageBrown detects it by colour. */
+           Recolour any image (incl. multicolour) to the engraving brown
+           (#5c3316). It first desaturates to greyscale, then tints toward the
+           brown so the result is a brown monochrome whose lightness still tracks
+           the original intensity (dark areas → dark brown, light areas → light
+           brown). The filters serialise with the image, so the look survives a
+           resume; isImageBrown detects it by colour to keep the toggle in sync. */
         Coach.IMAGE_BROWN = '#5c3316';
+        Coach.IMAGE_BROWN_ALPHA = 0.6; // how strongly the brown hue replaces the grey
+
+        // True if a filter is one we added for the brown-engrave look.
+        Coach._isBrownFilter = function(f) {
+            if (!f) return false;
+            if (f._coachBrown) return true;
+            if (f.type === 'Grayscale') return true;
+            if (f.type === 'BlendColor' && f.color &&
+                String(f.color).toLowerCase() === Coach.IMAGE_BROWN) return true;
+            return false;
+        };
 
         Coach.isImageBrown = function(img) {
             if (!img || !Array.isArray(img.filters)) return false;
             return img.filters.some(function(f) {
-                return f && f._coachBrown;
-            }) || img.filters.some(function(f) {
-                return f && f.color && String(f.color).toLowerCase() === Coach.IMAGE_BROWN &&
-                       (f.mode === 'tint');
+                return f && (f._coachBrown ||
+                    (f.type === 'BlendColor' && f.color &&
+                     String(f.color).toLowerCase() === Coach.IMAGE_BROWN));
             });
         };
 
         Coach.tintImageBrown = function(img, on) {
             if (!img || img.type !== 'image') return;
-            if (typeof fabric === 'undefined' || !fabric.Image ||
-                !fabric.Image.filters || !fabric.Image.filters.BlendColor) return;
-            // Drop any existing brown tint first (so toggling off is clean).
-            img.filters = (img.filters || []).filter(function(f) {
-                const isBrown = f && (f._coachBrown ||
-                    (f.color && String(f.color).toLowerCase() === Coach.IMAGE_BROWN && f.mode === 'tint'));
-                return !isBrown;
-            });
+            if (typeof fabric === 'undefined' || !fabric.Image || !fabric.Image.filters ||
+                !fabric.Image.filters.BlendColor || !fabric.Image.filters.Grayscale) return;
+            // Drop any previous brown-engrave filters first (clean toggle / reapply).
+            img.filters = (img.filters || []).filter(function(f) { return !Coach._isBrownFilter(f); });
             if (on) {
-                const f = new fabric.Image.filters.BlendColor({
+                const gray = new fabric.Image.filters.Grayscale();
+                gray._coachBrown = true;
+                const tint = new fabric.Image.filters.BlendColor({
                     color: Coach.IMAGE_BROWN,
                     mode: 'tint',
-                    alpha: 1
+                    alpha: Coach.IMAGE_BROWN_ALPHA
                 });
-                f._coachBrown = true;
-                img.filters.push(f);
+                tint._coachBrown = true;
+                img.filters.push(gray, tint);
             }
             img.applyFilters();
             if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
@@ -7221,9 +7230,13 @@
                     const tintRow = mkEl('div', { className: 'coach-row mt-1' });
                     const tintBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm btn-outline-light',
+                        className: 'btn btn-sm',
                         textContent: 'Engrave colour (brown)'
                     });
+                    // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
+                    tintBtn.style.setProperty('background', '#ffc107', 'important');
+                    tintBtn.style.setProperty('color', '#333', 'important');
+                    tintBtn.style.setProperty('border-color', '#e0a800', 'important');
                     const pickImage = function() {
                         if (typeof canvas === 'undefined' || !canvas) return null;
                         const active = canvas.getActiveObject();
