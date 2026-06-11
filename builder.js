@@ -4777,6 +4777,135 @@
             canvas.requestRenderAll();
         };
 
+        /* ── Coach.countOutlines ─────────────────────────────────────────
+           How many separate outlines live inside ONE loaded object: the number
+           of child objects in a group, or the number of subpaths (M/m commands)
+           in a compound fabric.Path. 1 (or 0) means nothing to reduce. */
+        Coach.countOutlines = function(obj) {
+            if (!obj) return 0;
+            if (obj.type === 'group' && typeof obj.getObjects === 'function') {
+                return obj.getObjects().length;
+            }
+            if (obj.type === 'path' && Array.isArray(obj.path)) {
+                let n = 0;
+                obj.path.forEach(function(cmd) {
+                    const c = cmd && cmd[0];
+                    if (c === 'M' || c === 'm') n++;
+                });
+                return n;
+            }
+            return 1;
+        };
+
+        /* ── Coach._splitSubpaths ────────────────────────────────────────
+           Split a fabric.Path command array into one array per subpath (each
+           subpath starts at an M/m command). */
+        Coach._splitSubpaths = function(pathArr) {
+            const subs = [];
+            let cur = null;
+            pathArr.forEach(function(cmd) {
+                const c = cmd && cmd[0];
+                if (c === 'M' || c === 'm') {
+                    if (cur && cur.length) subs.push(cur);
+                    cur = [cmd];
+                } else {
+                    if (!cur) cur = [];
+                    cur.push(cmd);
+                }
+            });
+            if (cur && cur.length) subs.push(cur);
+            return subs;
+        };
+
+        /* ── Coach.reduceToLargestOutline ────────────────────────────────
+           Keep only the largest outline inside a single loaded object, dropping
+           the smaller ones. Handles a compound fabric.Path (rebuilds it from the
+           biggest subpath, preserving on-canvas position/scale/style) and a group
+           (removes all but the biggest child). Returns true if it reduced. */
+        Coach.reduceToLargestOutline = function(obj) {
+            if (!obj || typeof canvas === 'undefined' || !canvas) return false;
+
+            // Group: keep the largest child.
+            if (obj.type === 'group' && typeof obj.getObjects === 'function') {
+                const kids = obj.getObjects().slice();
+                if (kids.length <= 1) return false;
+                let best = kids[0], bestA = -1;
+                kids.forEach(function(c) {
+                    const a = (c.width || 0) * (c.height || 0);
+                    if (a > bestA) { bestA = a; best = c; }
+                });
+                kids.forEach(function(c) {
+                    if (c !== best) {
+                        if (typeof obj.removeWithUpdate === 'function') obj.removeWithUpdate(c);
+                        else obj.remove(c);
+                    }
+                });
+                obj.setCoords();
+                canvas.requestRenderAll();
+                if (typeof saveState === 'function') saveState();
+                return true;
+            }
+
+            // Compound path: keep the largest subpath.
+            if (obj.type === 'path' && Array.isArray(obj.path)) {
+                const subs = Coach._splitSubpaths(obj.path);
+                if (subs.length <= 1) return false;
+                const toStr = function(cmds) { return cmds.map(function(c) { return c.join(' '); }).join(' '); };
+
+                let bestStr = null, bestArea = -1;
+                subs.forEach(function(sub) {
+                    const t = new fabric.Path(toStr(sub));
+                    const a = (t.width || 0) * (t.height || 0);
+                    if (a > bestArea) { bestArea = a; bestStr = toStr(sub); }
+                });
+                if (!bestStr) return false;
+
+                const tmp = new fabric.Path(bestStr);
+                // Shift so the kept subpath stays exactly where it is on canvas
+                // (left/top are world coords of the origin, so add a world-space delta).
+                const sx = obj.scaleX || 1, sy = obj.scaleY || 1;
+                const lx = (tmp.pathOffset.x - obj.pathOffset.x) * sx;
+                const ly = (tmp.pathOffset.y - obj.pathOffset.y) * sy;
+                const rad = (typeof fabric.util !== 'undefined' && fabric.util.degreesToRadians)
+                    ? fabric.util.degreesToRadians(obj.angle || 0)
+                    : ((obj.angle || 0) * Math.PI / 180);
+                const cos = Math.cos(rad), sin = Math.sin(rad);
+
+                const newPath = new fabric.Path(bestStr, {
+                    left:          obj.left + (lx * cos - ly * sin),
+                    top:           obj.top  + (lx * sin + ly * cos),
+                    originX:       obj.originX,
+                    originY:       obj.originY,
+                    scaleX:        sx,
+                    scaleY:        sy,
+                    angle:         obj.angle,
+                    fill:          obj.fill,
+                    stroke:        obj.stroke,
+                    strokeWidth:   obj.strokeWidth,
+                    strokeUniform: obj.strokeUniform,
+                    fillRule:      obj.fillRule,
+                    paintFirst:    obj.paintFirst,
+                    opacity:       obj.opacity
+                });
+                ['shapeType', 'coachHolderId', 'materialType', 'realWidth', 'realHeight'].forEach(function(k) {
+                    if (obj[k] !== undefined) newPath[k] = obj[k];
+                });
+
+                const wasActive = canvas.getActiveObject() === obj;
+                const wasHolder = Coach.state.holderObj === obj;
+                canvas.remove(obj);
+                canvas.add(newPath);
+                if (wasHolder) Coach.state.holderObj = newPath;
+                if (wasActive) canvas.setActiveObject(newPath);
+                newPath.setCoords();
+                canvas.requestRenderAll();
+                if (typeof saveState === 'function') saveState();
+                return true;
+            }
+
+            return false;
+        };
+
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
         Coach.resolveHolder = function() {
             if (typeof canvas === 'undefined' || !canvas) return;
@@ -5991,6 +6120,35 @@
                     // ── 1. Intro ───────────────────────────────────────────
                     const intro = mkEl('p', { className: 'mb-3', textContent: this.intro });
                     el.appendChild(intro);
+
+                    // Show "Reduce objects" only when the loaded SVG packs more than one
+                    // outline into a single object — lets the customer drop the smaller
+                    // outlines, keeping just the main one, in one click.
+                    (function maybeReduce() {
+                        const h = Coach.state.holderObj;
+                        if (!h || Coach.countOutlines(h) <= 1) return;
+                        const row = mkEl('div', { className: 'coach-row mb-2' });
+                        const btn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm',
+                            textContent: 'Reduce objects'
+                        });
+                        btn.title = 'Keep only the largest outline in the loaded shape, removing the smaller ones';
+                        // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
+                        btn.style.setProperty('background', '#ffc107', 'important');
+                        btn.style.setProperty('color', '#333', 'important');
+                        btn.style.setProperty('border-color', '#e0a800', 'important');
+                        btn.addEventListener('click', function() {
+                            Coach.reduceToLargestOutline(Coach.state.holderObj);
+                            Coach.render();
+                        });
+                        row.appendChild(btn);
+                        el.appendChild(row);
+                        el.appendChild(mkEl('p', {
+                            className: 'small text-muted mb-3',
+                            textContent: 'Your loaded shape has several outlines in one object. Reduce objects keeps the largest and removes the rest.'
+                        }));
+                    }());
 
                     // ── 2. Base-shape picker (FIX H) ──────────────────────
                     const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a base shape' });
