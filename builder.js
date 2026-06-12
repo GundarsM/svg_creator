@@ -470,21 +470,79 @@
                 font-size: 14px;
             }
 
+            /* The Coach now fills the left sidebar instead of floating. */
             #coach-bubble {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                width: 320px;
-                max-width: calc(100vw - 40px);
+                position: static;
+                width: 100%;
+                max-width: none;
                 background: #dbdbdb;
                 color: #333;
                 border-radius: 10px;
-                box-shadow: 0 8px 28px rgba(0, 0, 0, .3);
-                z-index: 9999;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, .1);
                 font-family: 'Athelas', Georgia, serif;
                 font-size: 14px;
                 overflow: hidden;
             }
+
+            /* Step tabs — full-width vertical list down the left sidebar. */
+            #coach-steps {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                padding: 10px 12px;
+                border-bottom: 1px solid rgba(52, 71, 52, .12);
+            }
+            .coach-step-tab {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                width: 100%;
+                text-align: left;
+                border: 1px solid transparent;
+                border-radius: 8px;
+                padding: 8px 10px;
+                cursor: pointer;
+                font-family: 'Athelas', Georgia, serif;
+                font-size: 13px;
+                line-height: 1.25;
+                background: #e9e9e9;
+                color: #333;
+                transition: background .15s, color .15s, border-color .15s;
+            }
+            .coach-step-tab:hover { border-color: #344734; }
+            .coach-step-tab .coach-step-num {
+                flex: 0 0 auto;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                font-size: 11px;
+                font-weight: bold;
+                background: rgba(0, 0, 0, .12);
+                color: inherit;
+            }
+            .coach-step-tab .coach-step-label { flex: 1 1 auto; }
+            .coach-step-tab .coach-step-check { flex: 0 0 auto; font-size: 12px; opacity: .9; }
+            /* Used but not yet complete */
+            .coach-step-tab.is-used {
+                background: #cfe3cf;
+                color: #344734;
+            }
+            /* Visited and complete ("finished") */
+            .coach-step-tab.is-done {
+                background: #4a7c4a;
+                color: #fff;
+            }
+            .coach-step-tab.is-done .coach-step-num { background: rgba(255, 255, 255, .25); }
+            /* The step currently open */
+            .coach-step-tab.is-current {
+                background: #344734;
+                color: #fff;
+                border-color: #344734;
+            }
+            .coach-step-tab.is-current .coach-step-num { background: rgba(255, 255, 255, .25); }
 
             #coach-header {
                 display: flex;
@@ -743,20 +801,10 @@
 
             /* Responsive — mobile sheet */
             @media (max-width: 768px) {
+                /* On mobile the sidebar stacks above the canvas; the Coach just flows. */
                 #coach-bubble {
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    width: 100%;
-                    max-width: 100%;
-                    border-radius: 16px 16px 0 0;
+                    border-radius: 10px;
                 }
-
-                #coach-drag {
-                    display: none;
-                }
-
-                #design-tool-wrapper { padding-bottom: 60vh; }
             }
         </style>
         <!-- ═══════════════════════════════════════════════════════
@@ -770,181 +818,25 @@
             </div>
 
             <div class="main-layout">
-                <!-- Left Sidebar - Tools -->
+                <!-- Left Sidebar - Coach (guided builder) -->
                 <div class="sidebar-left">
-                    <div class="tool-panel">
-                        <h3 id="coachTemplatesHeading">Start with a Template</h3>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('germany-euro')">
-                                <i class="fas fa-layer-group"></i> Rectangle Coin Display
-                            </button>
-                            <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('uk-coins')">
-                                <i class="fas fa-layer-group"></i> Circular Coin Display
-                            </button>
-                            <button class="btn btn-sm btn-outline-info" style="flex: 1;" onclick="addTemplate('memories')">
-                                <i class="fas fa-layer-group"></i> Pressed Penny Collection
-                            </button>
+                    <div id="coach-bubble">
+                        <div id="coach-header">
+                            <span id="coach-progress"></span>
+                            <span id="coach-title"></span>
                         </div>
-
-                        <h3 class="mt-4" id="coachCoinsHeading">Add Coins</h3>
-                        <button class="btn btn-outline-warning shape-btn" onclick="addCurrency('euro')">
-                            <i class="fas fa-coins"></i> Add All Euro Coins
-                        </button>
-                        <div class="coin-buttons">
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.01 €', 16.4)">0.01 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.02 €', 18.9)">0.02 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.05 €', 21.4)">0.05 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.10 €', 19.9)">0.10 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.20 €', 22.4)">0.20 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('0.50 €', 24.4)">0.50 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1 €', 23.4)">1 €</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2 €', 25.75)">2 €</button>
+                        <div id="coach-steps"></div>
+                        <div id="coach-body"></div>
+                        <div id="coach-footer">
+                            <button id="coach-back" type="button">‹ Back</button>
+                            <button id="coach-next" type="button">Next ›</button>
                         </div>
-
-                        <button class="btn btn-outline-warning shape-btn mt-3" onclick="addCurrency('dollar')">
-                            <i class="fas fa-coins"></i> Add All US Dollar Coins
-                        </button>
-                        <div class="coin-buttons">
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1 ¢', 19.25)">1 ¢</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('5 ¢', 21.36)">5 ¢</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('10 ¢', 18.06)">10 ¢</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('25 ¢', 24.41)">25 ¢</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('50 ¢', 30.76)">50 ¢</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('$ 1', 26.65)">$ 1</button>
-                        </div>
-
-                        <button class="btn btn-outline-warning shape-btn mt-3" onclick="addCurrency('pound')">
-                            <i class="fas fa-coins"></i> Add All UK Pound Coins
-                        </button>
-                        <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
-                            <defs>
-                                <clipPath id="clip20p" clipPathUnits="objectBoundingBox" transform="scale(0.047453,0.047610) translate(-0.17932,-0.31917)">
-                                    <path d="M17.81 18.42 c0.01 -0.01 0.12 -0.08 0.12 -0.09 l0.05 -0.06 c0.03 -0.04 0.03 -0.04 0.07 -0.09 0.52 -0.64 2.00 -2.40 2.35 -3.15 0.19 -0.41 0.54 -1.12 0.67 -1.51 0.52 -1.58 -0.18 -5.09 -0.75 -6.58 -0.84 -2.25 -1.00 -2.48 -2.35 -3.71 -0.59 -0.42 -0.94 -0.66 -1.58 -1.01 l-2.31 -1.06 c-2.74 -1.06 -4.13 -1.17 -6.76 -0.03 -1.26 0.55 -2.16 1.07 -3.23 1.73 -2.32 1.44 -2.97 3.41 -3.77 6.60 -0.30 3.59 -0.33 4.76 2.11 7.74 1.45 1.77 2.90 3.66 5.24 3.93 2.44 0.29 2.83 0.20 5.00 0.07 1.84 -0.11 2.56 -0.22 3.84 -1.46 0.26 -0.25 0.46 -0.43 0.67 -0.65 0.24 -0.25 0.45 -0.42 0.63 -0.69"/>
-                                </clipPath>
-                                <clipPath id="clip50p" clipPathUnits="objectBoundingBox" transform="scale(0.037179,0.037190) translate(-0.26668,-0.27966)">
-                                    <path d="M23.90 4.81 l-3.12 -1.89 c-1.27 -0.77 -5.67 -2.92 -7.31 -2.61 -3.35 0.63 -7.38 2.75 -10.11 4.93 -0.84 0.67 -1.10 2.56 -1.64 3.47 l-0.94 3.24 c-0.10 0.62 -0.20 1.13 -0.27 1.78 -0.32 2.98 -0.51 3.16 0.66 5.15 1.23 2.08 2.87 4.15 4.58 5.89 1.52 1.30 1.90 1.88 4.04 2.12 1.37 0.16 2.48 0.26 3.57 0.28 l0.85 0.00 c1.04 -0.02 2.12 -0.12 3.45 -0.33 1.91 -0.30 1.72 -0.24 2.92 -1.27 2.65 -2.27 4.05 -4.02 5.80 -6.98 1.13 -1.90 0.80 -2.35 0.48 -5.27 -0.38 -2.29 -1.31 -6.73 -2.96 -8.51 z"/>
-                                </clipPath>
-                                <filter id="coin-outline" x="-10%" y="-10%" width="120%" height="120%">
-                                    <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="expanded"/>
-                                    <feFlood flood-color="#ffc107" flood-opacity="1" result="color"/>
-                                    <feComposite in="color" in2="expanded" operator="in" result="border"/>
-                                    <feMerge>
-                                        <feMergeNode in="border"/>
-                                        <feMergeNode in="SourceGraphic"/>
-                                    </feMerge>
-                                </filter>
-                            </defs>
-                        </svg>
-                        <div class="coin-buttons">
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1p', 20.47)">1p</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2p', 26.06)">2p</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('5p', 18.15)">5p</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('10p', 24.65)">10p</button>
-                            <span class="coin-btn-wrap"><button class="btn btn-sm btn-outline-warning coin-20p" onclick="addSingleCoin('20p', 21.55)">20p</button></span>
-                            <span class="coin-btn-wrap"><button class="btn btn-sm btn-outline-warning coin-50p" onclick="addSingleCoin('50p', 27.45)">50p</button></span>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('1£', 23.18)">1£</button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="addSingleCoin('2£', 28.55)">2£</button>
-                        </div>
-
-                        <h3 class="mt-4" id="coachCountriesHeading">Add Country Outlines</h3>
-                        <div class="country-buttons">
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-                            <span style="flex: 1; font-size: 0.9em;">USA</span>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('usa')">
-                                <i class="fas fa-map"></i> Solid
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('usa')">
-                                <i class="far fa-map"></i> Outline
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-                            <span style="flex: 1; font-size: 0.9em;">UK</span>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('uk')">
-                                <i class="fas fa-map"></i> Solid
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('uk')">
-                                <i class="far fa-map"></i> Outline
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-                            <span style="flex: 1; font-size: 0.9em;">Australia</span>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('australia')">
-                                <i class="fas fa-map"></i> Solid
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('australia')">
-                                <i class="far fa-map"></i> Outline
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-                            <span style="flex: 1; font-size: 0.9em;">Canada</span>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('canada')">
-                                <i class="fas fa-map"></i> Solid
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('canada')">
-                                <i class="far fa-map"></i> Outline
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-                            <span style="flex: 1; font-size: 0.9em;">Germany</span>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('germany')">
-                                <i class="fas fa-map"></i> Solid
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('germany')">
-                                <i class="far fa-map"></i> Outline
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-                            <span style="flex: 1; font-size: 0.9em;">Italy</span>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountry('italy')">
-                                <i class="fas fa-map"></i> Solid
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addCountryOutline('italy')">
-                                <i class="far fa-map"></i> Outline
-                            </button>
-                        </div>
-                        </div>
-
-                        <h3 class="mt-4" id="coachShapesHeading">Add Shapes</h3>
-                        <div class="shape-row-label">Filled:</div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle')">
-                                <i class="fas fa-square"></i> Rectangle
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('circle')">
-                                <i class="fas fa-circle"></i> Circle
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('ellipse')">
-                                <i class="fas fa-circle"></i> Ellipse
-                            </button>
-                        </div>
-                        <div class="shape-row-label">Outline:</div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('rectangle-outline')">
-                                <i class="far fa-square"></i> Rectangle
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('circle-outline')">
-                                <i class="far fa-circle"></i> Circle
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" style="flex: 1;" onclick="addShape('ellipse-outline')">
-                                <i class="far fa-circle"></i> Ellipse
-                            </button>
-                        </div>
-
-                        <h3 class="mt-4" id="coachTextHeading">Add Text & Images</h3>
-                        <button class="btn btn-outline-info shape-btn" onclick="addText()">
-                            <i class="fas fa-font"></i> Add Text
-                        </button>
-                        <button class="btn btn-outline-info shape-btn" onclick="document.getElementById('imageUpload').click()">
-                            <i class="fas fa-image"></i> Add Image
-                        </button>
+                        <!-- Hidden file inputs: the engine attaches change-listeners by id and the Coach triggers them via .click(), so they must stay in the DOM. -->
                         <input type="file" id="imageUpload" accept="image/png,image/jpg,image/jpeg" style="display:none;">
-                        <button class="btn btn-outline-info shape-btn" onclick="document.getElementById('fileImport').click()">
-                            <i class="fas fa-file-import"></i> Import Design File
-                        </button>
                         <input type="file" id="fileImport" accept=".svg" style="display:none;">
                     </div>
                 </div>
-                
+
                 <!-- Center - Canvas -->
                 <div class="canvas-column">
                     <!-- Canvas Toolbar -->
@@ -4166,29 +4058,7 @@
             });
         </script>
 
-        <!-- ═══════════════════════════════════════════════════════
-             COACH REGION — root markup; JS wired in Task 3
-             ═══════════════════════════════════════════════════════ -->
-        <div id="coach-root">
-            <button id="coach-launcher" type="button" hidden>💬 Need a hand?</button>
-            <div id="coach-bubble">
-                <div id="coach-header">
-                    <span id="coach-progress"></span>
-                    <span id="coach-title"></span>
-                    <button id="coach-collapse" type="button" aria-label="Collapse">–</button>
-                    <span id="coach-drag" aria-hidden="true">⠿</span>
-                </div>
-                <div id="coach-body"></div>
-                <div id="coach-footer">
-                    <button id="coach-back" type="button">‹ Back</button>
-                    <button id="coach-next" type="button">Next ›</button>
-                    <div id="coach-dots"></div>
-                </div>
-            </div>
-        </div>
-        <!-- ═══════════════════════════════════════════════════════
-             END COACH REGION
-             ═══════════════════════════════════════════════════════ -->
+        <!-- The Coach now lives in the left sidebar (#coach-bubble), not a floating bubble. -->
 
         <!-- ═══════════════════════════════════════════════════════
              COACH CORE (Task 3)
@@ -4355,47 +4225,65 @@
                     nextBtn.textContent = isLast ? 'Finish' : 'Next ›';
                 }
 
-                // Dots
-                Coach.renderDots();
+                // Step tabs (left-sidebar stepper)
+                Coach.renderTabs();
             },
 
-            /* ── 4. Dots ──────────────────────────────────────────── */
-            renderDots() {
-                const dotsEl = document.getElementById('coach-dots');
-                if (!dotsEl) return;
+            /* ── A step is "done" when its completion check passes, or — for
+                 steps without an explicit check — once it has been visited. ── */
+            isStepDone(i) {
+                const step = Coach.steps[i];
+                if (!step) return false;
+                if (typeof step.isComplete === 'function') return !!step.isComplete();
+                return Coach.visited.has(i);
+            },
 
-                dotsEl.innerHTML = '';
+            /* ── 4. Step tabs ─────────────────────────────────────────
+               Full-width vertical tabs down the left sidebar. Each shows the
+               step number + its main action, is clickable to jump straight to
+               that step, and is colour-coded:
+                 • current  → dark green
+                 • done      → green + ✓  (visited and complete)
+                 • used      → light green (visited but not yet complete)
+                 • untouched → grey */
+            renderTabs() {
+                const stepsEl = document.getElementById('coach-steps');
+                if (!stepsEl) return;
+                stepsEl.innerHTML = '';
 
                 Coach.steps.forEach((step, i) => {
-                    const dot = document.createElement('span');
-                    dot.style.cssText = [
-                        'display:inline-block',
-                        'width:8px',
-                        'height:8px',
-                        'border-radius:50%',
-                        'margin:0 1px',
-                        'cursor:pointer',
-                        'flex:0 0 auto',
-                        'vertical-align:middle',
-                        'transition:background 0.2s'
-                    ].join(';');
+                    const tab = document.createElement('button');
+                    tab.type = 'button';
+                    tab.className = 'coach-step-tab';
 
-                    const isActive  = i === Coach.current;
+                    const isCurrent = i === Coach.current;
                     const isVisited = Coach.visited.has(i);
+                    const isDone    = Coach.isStepDone(i);
 
-                    // Current step = scaled dark green; any step already visited = green; rest grey.
-                    if (isActive) {
-                        dot.style.background = '#344734';
-                        dot.style.transform  = 'scale(1.3)';
-                    } else if (isVisited) {
-                        dot.style.background = '#4a7c4a';
-                    } else {
-                        dot.style.background = '#bbb';
+                    if (isCurrent)      tab.classList.add('is-current');
+                    else if (isDone)    tab.classList.add('is-done');
+                    else if (isVisited) tab.classList.add('is-used');
+
+                    const num = document.createElement('span');
+                    num.className = 'coach-step-num';
+                    num.textContent = (i + 1);
+                    tab.appendChild(num);
+
+                    const label = document.createElement('span');
+                    label.className = 'coach-step-label';
+                    label.textContent = step.title + (step.optional ? ' (optional)' : '');
+                    tab.appendChild(label);
+
+                    if (isDone) {
+                        const check = document.createElement('span');
+                        check.className = 'coach-step-check';
+                        check.textContent = '✓';
+                        tab.appendChild(check);
                     }
 
-                    dot.title = step.title;
-                    dot.addEventListener('click', () => Coach.go(i));
-                    dotsEl.appendChild(dot);
+                    tab.title = step.title;
+                    tab.addEventListener('click', () => Coach.go(i));
+                    stepsEl.appendChild(tab);
                 });
             },
 
@@ -5071,19 +4959,11 @@
         };
 
         /* ── Coach.collapse / expand ──────────────────────────────────── */
-        Coach.collapse = function() {
-            const b = document.getElementById('coach-bubble');
-            const l = document.getElementById('coach-launcher');
-            if (b) b.style.display = 'none';
-            if (l) l.removeAttribute('hidden');
-        };
-
-        Coach.expand = function() {
-            const b = document.getElementById('coach-bubble');
-            const l = document.getElementById('coach-launcher');
-            if (b) b.style.display = '';
-            if (l) l.setAttribute('hidden', '');
-        };
+        // The Coach is now a fixed left-sidebar panel — there's nothing to
+        // collapse to or expand from, so these are intentional no-ops (kept so
+        // any legacy callers don't throw).
+        Coach.collapse = function() {};
+        Coach.expand = function() {};
 
         /* ── Coach.finish ─────────────────────────────────────────────── */
         Coach.finish = function() {
@@ -5092,10 +4972,9 @@
                 bodyEl.innerHTML = '';
                 const msg = document.createElement('p');
                 msg.className = 'mb-2';
-                msg.innerHTML = '&#127881; You\'re all set! Use <strong>Download SVG</strong> or <strong>Request a Quote</strong> above. Reopen this helper anytime.';
+                msg.innerHTML = '&#127881; You\'re all set! Use the <strong>Review &amp; request</strong> step to <strong>Download SVG</strong> or <strong>Request a Quote</strong>. You can revisit any step from the tabs above.';
                 bodyEl.appendChild(msg);
             }
-            setTimeout(function() { Coach.collapse(); }, 2800);
         };
 
         /* ── Coach._holderDistanceField ───────────────────────────────
