@@ -484,81 +484,55 @@
                 overflow: hidden;
             }
 
-            /* Step tabs — full-width vertical list down the left sidebar. */
+            /* Step stepper — a compact horizontal row of numbered chips. */
             #coach-steps {
                 display: flex;
-                flex-direction: column;
-                gap: 4px;
-                padding: 10px 12px;
-                border-bottom: 1px solid rgba(52, 71, 52, .12);
-            }
-            .coach-step-tab {
-                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
                 align-items: center;
-                gap: 8px;
-                width: 100%;
-                text-align: left;
-                border: 1px solid transparent;
-                border-radius: 8px;
-                padding: 8px 10px;
-                cursor: pointer;
-                font-family: 'Athelas', Georgia, serif;
-                font-size: 13px;
-                line-height: 1.25;
-                background: #e9e9e9;
-                color: #333;
-                transition: background .15s, color .15s, border-color .15s;
+                gap: 5px;
+                padding: 8px 12px 4px;
             }
-            .coach-step-tab:hover { border-color: #344734; }
-            .coach-step-tab .coach-step-num {
+            .coach-step-chip {
                 flex: 0 0 auto;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
                 border-radius: 50%;
-                font-size: 11px;
+                border: 1px solid transparent;
+                background: #e3e3e3;
+                color: #444;
+                font-family: 'Athelas', Georgia, serif;
+                font-size: 12px;
                 font-weight: bold;
-                background: rgba(0, 0, 0, .12);
-                color: inherit;
+                cursor: pointer;
+                transition: background .15s, color .15s, border-color .15s;
             }
-            .coach-step-tab .coach-step-label { flex: 1 1 auto; }
-            .coach-step-tab .coach-step-check { flex: 0 0 auto; font-size: 12px; opacity: .9; }
-            /* Used but not yet complete */
-            .coach-step-tab.is-used {
-                background: #cfe3cf;
-                color: #344734;
-            }
-            /* Visited and complete ("finished") */
-            .coach-step-tab.is-done {
-                background: #4a7c4a;
-                color: #fff;
-            }
-            .coach-step-tab.is-done .coach-step-num { background: rgba(255, 255, 255, .25); }
+            .coach-step-chip:hover { border-color: #344734; }
+            /* Visited but not yet marked done */
+            .coach-step-chip.is-used { background: #cfe3cf; color: #344734; }
+            /* Done — Next was pressed on this step */
+            .coach-step-chip.is-done { background: #4a7c4a; color: #fff; }
             /* The step currently open */
-            .coach-step-tab.is-current {
-                background: #344734;
-                color: #fff;
-                border-color: #344734;
-            }
-            .coach-step-tab.is-current .coach-step-num { background: rgba(255, 255, 255, .25); }
+            .coach-step-chip.is-current { background: #344734; color: #fff; border-color: #344734; }
 
+            /* Single changing label naming the current step. */
             #coach-header {
                 display: flex;
                 flex-direction: row;
-                align-items: center;
+                align-items: baseline;
                 gap: 8px;
-                padding: 10px 14px 8px;
-                background: #cfe3cf;
-                border-bottom: 1px solid rgba(52, 71, 52, .15);
+                padding: 2px 12px 6px;
+                background: transparent;
             }
 
             #coach-progress {
                 font-size: 10px;
                 text-transform: uppercase;
                 letter-spacing: .06em;
-                color: #344734;
+                color: #4a7c4a;
                 flex-shrink: 0;
             }
 
@@ -566,7 +540,7 @@
                 font-weight: bold;
                 color: #333;
                 flex: 1;
-                font-size: 13px;
+                font-size: 14px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -821,16 +795,16 @@
                 <!-- Left Sidebar - Coach (guided builder) -->
                 <div class="sidebar-left">
                     <div id="coach-bubble">
+                        <div id="coach-steps"></div>
                         <div id="coach-header">
                             <span id="coach-progress"></span>
                             <span id="coach-title"></span>
                         </div>
-                        <div id="coach-steps"></div>
-                        <div id="coach-body"></div>
                         <div id="coach-footer">
                             <button id="coach-back" type="button">‹ Back</button>
                             <button id="coach-next" type="button">Next ›</button>
                         </div>
+                        <div id="coach-body"></div>
                         <!-- Hidden file inputs: the engine attaches change-listeners by id and the Coach triggers them via .click(), so they must stay in the DOM. -->
                         <input type="file" id="imageUpload" accept="image/png,image/jpg,image/jpeg" style="display:none;">
                         <input type="file" id="fileImport" accept=".svg" style="display:none;">
@@ -4071,8 +4045,9 @@
             current: 0,
             state: {},
             steps: [],          // populated below, after SELECTORS is defined
-            visited: new Set(), // step indices the customer has landed on (shown green)
-            _highlighted: [],   // elements currently carrying .coach-highlight
+            visited: new Set(),   // step indices the customer has landed on
+            completed: new Set(), // step indices marked done (Next pressed while on them)
+            _highlighted: [],     // elements currently carrying .coach-highlight
 
             SELECTORS: {
                 templates:      '#coachTemplatesHeading',
@@ -4169,7 +4144,10 @@
             },
 
             next() {
-                if (Coach.current === Coach.steps.length - 1) { Coach.finish(); return; }
+                // Last step has no Next/Finish — nothing to advance to.
+                if (Coach.current === Coach.steps.length - 1) return;
+                // Mark the step we're leaving as done, then advance.
+                Coach.completed.add(Coach.current);
                 Coach.go(Coach.current + 1);
             },
             back() { Coach.go(Coach.current - 1); },
@@ -4220,70 +4198,54 @@
                 }
 
                 // Footer — next button label
+                // Last step (Review) is the end — no Next/Finish button at all.
                 const nextBtn = document.getElementById('coach-next');
                 if (nextBtn) {
-                    nextBtn.textContent = isLast ? 'Finish' : 'Next ›';
+                    nextBtn.style.display = isLast ? 'none' : '';
+                    nextBtn.textContent = 'Next ›';
                 }
 
                 // Step tabs (left-sidebar stepper)
                 Coach.renderTabs();
             },
 
-            /* ── A step is "done" when its completion check passes, or — for
-                 steps without an explicit check — once it has been visited. ── */
+            /* ── A step is "done" only once the customer has pressed Next while
+                 on it (tracked in Coach.completed). ── */
             isStepDone(i) {
-                const step = Coach.steps[i];
-                if (!step) return false;
-                if (typeof step.isComplete === 'function') return !!step.isComplete();
-                return Coach.visited.has(i);
+                return Coach.completed.has(i);
             },
 
-            /* ── 4. Step tabs ─────────────────────────────────────────
-               Full-width vertical tabs down the left sidebar. Each shows the
-               step number + its main action, is clickable to jump straight to
-               that step, and is colour-coded:
-                 • current  → dark green
-                 • done      → green + ✓  (visited and complete)
-                 • used      → light green (visited but not yet complete)
-                 • untouched → grey */
+            /* ── 4. Step stepper ──────────────────────────────────────
+               A compact horizontal row of numbered chips. Each is clickable to
+               jump straight to that step and is colour-coded:
+                 • current   → dark green
+                 • done       → green (Next was pressed on it)
+                 • used       → light green (visited, Next not yet pressed)
+                 • untouched  → grey
+               The current step's name shows in the single label (#coach-title). */
             renderTabs() {
                 const stepsEl = document.getElementById('coach-steps');
                 if (!stepsEl) return;
                 stepsEl.innerHTML = '';
 
                 Coach.steps.forEach((step, i) => {
-                    const tab = document.createElement('button');
-                    tab.type = 'button';
-                    tab.className = 'coach-step-tab';
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'coach-step-chip';
 
                     const isCurrent = i === Coach.current;
                     const isVisited = Coach.visited.has(i);
                     const isDone    = Coach.isStepDone(i);
 
-                    if (isCurrent)      tab.classList.add('is-current');
-                    else if (isDone)    tab.classList.add('is-done');
-                    else if (isVisited) tab.classList.add('is-used');
+                    if (isCurrent)      chip.classList.add('is-current');
+                    else if (isDone)    chip.classList.add('is-done');
+                    else if (isVisited) chip.classList.add('is-used');
 
-                    const num = document.createElement('span');
-                    num.className = 'coach-step-num';
-                    num.textContent = (i + 1);
-                    tab.appendChild(num);
-
-                    const label = document.createElement('span');
-                    label.className = 'coach-step-label';
-                    label.textContent = step.title + (step.optional ? ' (optional)' : '');
-                    tab.appendChild(label);
-
-                    if (isDone) {
-                        const check = document.createElement('span');
-                        check.className = 'coach-step-check';
-                        check.textContent = '✓';
-                        tab.appendChild(check);
-                    }
-
-                    tab.title = step.title;
-                    tab.addEventListener('click', () => Coach.go(i));
-                    stepsEl.appendChild(tab);
+                    // A done (non-current) chip shows a tick; otherwise the number.
+                    chip.textContent = (isDone && !isCurrent) ? '✓' : (i + 1);
+                    chip.title = (i + 1) + '. ' + step.title + (step.optional ? ' (optional)' : '');
+                    chip.addEventListener('click', () => Coach.go(i));
+                    stepsEl.appendChild(chip);
                 });
             },
 
@@ -4533,8 +4495,10 @@
                     Coach.resolveHolder();
                     canvas.renderAll();
                     const savedStep = typeof saved.step === 'number' ? saved.step : 0;
-                    // Treat every step up to where they left off as visited (green).
+                    // Mark every step up to where they left off as visited, and the
+                    // ones they advanced past (Next pressed) as done.
                     for (let i = 0; i <= savedStep; i++) Coach.visited.add(i);
+                    for (let i = 0; i < savedStep; i++) Coach.completed.add(i);
                     Coach.go(savedStep);
                 });
             }
@@ -4935,6 +4899,7 @@
             Coach.state = {};
             Coach.current = 0;
             Coach.visited = new Set();
+            Coach.completed = new Set();
             Coach.expand();
             Coach.go(0);
         };
