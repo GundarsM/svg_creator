@@ -7071,10 +7071,10 @@
                     el.appendChild(shapeHint);
 
                     // Muted note
-                    const note = document.createElement('p');
-                    note.className = 'small text-muted mb-0';
-                    note.textContent = 'Or just drag the coins around the canvas yourself.';
-                    el.appendChild(note);
+                    // const note = document.createElement('p');
+                    // note.className = 'small text-muted mb-0';
+                    // note.textContent = 'Or just drag the coins around the canvas yourself.';
+                    // el.appendChild(note);
                 }
             },
             {
@@ -7311,7 +7311,7 @@
                     // Reflect the current target's state in the button label.
                     const syncTintLabel = function() {
                         const t = pickEngraveTarget();
-                        tintBtn.textContent = (t && Coach.isEngraved(t)) ? 'Restore colour' : 'Engrave colour';
+                        tintBtn.textContent = (t && Coach.isEngraved(t)) ? 'Restore colour' : 'Preview engraved colour';
                     };
                     tintBtn.addEventListener('click', function() {
                         const t = pickEngraveTarget();
