@@ -563,6 +563,21 @@
             /* The step currently open */
             .coach-step-chip.is-current { background: #344734; color: #fff; border-color: #344734; }
 
+            /* "Start over" ↺ control, sitting at the far right of the step row. */
+            .coach-startover {
+                margin-left: auto;
+                background: none;
+                border: none;
+                cursor: pointer;
+                font-size: 0.95rem;
+                line-height: 1;
+                padding: 0 2px;
+                color: #444;
+                opacity: 0.55;
+                transition: opacity .15s;
+            }
+            .coach-startover:hover { opacity: 1; }
+
             /* Single changing label naming the current step. */
             #coach-header {
                 display: flex;
@@ -4177,22 +4192,7 @@
                                 canvas.requestRenderAll();
                             }
                         });
-                        // Add "Start over" button to header
-                        (function addStartOver() {
-                            const hdr = document.getElementById('coach-header');
-                            if (hdr && !document.getElementById('coach-startover')) {
-                                const btn = document.createElement('button');
-                                btn.id        = 'coach-startover';
-                                btn.type      = 'button';
-                                btn.title     = 'Start over';
-                                btn.textContent = '↺';
-                                btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:0.85rem;opacity:0.55;padding:0 2px;line-height:1;';
-                                btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
-                                btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.55'; });
-                                btn.addEventListener('click', () => Coach.startOver());
-                                hdr.appendChild(btn);
-                            }
-                        }());
+                        // (The "Start over" ↺ control lives on the step-chip row; see renderTabs.)
                         // Make the engine's main "Start Over" button confirm AND reset the Coach.
                         // (Coach.startOver sets _suppressClearReset, having already confirmed itself.)
                         if (typeof clearCanvas === 'function' && !clearCanvas._coachWrapped) {
@@ -4330,6 +4330,17 @@
                     chip.addEventListener('click', () => Coach.go(i));
                     stepsEl.appendChild(chip);
                 });
+
+                // Trailing "Start over" ↺ control on the same row as the step chips
+                // (pushed to the far right via margin-left:auto in .coach-startover).
+                const reset = document.createElement('button');
+                reset.type = 'button';
+                reset.id = 'coach-startover';
+                reset.className = 'coach-startover';
+                reset.title = 'Start over';
+                reset.textContent = '↺';
+                reset.addEventListener('click', () => Coach.startOver());
+                stepsEl.appendChild(reset);
             },
 
             /* ── 5. Highlight ─────────────────────────────────────── */
@@ -6102,7 +6113,7 @@
             {
                 id: 'holder',
                 title: 'Choose the holder',
-                intro: 'Pick the shape and size of your holder.',
+                intro: 'Pick the shape and size of your coin holder.',
                 optional: false,
                 highlight: [
                     Coach.SELECTORS.settings,
@@ -6229,7 +6240,7 @@
                     }());
 
                     // ── 2. Base-shape picker (FIX H) ──────────────────────
-                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a base shape' });
+                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a base shape for your coin holder' });
                     el.appendChild(shapeLabel);
 
                     const shapeGroup = mkEl('div', { className: 'coach-row mb-2' });
@@ -6491,7 +6502,7 @@
                     el.insertBefore(sizeSection, shapeLabel);
 
                     // ── 4. Ready layouts (subtle) ─────────────────────────
-                    const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready layout:' });
+                    const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready-made template:' });
                     el.appendChild(tmplLabel);
 
                     const tmplRow = mkEl('div', { className: 'coach-row' });
@@ -6516,7 +6527,7 @@
             {
                 id: 'material',
                 title: 'Pick the material',
-                intro: 'Choose a wood finish or plastic colour.',
+                intro: 'Choose material for your coin holder.',
                 optional: false,
                 highlight: [Coach.SELECTORS.material],
                 renderAction(el) {
@@ -6717,7 +6728,7 @@
             {
                 id: 'coins',
                 title: 'Add your coins',
-                intro: 'Add the coins you want to display.',
+                intro: 'Add the coins you want to display. Choose the currency and add the coins you want to display or add a custom coin.',
                 optional: false,
                 highlight: [Coach.SELECTORS.coins],
                 isComplete() {
@@ -6727,7 +6738,7 @@
                     el.innerHTML = '';
 
                     /* ── Intro text ────────────────────────────────────── */
-                    const introP = mkEl('p', { className: 'small mb-3', textContent: this.intro });
+                    const introP = mkEl('p', { className: 'mb-3', textContent: this.intro });
                     el.appendChild(introP);
 
                     /* ── Denomination data ─────────────────────────────── */
@@ -7056,13 +7067,13 @@
                     // Hint for the shape-conforming layout
                     const shapeHint = document.createElement('p');
                     shapeHint.className = 'small text-muted mb-2';
-                    shapeHint.textContent = 'Fit to shape packs coins inside the holder outline (great for country shapes) with no overlap. Reposition to outside stacks the coins in rows just above the holder.';
+                    shapeHint.textContent = 'Fit the coins you added to the coin holder shape. Reposition them as needed.';
                     el.appendChild(shapeHint);
 
                     // Muted note
                     const note = document.createElement('p');
                     note.className = 'small text-muted mb-0';
-                    note.textContent = 'Or just drag the coins around the canvas yourself — your call.';
+                    note.textContent = 'Or just drag the coins around the canvas yourself.';
                     el.appendChild(note);
                 }
             },
@@ -7277,14 +7288,14 @@
                     // back. The colour follows the material: brown on wood, light grey
                     // on plastic. Acts on the selected image/text, or the most recent
                     // image if nothing suitable is selected.
-                    el.appendChild(sectionLabel('Engrave colour (image or text)'));
+                    el.appendChild(sectionLabel('Preview engraved colour for image or text'));
                     const tintNudge = mkEl('p', { className: 'small text-warning mb-1' });
                     tintNudge.style.display = 'none';
                     const tintRow = mkEl('div', { className: 'coach-row mt-1' });
                     const tintBtn = mkEl('button', {
                         type: 'button',
                         className: 'btn btn-sm',
-                        textContent: 'Engrave colour'
+                        textContent: 'Preview engraved colour'
                     });
                     // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
                     tintBtn.style.setProperty('background', '#ffc107', 'important');
@@ -7333,7 +7344,7 @@
             {
                 id: 'fixtures',
                 title: 'Add fixtures',
-                intro: 'Add mounting fixture holes around the holder.',
+                intro: 'Add mounting fixtures for your coin holder.',
                 optional: true,
                 highlight: [],
                 renderAction(el) {
@@ -7390,7 +7401,7 @@
                     el.appendChild(row);
 
                     // Fixture finish: Black (dark grey) or Silver (light grey)
-                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture finish' }));
+                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture finish colour' }));
                     const colorRow = mkEl('div', { className: 'coach-row coach-row-2 mb-1' });
                     const current = Coach.fixtureColorKey();
                     [['black', 'Black'], ['silver', 'Silver']].forEach(([key, label]) => {
@@ -7427,16 +7438,38 @@
 
                     /* ── Intro ──────────────────────────────────────────── */
                     const introP = document.createElement('p');
-                    introP.className = 'mb-3 small';
+                    introP.className = 'mb-3';
                     introP.textContent = this.intro;
                     el.appendChild(introP);
 
-                    /* ── Helper: safe size string ──────────────────────── */
+                    /* ── Helper: safe size string ──────────────────────────
+                       Reports the actual HOLDER size (the largest shape on the
+                       canvas), not the document/canvas sheet size. Converts the
+                       holder's current scaled pixel size to mm via canvas.scale,
+                       the same conversion the step-2 size inputs use. ── */
                     function sizeString() {
-                        if (typeof canvas === 'undefined' || !canvas) return '—';
-                        const w = canvas.realWidth;
-                        const h = canvas.realHeight;
-                        if (w == null || h == null) return '—';
+                        if (typeof canvas === 'undefined' || !canvas || typeof canvas.getObjects !== 'function') return '—';
+                        const scale = canvas.scale ? canvas.scale : 1;
+
+                        // Prefer the resolved holder; fall back to the largest non-coin shape.
+                        let holder = Coach.state.holderObj;
+                        if ((!holder || canvas.getObjects().indexOf(holder) === -1) && typeof Coach.resolveHolder === 'function') {
+                            Coach.resolveHolder();
+                            holder = Coach.state.holderObj;
+                        }
+                        if (!holder || canvas.getObjects().indexOf(holder) === -1) {
+                            let best = null, bestArea = -1;
+                            canvas.getObjects().forEach(function(o) {
+                                if (!o || o.shapeType === 'currency' || !o.getScaledWidth) return; // skip coins
+                                const a = o.getScaledWidth() * o.getScaledHeight();
+                                if (a > bestArea) { bestArea = a; best = o; }
+                            });
+                            holder = best;
+                        }
+                        if (!holder || !holder.getScaledWidth) return '—';
+
+                        const w = holder.getScaledWidth() / scale;
+                        const h = holder.getScaledHeight() / scale;
                         if (typeof currentUnit !== 'undefined' && currentUnit === 'inch' && typeof mmToInch !== 'undefined') {
                             return (w * mmToInch).toFixed(2) + ' × ' + (h * mmToInch).toFixed(2) + ' in';
                         }
@@ -7512,7 +7545,7 @@
                         if (countryCount > 0) extras.push(countryCount + ' country outline' + (countryCount > 1 ? 's' : ''));
                         if (shapeCount > 0) extras.push(shapeCount + ' shape' + (shapeCount > 1 ? 's' : ''));
                         if (imageCount > 0) extras.push(imageCount + ' image' + (imageCount > 1 ? 's' : ''));
-                        if (fixtureCount > 0) extras.push(fixtureCount + ' fixture hole' + (fixtureCount > 1 ? 's' : ''));
+                        if (fixtureCount > 0) extras.push(fixtureCount + ' fixture' + (fixtureCount > 1 ? 's' : ''));
                         if (extras.length > 0) addItem('Extras', extras.join(', '));
                     }
 
