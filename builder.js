@@ -195,7 +195,20 @@
                 margin-top: 10px;
                 color: #333;
             }
-            
+
+            /* ── Compact the right Properties sidebar so it fits the viewport
+                 height (it still scrolls internally as a fallback). ── */
+            #design-tool-wrapper .sidebar-right .tool-panel { padding: 12px; margin-bottom: 12px; }
+            #design-tool-wrapper .sidebar-right h3 { font-size: 1.05em; margin-top: 8px; margin-bottom: 6px; }
+            #design-tool-wrapper .sidebar-right .property-panel { padding: 8px; margin-top: 6px; }
+            #design-tool-wrapper .sidebar-right .control-group { margin-bottom: 4px; padding: 4px 5px; }
+            #design-tool-wrapper .sidebar-right .control-group label { margin-bottom: 1px; font-size: 0.8em; }
+            #design-tool-wrapper .sidebar-right input,
+            #design-tool-wrapper .sidebar-right select { padding: 4px 6px; margin-top: 2px; }
+            #design-tool-wrapper .sidebar-right .btn { padding-top: 4px; padding-bottom: 4px; }
+            #design-tool-wrapper .sidebar-right .property-panel .mt-3 { margin-top: 6px !important; }
+            #design-tool-wrapper .sidebar-right .property-panel .mt-2 { margin-top: 4px !important; }
+
             #design-tool-wrapper input[type="number"],
             #design-tool-wrapper input[type="text"],
             #design-tool-wrapper input[type="email"],
@@ -583,9 +596,11 @@
                 display: flex;
                 flex-direction: row;
                 align-items: center;
-                gap: 6px;
-                padding: 8px 14px 12px;
+                justify-content: center;   /* centre Back/Next within the panel */
+                gap: 8px;
+                padding: 6px 12px;
                 border-top: 1px solid rgba(52, 71, 52, .12);
+                border-bottom: 1px solid rgba(52, 71, 52, .12);
             }
 
             #coach-back,
@@ -711,40 +726,31 @@
                 border-color: #2a3a2a !important;
             }
 
-            /* Back/Skip footer nav buttons — subtle transparent */
+            /* Back / Next footer nav buttons — yellow accent */
             #coach-back,
-            #coach-skip {
-                background: transparent !important;
-                color: #344734 !important;
-                border-color: #344734 !important;
-            }
-            #coach-back:hover,
-            #coach-skip:hover {
-                background: rgba(52, 71, 52, .08) !important;
-                color: #344734 !important;
-            }
-
-            /* Next/Finish footer button — keep filled green (already in main rules, reinforce) */
+            #coach-skip,
             #coach-next {
-                background: #344734 !important;
-                color: #fff !important;
-                border-color: #344734 !important;
+                background: #ffc107 !important;
+                color: #333 !important;
+                border-color: #e0a800 !important;
                 font-weight: bold !important;
             }
+            #coach-back:hover,
+            #coach-skip:hover,
             #coach-next:hover {
-                background: #2a3a2a !important;
-                border-color: #2a3a2a !important;
+                background: #e0a800 !important;
+                border-color: #c69500 !important;
+                color: #333 !important;
             }
 
-            /* Equalize footer button heights — Next had border:none while Back/Skip
-               had a 1px border, so with content-box they rendered 2px shorter/taller. */
+            /* Equal, compact footer buttons */
             #coach-back,
             #coach-skip,
             #coach-next {
                 box-sizing: border-box !important;
-                border: 1px solid #344734 !important;
-                padding: 5px 14px !important;
-                line-height: 1.4 !important;
+                border: 1px solid #e0a800 !important;
+                padding: 4px 18px !important;
+                line-height: 1.3 !important;
                 vertical-align: middle;
                 white-space: nowrap !important;   /* keep the ‹ / › on one line */
                 flex: 0 0 auto;                    /* don't let flexbox shrink & wrap them */
@@ -762,16 +768,60 @@
             }
             #coach-body .coach-row > .btn,
             #coach-body .coach-btns > .btn {
-                flex: 1 1 0;
-                min-width: max-content;   /* never shrink below the label → no word splitting */
-                white-space: nowrap;      /* keep each label on one line */
+                /* Equal-width cells, but a minimum of ~a quarter so at most four
+                   buttons sit on one row before wrapping. */
+                flex: 1 1 calc(25% - 6px);
+                min-width: calc(25% - 6px);
+                max-width: 100%;
+                white-space: normal;      /* wrap between words rather than widen the button */
+                overflow-wrap: normal;    /* but never split a single word */
+                word-break: keep-all;
+                text-align: center;
                 padding-left: 6px;        /* tighter margins so labels fit */
                 padding-right: 6px;
             }
             /* At most two buttons per row (used by the Arrange step) */
             #coach-body .coach-row-2 > .btn {
-                flex-basis: calc(50% - 3px);
+                flex: 1 1 calc(50% - 3px);
+                min-width: calc(50% - 3px);
             }
+
+            /* ── Compact the in-sidebar Coach so each step fits the viewport
+                 height without scrolling (reduce button/input heights, margins
+                 and gaps; the sidebar still scrolls as a fallback). ── */
+            #coach-steps { padding: 6px 12px 2px; }
+            #coach-header { padding: 0 12px 4px; }
+            #coach-body {
+                padding: 8px 12px;
+                line-height: 1.35;
+            }
+            #coach-body p { margin-bottom: 6px; }
+            #coach-body .btn {
+                padding-top: 3px !important;
+                padding-bottom: 3px !important;
+                line-height: 1.2 !important;
+            }
+            #coach-body .form-control,
+            #coach-body .form-select,
+            #coach-body input,
+            #coach-body select {
+                padding-top: 3px !important;
+                padding-bottom: 3px !important;
+                margin-top: 2px !important;
+                line-height: 1.2;
+            }
+            #coach-body .form-label { margin-bottom: 1px; }
+            #coach-body .small { font-size: 11px; }
+            /* Tighten Bootstrap spacing utilities used inside the steps */
+            #coach-body .mb-3 { margin-bottom: 6px !important; }
+            #coach-body .mb-2 { margin-bottom: 4px !important; }
+            #coach-body .mb-1 { margin-bottom: 2px !important; }
+            #coach-body .mt-1 { margin-top: 2px !important; }
+            #coach-body .mt-2,
+            #coach-body .mt-3,
+            #coach-body .mt-4 { margin-top: 4px !important; }
+            #coach-body .gap-2 { gap: 4px !important; }
+            #coach-body .d-flex.flex-column.gap-2 { gap: 3px !important; }
 
             /* Responsive — mobile sheet */
             @media (max-width: 768px) {
@@ -897,6 +947,10 @@
                                     <input type="number" id="objHeight" step="0.1">
                                 </div>
                             </div>
+                            <!-- Holder aspect-ratio lock — mirrors the Coach step-2 toggle and the object's drag behaviour. -->
+                            <button type="button" id="coach-aspect-right" class="btn btn-sm w-100 mb-1"
+                                    style="background:#ffc107;color:#333;border:1px solid #e0a800;font-weight:bold;"
+                                    onclick="Coach.toggleHolderAspectLock()">🔓 Aspect unlocked</button>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
                                     <label style="white-space: nowrap; font-size: 0.85em;">Corner Roundness:</label>
@@ -1087,12 +1141,7 @@
                     </div>
                 </div>
             </div>
-            <!-- Sticky Footer: Request Quote -->
-            <div class="sticky-footer">
-                <button class="btn btn-light" id="quoteBtnFooter" onclick="showQuoteForm()">
-                    <i class="fas fa-envelope"></i> Request Quote
-                </button>
-            </div>
+            <!-- Sticky "Request Quote" footer removed — use the Coach's Review step (Request a Quote / Download SVG). -->
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -4355,7 +4404,8 @@
         Coach.EXTRA_PROPS = [
             'shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius',
             'realRx', 'realRy', 'realFontSize', 'realCornerRadius',
-            'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId'
+            'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
+            '_coachEngrave', '_coachOrigFill'
         ];
 
         /* ── Coach.persist ───────────────────────────────────────────── */
@@ -4374,7 +4424,8 @@
                     holderType:   s.holderType,
                     material:     s.material,
                     coins:        s.coins,
-                    coinCurrency: s.coinCurrency
+                    coinCurrency: s.coinCurrency,
+                    aspectLocked: s.aspectLocked
                 };
             },
 
@@ -4493,6 +4544,8 @@
                     Coach.reapplyCountryToBack();
                     Coach.state = Object.assign({}, Coach.state, saved.state || {});
                     Coach.resolveHolder();
+                    Coach.refreshEngraveColors();
+                    Coach.reapplyAspectLock();
                     canvas.renderAll();
                     const savedStep = typeof saved.step === 'number' ? saved.step : 0;
                     // Mark every step up to where they left off as visited, and the
@@ -4758,55 +4811,134 @@
             return false;
         };
 
-        /* ── Coach image engraving tint ──────────────────────────────────
-           Recolour any image (incl. multicolour) to the engraving brown
-           (#5c3316). It first desaturates to greyscale, then tints toward the
-           brown so the result is a brown monochrome whose lightness still tracks
-           the original intensity (dark areas → dark brown, light areas → light
-           brown). The filters serialise with the image, so the look survives a
-           resume; isImageBrown detects it by colour to keep the toggle in sync. */
-        Coach.IMAGE_BROWN = '#5c3316';
-        Coach.IMAGE_BROWN_ALPHA = 0.6; // how strongly the brown hue replaces the grey
+        /* ── Coach engraving colour ──────────────────────────────────────
+           Recolour an image or text object to the engraving colour, which
+           depends on the holder material: BROWN (#5c3316) on wood, LIGHT GREY
+           on plastic. Images are desaturated to greyscale then tinted (so the
+           monochrome lightness still tracks the original); text just gets its
+           fill set. Tagged with _coachEngrave so the look survives a resume and
+           the toggle/label stays in sync. */
+        Coach.ENGRAVE_BROWN = '#5c3316';
+        Coach.ENGRAVE_GREY  = '#bfbfbf';
+        Coach.ENGRAVE_ALPHA = 0.6; // how strongly the engrave hue replaces the grey
 
-        // True if a filter is one we added for the brown-engrave look.
-        Coach._isBrownFilter = function(f) {
+        // Brown when engraving on wood, light grey when engraving on plastic.
+        Coach.engraveColor = function() {
+            const mat = (Coach.state.holderObj && Coach.state.holderObj.materialType) || Coach.state.material;
+            return (mat && mat !== 'color') ? Coach.ENGRAVE_BROWN : Coach.ENGRAVE_GREY;
+        };
+
+        Coach._isEngraveFilter = function(f) {
             if (!f) return false;
-            if (f._coachBrown) return true;
+            if (f._coachEngrave) return true;
             if (f.type === 'Grayscale') return true;
-            if (f.type === 'BlendColor' && f.color &&
-                String(f.color).toLowerCase() === Coach.IMAGE_BROWN) return true;
+            if (f.type === 'BlendColor' && f.color) {
+                const c = String(f.color).toLowerCase();
+                if (c === Coach.ENGRAVE_BROWN || c === Coach.ENGRAVE_GREY) return true;
+            }
             return false;
         };
 
-        Coach.isImageBrown = function(img) {
-            if (!img || !Array.isArray(img.filters)) return false;
-            return img.filters.some(function(f) {
-                return f && (f._coachBrown ||
-                    (f.type === 'BlendColor' && f.color &&
-                     String(f.color).toLowerCase() === Coach.IMAGE_BROWN));
+        Coach.isEngraved = function(obj) {
+            if (!obj) return false;
+            if (obj.type === 'image') {
+                return Array.isArray(obj.filters) && obj.filters.some(Coach._isEngraveFilter);
+            }
+            if (obj.type === 'text' || obj.type === 'i-text') return !!obj._coachEngrave;
+            return false;
+        };
+
+        Coach.applyEngrave = function(obj, on) {
+            if (!obj) return;
+            const color = Coach.engraveColor();
+            if (obj.type === 'image') {
+                if (typeof fabric === 'undefined' || !fabric.Image || !fabric.Image.filters ||
+                    !fabric.Image.filters.BlendColor || !fabric.Image.filters.Grayscale) return;
+                obj.filters = (obj.filters || []).filter(function(f) { return !Coach._isEngraveFilter(f); });
+                if (on) {
+                    const gray = new fabric.Image.filters.Grayscale();
+                    gray._coachEngrave = true;
+                    const tint = new fabric.Image.filters.BlendColor({ color: color, mode: 'tint', alpha: Coach.ENGRAVE_ALPHA });
+                    tint._coachEngrave = true;
+                    obj.filters.push(gray, tint);
+                    obj._coachEngrave = true;
+                } else {
+                    obj._coachEngrave = false;
+                }
+                obj.applyFilters();
+            } else if (obj.type === 'text' || obj.type === 'i-text') {
+                if (on) {
+                    if (obj._coachOrigFill === undefined) obj._coachOrigFill = obj.fill;
+                    obj.set('fill', color);
+                    obj._coachEngrave = true;
+                } else {
+                    obj.set('fill', (obj._coachOrigFill !== undefined ? obj._coachOrigFill : '#000000'));
+                    obj._coachEngrave = false;
+                }
+            } else {
+                return;
+            }
+            obj.dirty = true;
+            if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
+            if (typeof saveState === 'function') saveState();
+        };
+
+        // After a material change (brown↔grey) re-tint everything already engraved.
+        Coach.refreshEngraveColors = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            canvas.getObjects().forEach(function(o) {
+                if (Coach.isEngraved(o)) Coach.applyEngrave(o, true);
             });
         };
 
-        Coach.tintImageBrown = function(img, on) {
-            if (!img || img.type !== 'image') return;
-            if (typeof fabric === 'undefined' || !fabric.Image || !fabric.Image.filters ||
-                !fabric.Image.filters.BlendColor || !fabric.Image.filters.Grayscale) return;
-            // Drop any previous brown-engrave filters first (clean toggle / reapply).
-            img.filters = (img.filters || []).filter(function(f) { return !Coach._isBrownFilter(f); });
-            if (on) {
-                const gray = new fabric.Image.filters.Grayscale();
-                gray._coachBrown = true;
-                const tint = new fabric.Image.filters.BlendColor({
-                    color: Coach.IMAGE_BROWN,
-                    mode: 'tint',
-                    alpha: Coach.IMAGE_BROWN_ALPHA
-                });
-                tint._coachBrown = true;
-                img.filters.push(gray, tint);
+        // Back-compat aliases (older callers used the brown-only names).
+        Coach.isImageBrown  = function(img)     { return Coach.isEngraved(img); };
+        Coach.tintImageBrown = function(img, on) { return Coach.applyEngrave(img, on); };
+
+        /* ── Aspect-ratio lock ────────────────────────────────────────────
+           When locked, the holder scales proportionally: its middle (side)
+           resize handles are hidden so dragging is corner-only, and Fabric's
+           uniformScaling keeps corner drags proportional — so what the canvas
+           does now matches the "aspect locked" state. The same state drives the
+           left-step toggle and the right-panel button. */
+        Coach.setHolderAspectLock = function(locked) {
+            locked = !!locked;
+            Coach.state.aspectLocked = locked;
+            if (typeof canvas !== 'undefined' && canvas) {
+                canvas.uniformScaling = true; // corner drags stay proportional (Fabric default, reinforced)
+                const obj = Coach.state.holderObj;
+                if (obj && typeof obj.setControlsVisibility === 'function') {
+                    // Hide the side handles when locked → corners only (proportional).
+                    obj.setControlsVisibility({ mt: !locked, mb: !locked, ml: !locked, mr: !locked });
+                    obj.setCoords();
+                }
+                canvas.requestRenderAll();
             }
-            img.applyFilters();
-            if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
+            Coach._syncAspectButtons();
             if (typeof saveState === 'function') saveState();
+        };
+
+        Coach.toggleHolderAspectLock = function() {
+            if (!Coach.state.holderObj && typeof Coach.resolveHolder === 'function') Coach.resolveHolder();
+            Coach.setHolderAspectLock(!Coach.state.aspectLocked);
+            if (typeof Coach.render === 'function') Coach.render(); // refresh the holder step (shows/hides height input)
+        };
+
+        Coach.reapplyAspectLock = function() {
+            if (Coach.state && typeof Coach.state.aspectLocked !== 'undefined') {
+                Coach.setHolderAspectLock(Coach.state.aspectLocked);
+            }
+        };
+
+        Coach._syncAspectButtons = function() {
+            const locked = !!Coach.state.aspectLocked;
+            const txt = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
+            ['coach-aspect-left', 'coach-aspect-right'].forEach(function(id) {
+                const b = document.getElementById(id);
+                if (!b) return;
+                b.textContent = txt;
+                b.setAttribute('aria-pressed', locked ? 'true' : 'false');
+            });
         };
 
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
@@ -5975,6 +6107,8 @@
                                 }
                             }
                             applyStoredSize();
+                            // Default lock: free for rectangle/circle, locked for country/imported.
+                            Coach.setHolderAspectLock(type === 'country' || type === 'imported');
                         }
                     };
 
@@ -6132,6 +6266,7 @@
                                     clearTimeout(Coach._pendingHolderTimeout);
                                     Coach._pendingHolderHandler = null;
                                     applyStoredSize();
+                                    Coach.setHolderAspectLock(true); // country shapes lock aspect by default
                                     markSelected(shapeGroup, 'country');
                                     Coach.render();
                                 };
@@ -6187,6 +6322,7 @@
                                 Coach._pendingImportTimeout = null;
                                 Coach._pendingImportHandler = null;
                                 applyStoredSize();
+                                Coach.setHolderAspectLock(true); // imported shapes lock aspect by default
                                 markSelected(shapeGroup, 'country'); // keep country toggle highlighted
                                 Coach.render();
                             };
@@ -6213,7 +6349,7 @@
                     // holder is created, and re-apply live once one exists.
                     const hasHolder  = !!Coach.state.holderObj;
                     const holderType = Coach.state.holderType;
-                    const lockAspect = holderType === 'country' || holderType === 'imported';
+                    const lockAspect = !!Coach.state.aspectLocked;
                     const scaleNow   = (typeof canvas !== 'undefined' && canvas && canvas.scale) ? canvas.scale : 1;
 
                     const sizeSection = mkEl('div', { className: 'mb-3' });
@@ -6261,9 +6397,6 @@
                         });
                         hWrap.appendChild(hInput);
                         sizeRow.appendChild(hWrap);
-                    } else {
-                        const lockNote = mkEl('small', { className: 'text-muted align-self-end', textContent: '(aspect locked)' });
-                        sizeRow.appendChild(lockNote);
                     }
 
                     // Apply size button
@@ -6282,6 +6415,21 @@
                     sizeRow.appendChild(applyBtn);
 
                     sizeSection.appendChild(sizeRow);
+
+                    // Aspect-ratio lock toggle (mirrors the right-panel button and the
+                    // object's drag behaviour). Only meaningful once a holder exists.
+                    if (hasHolder) {
+                        const lockRow = mkEl('div', { className: 'coach-row mt-1' });
+                        const lockBtn = mkEl('button', {
+                            type: 'button',
+                            id: 'coach-aspect-left',
+                            className: 'btn btn-sm',
+                            textContent: lockAspect ? '🔒 Aspect locked' : '🔓 Aspect unlocked'
+                        });
+                        lockBtn.addEventListener('click', () => Coach.toggleHolderAspectLock());
+                        lockRow.appendChild(lockBtn);
+                        sizeSection.appendChild(lockRow);
+                    }
 
                     if (!hasHolder) {
                         sizeSection.appendChild(mkEl('p', {
@@ -6408,6 +6556,8 @@
                         // Recolour any existing fixtures to match the new material
                         // (no-arg re-derives the default; an explicit finish still wins).
                         if (typeof Coach.applyFixtureColor === 'function') Coach.applyFixtureColor();
+                        // Flip engraved images/text between brown (wood) and grey (plastic).
+                        if (typeof Coach.refreshEngraveColors === 'function') Coach.refreshEngraveColors();
                         // Re-render to reflect the new selection state
                         Coach.render();
                     };
@@ -6610,7 +6760,7 @@
 
                     currency.coins.forEach(coin => {
                         const qty = { value: 1 };
-                        const row = mkEl('div', { className: 'd-flex align-items-center gap-2' });
+                        const row = mkEl('div', { className: 'd-flex align-items-center justify-content-center gap-2' });
 
                         // Label
                         const lbl = mkEl('span', { className: 'small', textContent: coin.label });
@@ -6691,8 +6841,8 @@
 
                     /* ── Custom coin (any label + real diameter in mm) ─────── */
                     const customWrap = mkEl('div', { className: 'mt-1 mb-2' });
-                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1', textContent: 'Custom coin' }));
-                    const customRow = mkEl('div', { className: 'd-flex align-items-end gap-2' });
+                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1 text-center', textContent: 'Custom coin' }));
+                    const customRow = mkEl('div', { className: 'd-flex align-items-end justify-content-center gap-2' });
 
                     const labelWrap = mkEl('div');
                     labelWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Label' }));
@@ -6784,7 +6934,7 @@
                     el.appendChild(addAllWrap);
 
                     /* ── Running tally ─────────────────────────────────── */
-                    const tallyDiv = mkEl('div', { className: 'small text-muted' });
+                    const tallyDiv = mkEl('div', { className: 'small text-muted text-center' });
                     el.appendChild(tallyDiv);
 
                     function updateTally() {
@@ -7067,50 +7217,51 @@
                     uploadRow.appendChild(uploadBtn);
                     el.appendChild(uploadRow);
 
-                    // Recolour an image to the engraving brown (#5c3316) and back. Acts on
-                    // the selected image, or the most recently added one if none is selected.
+                    // Recolour an image OR text object to the engraving colour and
+                    // back. The colour follows the material: brown on wood, light grey
+                    // on plastic. Acts on the selected image/text, or the most recent
+                    // image if nothing suitable is selected.
+                    el.appendChild(sectionLabel('Engrave colour (image or text)'));
                     const tintNudge = mkEl('p', { className: 'small text-warning mb-1' });
                     tintNudge.style.display = 'none';
                     const tintRow = mkEl('div', { className: 'coach-row mt-1' });
                     const tintBtn = mkEl('button', {
                         type: 'button',
                         className: 'btn btn-sm',
-                        textContent: 'Engrave colour (brown)'
+                        textContent: 'Engrave colour'
                     });
                     // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
                     tintBtn.style.setProperty('background', '#ffc107', 'important');
                     tintBtn.style.setProperty('color', '#333', 'important');
                     tintBtn.style.setProperty('border-color', '#e0a800', 'important');
-                    const pickImage = function() {
+                    const pickEngraveTarget = function() {
                         if (typeof canvas === 'undefined' || !canvas) return null;
                         const active = canvas.getActiveObject();
-                        if (active && active.type === 'image') return active;
+                        if (active && (active.type === 'image' || active.type === 'text' || active.type === 'i-text')) return active;
                         const imgs = canvas.getObjects().filter(function(o) { return o.type === 'image'; });
                         return imgs.length ? imgs[imgs.length - 1] : null;
                     };
-                    // Reflect the current target image's state in the button label.
+                    // Reflect the current target's state in the button label.
                     const syncTintLabel = function() {
-                        const img = pickImage();
-                        tintBtn.textContent = (img && Coach.isImageBrown(img))
-                            ? 'Restore image colour'
-                            : 'Engrave colour (brown)';
+                        const t = pickEngraveTarget();
+                        tintBtn.textContent = (t && Coach.isEngraved(t)) ? 'Restore colour' : 'Engrave colour';
                     };
                     tintBtn.addEventListener('click', function() {
-                        const img = pickImage();
-                        if (!img) {
-                            tintNudge.textContent = 'Add an image first, then recolour it.';
+                        const t = pickEngraveTarget();
+                        if (!t) {
+                            tintNudge.textContent = 'Select an image or text first, then recolour it.';
                             tintNudge.style.display = '';
                             return;
                         }
                         tintNudge.style.display = 'none';
-                        Coach.tintImageBrown(img, !Coach.isImageBrown(img));
+                        Coach.applyEngrave(t, !Coach.isEngraved(t));
                         syncTintLabel();
                     });
                     tintRow.appendChild(tintBtn);
                     el.appendChild(tintRow);
                     el.appendChild(tintNudge);
 
-                    // Keep the label correct as the customer selects different images.
+                    // Keep the label correct as the customer selects different objects.
                     // Drop the previous step-render's listeners first so they don't stack.
                     if (typeof canvas !== 'undefined' && canvas) {
                         const SEL_EVENTS = ['selection:created', 'selection:updated', 'selection:cleared'];
@@ -7353,6 +7504,17 @@
                         }
                     });
                     btnRow.appendChild(quoteBtn);
+
+                    /* Start over (yellow) — clears the design and resets the Coach. */
+                    const startBtn = document.createElement('button');
+                    startBtn.type = 'button';
+                    startBtn.className = 'btn btn-sm';
+                    startBtn.textContent = 'Start over';
+                    startBtn.style.setProperty('background', '#ffc107', 'important');
+                    startBtn.style.setProperty('color', '#333', 'important');
+                    startBtn.style.setProperty('border-color', '#e0a800', 'important');
+                    startBtn.addEventListener('click', function() { Coach.startOver(); });
+                    btnRow.appendChild(startBtn);
 
                     el.appendChild(btnRow);
                 }
