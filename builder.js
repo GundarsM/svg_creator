@@ -837,11 +837,14 @@
             #coach-body .form-select,
             #coach-body input,
             #coach-body select {
-                padding-top: 3px !important;
-                padding-bottom: 3px !important;
-                margin-top: 2px !important;
-                line-height: 1.2;
+                font-size: 12px !important;
+                padding: 2px 6px !important;
+                margin-top: 1px !important;
+                line-height: 1.2 !important;
+                min-height: 0 !important;
+                height: auto !important;
             }
+            #coach-body .form-select { padding-right: 22px !important; } /* room for the arrow */
             #coach-body .form-label { margin-bottom: 1px; }
             #coach-body .small { font-size: 11px; }
             /* Tighten Bootstrap spacing utilities used inside the steps */
@@ -4876,7 +4879,8 @@
                 return Array.isArray(obj.filters) && obj.filters.some(Coach._isEngraveFilter);
             }
             if (obj.type === 'text' || obj.type === 'i-text') return !!obj._coachEngrave;
-            return false;
+            // Shapes / groups (e.g. a filled country outline) carry the flag too.
+            return !!obj._coachEngrave;
         };
 
         Coach.applyEngrave = function(obj, on) {
@@ -4907,7 +4911,21 @@
                     obj._coachEngrave = false;
                 }
             } else {
-                return;
+                // Shapes / groups (e.g. a filled country outline) — recolour the
+                // fill so it tracks the holder material (brown on wood, grey on
+                // plastic). Groups recolour every non-text child path.
+                const recolor = function(o) {
+                    if (!o || o.type === 'text' || o.type === 'i-text') return;
+                    if (o._coachOrigFill === undefined) o._coachOrigFill = o.fill;
+                    o.set('fill', on ? color : (o._coachOrigFill !== undefined ? o._coachOrigFill : o.fill));
+                };
+                if (obj.type === 'group' && typeof obj.forEachObject === 'function') {
+                    recolor(obj);
+                    obj.forEachObject(recolor);
+                } else {
+                    recolor(obj);
+                }
+                obj._coachEngrave = !!on;
             }
             obj.dirty = true;
             if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
@@ -7081,7 +7099,7 @@
                     }
 
                     /* Capture the next non-coin object added and size it to the holder. */
-                    function captureAndSize(mode) {
+                    function captureAndSize(mode, engraveFill) {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         if (Coach._pendingSizeHandler) {
                             canvas.off('object:added', Coach._pendingSizeHandler);
@@ -7100,6 +7118,9 @@
                             clearTimeout(Coach._pendingSizeTimeout);
                             Coach._pendingSizeHandler = null;
                             Coach.sizeToHolder(obj, mode);
+                            // Filled country outlines take the engraving colour of the holder
+                            // material (brown on wood, grey on plastic) and stay in sync on changes.
+                            if (engraveFill && typeof Coach.applyEngrave === 'function') Coach.applyEngrave(obj, true);
                             if (savedVP) { canvas.setViewportTransform(savedVP); canvas.requestRenderAll(); }
                         };
                         Coach._pendingSizeHandler = handler;
@@ -7135,6 +7156,9 @@
                                 if (obj && (obj.type === 'i-text' || obj.type === 'text')) {
                                     obj.set('text', value);
                                     obj.setCoords();
+                                    // Engraving text takes the holder material's engrave colour
+                                    // (brown on wood, grey on plastic) and stays in sync on changes.
+                                    if (typeof Coach.applyEngrave === 'function') Coach.applyEngrave(obj, true);
                                     if (canvas.requestRenderAll) canvas.requestRenderAll();
                                     if (typeof saveState === 'function') saveState();
                                 }
@@ -7208,10 +7232,11 @@
                         btn.className = 'btn btn-sm btn-outline-light';
                         btn.textContent = label;
                         btn.addEventListener('click', () => {
-                            captureAndSize(); // size the added country to the holder
                             if (countryMode === 'filled') {
+                                captureAndSize(null, true); // size + tint the fill to the material's engrave colour
                                 if (typeof addCountry === 'function') addCountry(key);
                             } else {
+                                captureAndSize(); // outline: size only, keep its outline colour
                                 if (typeof addCountryOutline === 'function') addCountryOutline(key);
                             }
                         });
