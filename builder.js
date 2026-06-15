@@ -486,7 +486,7 @@
              COACH REGION — styles only; JS added in Task 3
              ═══════════════════════════════════════════════════════ -->
         <style>
-            /* ── Top-level rule: targets engine elements OUTSIDE #coach-root ── */
+            /* ── Glow applied to engine toolbar elements during a step ── */
             .coach-highlight {
                 outline: 2px solid #344734 !important;
                 box-shadow: 0 0 0 4px rgba(52, 71, 52, .35) !important;
@@ -494,28 +494,7 @@
                 transition: box-shadow .2s;
             }
 
-            /* ── All other Coach rules scoped under #coach-root ── */
-            #coach-root {
-                /* No layout of its own; children are fixed-positioned */
-            }
-
-            #coach-launcher {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                z-index: 9999;
-                background: #344734;
-                color: #fff;
-                border: none;
-                border-radius: 24px;
-                padding: 10px 16px;
-                cursor: pointer;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
-                font-family: 'Athelas', Georgia, serif;
-                font-size: 14px;
-            }
-
-            /* The Coach now fills the left sidebar instead of floating. */
+            /* The Coach fills the left sidebar (all rules scoped under #coach-bubble). */
             #coach-bubble {
                 position: static;
                 width: 100%;
@@ -606,32 +585,6 @@
                 text-overflow: ellipsis;
             }
 
-            #coach-collapse {
-                margin-left: auto;
-                background: none;
-                border: 1px solid rgba(52, 71, 52, .3);
-                border-radius: 4px;
-                padding: 1px 7px;
-                cursor: pointer;
-                font-size: 16px;
-                line-height: 1.2;
-                color: #344734;
-                flex-shrink: 0;
-            }
-
-            #coach-collapse:hover {
-                background: rgba(52, 71, 52, .1);
-            }
-
-            #coach-drag {
-                cursor: move;
-                color: #344734;
-                font-size: 16px;
-                flex-shrink: 0;
-                user-select: none;
-                opacity: .7;
-            }
-
             #coach-body {
                 padding: 14px 16px;
                 min-height: 60px;
@@ -650,8 +603,7 @@
                 border-bottom: 1px solid rgba(52, 71, 52, .12);
             }
 
-            #coach-back,
-            #coach-skip {
+            #coach-back {
                 background: none;
                 border: 1px solid rgba(52, 71, 52, .35);
                 border-radius: 6px;
@@ -662,8 +614,7 @@
                 color: #344734;
             }
 
-            #coach-back:hover,
-            #coach-skip:hover {
+            #coach-back:hover {
                 background: rgba(52, 71, 52, .08);
             }
 
@@ -681,15 +632,6 @@
 
             #coach-next:hover {
                 background: #2a3a2a;
-            }
-
-            #coach-dots {
-                display: flex;
-                flex-direction: row;
-                flex-wrap: wrap;
-                align-items: center;
-                gap: 2px;
-                margin-left: auto;
             }
 
             /* ── FIX I: Button colours & font consistency inside coach bubble ── */
@@ -775,7 +717,6 @@
 
             /* Back / Next footer nav buttons — yellow accent */
             #coach-back,
-            #coach-skip,
             #coach-next {
                 background: #ffc107 !important;
                 color: #333 !important;
@@ -783,7 +724,6 @@
                 font-weight: bold !important;
             }
             #coach-back:hover,
-            #coach-skip:hover,
             #coach-next:hover {
                 background: #e0a800 !important;
                 border-color: #c69500 !important;
@@ -792,7 +732,6 @@
 
             /* Equal, compact footer buttons */
             #coach-back,
-            #coach-skip,
             #coach-next {
                 box-sizing: border-box !important;
                 border: 1px solid #e0a800 !important;
@@ -4234,7 +4173,6 @@
                 Coach.go(Coach.current + 1);
             },
             back() { Coach.go(Coach.current - 1); },
-            skip() { Coach.next(); },
 
             /* ── 3. Render ────────────────────────────────────────── */
             render() {
@@ -4272,12 +4210,6 @@
                 const backBtn = document.getElementById('coach-back');
                 if (backBtn) {
                     backBtn.style.visibility = isFirst ? 'hidden' : 'visible';
-                }
-
-                // Footer — skip button (only when step.optional === true)
-                const skipBtn = document.getElementById('coach-skip');
-                if (skipBtn) {
-                    skipBtn.style.display = step.optional ? 'inline-block' : 'none';
                 }
 
                 // Footer — next button label
@@ -4377,72 +4309,6 @@
                 }
             },
 
-            /* ── 6. Collapse / launcher ───────────────────────────── */
-            _wireCollapse() {
-                const collapseBtn = document.getElementById('coach-collapse');
-                const launcherBtn = document.getElementById('coach-launcher');
-
-                if (collapseBtn) {
-                    collapseBtn.addEventListener('click', () => Coach.collapse());
-                }
-                if (launcherBtn) {
-                    launcherBtn.addEventListener('click', () => Coach.expand());
-                }
-            },
-
-            /* ── 7. Drag (desktop only) ───────────────────────────── */
-            _wireDrag() {
-                if (window.matchMedia('(max-width: 768px)').matches) return;
-
-                const dragHandle = document.getElementById('coach-drag');
-                const bubbleEl   = document.getElementById('coach-bubble');
-                if (!dragHandle || !bubbleEl) return;
-
-                let dragging   = false;
-                let startX     = 0;
-                let startY     = 0;
-                let origLeft   = 0;
-                let origTop    = 0;
-
-                dragHandle.style.cursor = 'grab';
-
-                dragHandle.addEventListener('pointerdown', e => {
-                    if (window.matchMedia('(max-width: 768px)').matches) return;
-                    dragging = true;
-                    dragHandle.setPointerCapture(e.pointerId);
-                    dragHandle.style.cursor = 'grabbing';
-
-                    const rect = bubbleEl.getBoundingClientRect();
-                    startX   = e.clientX;
-                    startY   = e.clientY;
-                    origLeft = rect.left;
-                    origTop  = rect.top;
-
-                    // Switch to absolute left/top positioning
-                    bubbleEl.style.right  = 'auto';
-                    bubbleEl.style.bottom = 'auto';
-                    bubbleEl.style.left   = origLeft + 'px';
-                    bubbleEl.style.top    = origTop  + 'px';
-                });
-
-                dragHandle.addEventListener('pointermove', e => {
-                    if (!dragging) return;
-                    const dx = e.clientX - startX;
-                    const dy = e.clientY - startY;
-                    bubbleEl.style.left = (origLeft + dx) + 'px';
-                    bubbleEl.style.top  = (origTop  + dy) + 'px';
-                });
-
-                dragHandle.addEventListener('pointerup', () => {
-                    dragging = false;
-                    dragHandle.style.cursor = 'grab';
-                });
-
-                dragHandle.addEventListener('pointercancel', () => {
-                    dragging = false;
-                    dragHandle.style.cursor = 'grab';
-                });
-            }
         };
 
         /* ── Coach.EXTRA_PROPS ───────────────────────────────────────── */
@@ -4951,9 +4817,6 @@
             });
         };
 
-        // Back-compat aliases (older callers used the brown-only names).
-        Coach.isImageBrown  = function(img)     { return Coach.isEngraved(img); };
-        Coach.tintImageBrown = function(img, on) { return Coach.applyEngrave(img, on); };
 
         /* ── Aspect-ratio lock ────────────────────────────────────────────
            When locked, the holder scales proportionally: its middle (side)
@@ -5079,20 +4942,10 @@
                 if (Coach[t]) { clearTimeout(Coach[t]); Coach[t] = null; }
             });
 
-            // Reset the bubble to its just-loaded look (undo any drag, expand it)
-            const bubble = document.getElementById('coach-bubble');
-            if (bubble) {
-                bubble.style.left = '';
-                bubble.style.top = '';
-                bubble.style.right = '';
-                bubble.style.bottom = '';
-            }
-
             Coach.state = {};
             Coach.current = 0;
             Coach.visited = new Set();
             Coach.completed = new Set();
-            Coach.expand();
             Coach.go(0);
         };
 
@@ -5113,25 +4966,6 @@
                 Coach._suppressClearReset = false;
             }
             Coach.resetSelf();
-        };
-
-        /* ── Coach.collapse / expand ──────────────────────────────────── */
-        // The Coach is now a fixed left-sidebar panel — there's nothing to
-        // collapse to or expand from, so these are intentional no-ops (kept so
-        // any legacy callers don't throw).
-        Coach.collapse = function() {};
-        Coach.expand = function() {};
-
-        /* ── Coach.finish ─────────────────────────────────────────────── */
-        Coach.finish = function() {
-            const bodyEl = document.getElementById('coach-body');
-            if (bodyEl) {
-                bodyEl.innerHTML = '';
-                const msg = document.createElement('p');
-                msg.className = 'mb-2';
-                msg.innerHTML = '&#127881; You\'re all set! Use the <strong>Review &amp; request</strong> step to <strong>Download SVG</strong> or <strong>Request a Quote</strong>. You can revisit any step from the tabs above.';
-                bodyEl.appendChild(msg);
-            }
         };
 
         /* ── Coach._holderDistanceField ───────────────────────────────
@@ -7626,16 +7460,10 @@
         /* ── Wire navigation buttons ──────────────────────────────── */
         (function wireButtons() {
             const backBtn = document.getElementById('coach-back');
-            const skipBtn = document.getElementById('coach-skip');
             const nextBtn = document.getElementById('coach-next');
             if (backBtn) backBtn.addEventListener('click', () => Coach.back());
-            if (skipBtn) skipBtn.addEventListener('click', () => Coach.skip());
             if (nextBtn) nextBtn.addEventListener('click', () => Coach.next());
         }());
-
-        /* ── Wire collapse + drag ─────────────────────────────────── */
-        Coach._wireCollapse();
-        Coach._wireDrag();
 
         /* ── Boot ─────────────────────────────────────────────────── */
         window.addEventListener('load', () => Coach.init());
