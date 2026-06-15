@@ -196,18 +196,50 @@
                 color: #333;
             }
 
-            /* ── Compact the right Properties sidebar so it fits the viewport
-                 height (it still scrolls internally as a fallback). ── */
-            #design-tool-wrapper .sidebar-right .tool-panel { padding: 12px; margin-bottom: 12px; }
-            #design-tool-wrapper .sidebar-right h3 { font-size: 1.05em; margin-top: 8px; margin-bottom: 6px; }
-            #design-tool-wrapper .sidebar-right .property-panel { padding: 8px; margin-top: 6px; }
-            #design-tool-wrapper .sidebar-right .control-group { margin-bottom: 4px; padding: 4px 5px; }
-            #design-tool-wrapper .sidebar-right .control-group label { margin-bottom: 1px; font-size: 0.8em; }
+            /* ── Compact the right Properties sidebar to match the left Coach
+                 panel's density so it fits the viewport height (still scrolls as
+                 a fallback). Overrides Bootstrap's input/select/button sizing. ── */
+            #design-tool-wrapper .sidebar-right .tool-panel { padding: 10px 12px; margin-bottom: 10px; }
+            #design-tool-wrapper .sidebar-right h3 { font-size: 0.95em; margin: 6px 0 4px; }
+            #design-tool-wrapper .sidebar-right h3.mt-4 { margin-top: 6px !important; }
+            #design-tool-wrapper .sidebar-right #propertiesPanel p { margin: 0; font-size: 0.8em; }
+            #design-tool-wrapper .sidebar-right .property-panel { padding: 6px; margin-top: 6px; }
+            #design-tool-wrapper .sidebar-right .control-group { margin-bottom: 3px; padding: 3px 5px; }
+            #design-tool-wrapper .sidebar-right .control-group label,
+            #design-tool-wrapper .sidebar-right label { margin-bottom: 0; font-size: 0.78em; font-weight: 600; }
             #design-tool-wrapper .sidebar-right input,
-            #design-tool-wrapper .sidebar-right select { padding: 4px 6px; margin-top: 2px; }
-            #design-tool-wrapper .sidebar-right .btn { padding-top: 4px; padding-bottom: 4px; }
-            #design-tool-wrapper .sidebar-right .property-panel .mt-3 { margin-top: 6px !important; }
-            #design-tool-wrapper .sidebar-right .property-panel .mt-2 { margin-top: 4px !important; }
+            #design-tool-wrapper .sidebar-right .form-control {
+                font-size: 12px !important;
+                padding: 2px 6px !important;
+                margin-top: 1px !important;
+                line-height: 1.2 !important;
+                min-height: 0 !important;
+                height: auto !important;
+            }
+            #design-tool-wrapper .sidebar-right select,
+            #design-tool-wrapper .sidebar-right .form-select {
+                font-size: 12px !important;
+                padding: 2px 22px 2px 6px !important;   /* keep room for the arrow */
+                margin-top: 1px !important;
+                line-height: 1.2 !important;
+                min-height: 0 !important;
+                height: auto !important;
+            }
+            #design-tool-wrapper .sidebar-right input[type="color"] {
+                width: 38px !important;
+                height: 26px !important;
+                padding: 1px !important;
+            }
+            #design-tool-wrapper .sidebar-right .color-picker-group { gap: 6px; }
+            #design-tool-wrapper .sidebar-right .btn {
+                font-size: 12px !important;
+                padding: 3px 8px !important;
+                line-height: 1.2 !important;
+            }
+            #design-tool-wrapper .sidebar-right .property-panel .mt-2,
+            #design-tool-wrapper .sidebar-right .property-panel .mt-3 { margin-top: 4px !important; }
+            #design-tool-wrapper .sidebar-right .mb-2 { margin-bottom: 4px !important; }
+            #design-tool-wrapper .sidebar-right .mb-1 { margin-bottom: 2px !important; }
 
             #design-tool-wrapper input[type="number"],
             #design-tool-wrapper input[type="text"],
@@ -1044,8 +1076,7 @@
             </div>
 
             <!-- Tips & Shortcuts -->
-            <!-- 80px top padding clears the 60px sticky footer + breathing room -->
-            <div style="max-width: 1800px; margin: 0 auto; padding: 80px 20px 20px;">
+            <div style="max-width: 1800px; margin: 0 auto; padding: 20px;">
                 <div class="tool-panel">
                     <h3>Tips & Shortcuts</h3>
                     <div style="display: flex; gap: 40px; flex-wrap: wrap;">
