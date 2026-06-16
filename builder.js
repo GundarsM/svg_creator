@@ -6258,7 +6258,7 @@
                     const scaleNow   = (typeof canvas !== 'undefined' && canvas && canvas.scale) ? canvas.scale : 1;
 
                     const sizeSection = mkEl('div', { className: 'mb-3' });
-                    sizeSection.appendChild(mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Holder size (mm)' }));
+                    sizeSection.appendChild(mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Coin holder size (mm)' }));
 
                     const sizeRow = mkEl('div', { className: 'd-flex gap-2 align-items-end' });
 
@@ -6627,6 +6627,15 @@
                                 { label: '2p',   value: '2p',   diameter: 26.06 },
                                 { label: '1p',   value: '1p',   diameter: 20.47 },
                             ]
+                        },
+                        pressed: {
+                            label: '🪙 Pressed Penny',
+                            icon: '🪙',
+                            elliptic: true,
+                            coins: [
+                                { label: '23 × 38 mm', value: 'Penny 23×38', x: 23, y: 38 },
+                                { label: '38 × 23 mm', value: 'Penny 38×23', x: 38, y: 23 },
+                            ]
                         }
                     };
 
@@ -6655,6 +6664,52 @@
                         tabRow.appendChild(tab);
                     });
                     el.appendChild(tabRow);
+
+                    /* ── Elliptical coin slot (pressed pennies) ──────────────
+                       Pressed pennies are oval, so the engine's circular
+                       addSingleCoin can't make them. Build a fabric.Ellipse coin
+                       that mirrors a normal coin group (white fill, brown hairline
+                       stroke, centred label) and is tagged shapeType 'currency' so
+                       it counts, arranges, persists and recolours like any coin. */
+                    function addEllipseCoin(value, xMm, yMm) {
+                        if (typeof canvas === 'undefined' || !canvas || typeof fabric === 'undefined') return;
+                        const scale = canvas.scale || 1;
+                        const ellipse = new fabric.Ellipse({
+                            rx: (xMm / 2) * scale,
+                            ry: (yMm / 2) * scale,
+                            fill: '#ffffff',
+                            stroke: '#5c3316',
+                            strokeWidth: 0.1,
+                            strokeUniform: true,
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        const text = new fabric.Text('1¢', {
+                            fontSize: 5 * scale,
+                            fill: '#000000',
+                            fontFamily: 'Roboto',
+                            fontWeight: 'bold',
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        const group = new fabric.Group([ellipse, text], {
+                            left: canvas.width / 2,
+                            top: canvas.height / 2,
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        group.shapeType = 'currency';
+                        group.materialType = 'color';
+                        group.currencyType = 'pressed';
+                        group.coinValue = value;
+                        group.realRx = xMm / 2;
+                        group.realRy = yMm / 2;
+                        group.setCoords();
+                        canvas.add(group);
+                        canvas.setActiveObject(group);
+                        canvas.requestRenderAll();
+                        if (typeof saveState === 'function') saveState();
+                    }
 
                     /* ── Denomination rows ─────────────────────────────── */
                     const currency = CURRENCIES[activeCurrency];
@@ -6724,10 +6779,12 @@
                         addBtn.addEventListener('click', () => {
                             const q = parseInt(qty.value, 10);
                             if (!q || q < 1) return;
-                            if (typeof addSingleCoin !== 'function') return;
                             Coach.state.coins = Coach.state.coins || {};
-                            for (let i = 0; i < q; i++) {
-                                addSingleCoin(coin.value, coin.diameter);
+                            if (currency.elliptic) {
+                                for (let i = 0; i < q; i++) addEllipseCoin(coin.value, coin.x, coin.y);
+                            } else {
+                                if (typeof addSingleCoin !== 'function') return;
+                                for (let i = 0; i < q; i++) addSingleCoin(coin.value, coin.diameter);
                             }
                             Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
                             // Refresh tally
@@ -6744,37 +6801,69 @@
                     });
                     el.appendChild(denom);
 
-                    /* ── Custom coin (any label + real diameter in mm) ─────── */
+                    /* ── Custom slot ───────────────────────────────────────
+                       Circular currencies: label + diameter (mm).
+                       Pressed Penny: label + X and Y dimensions (mm) → ellipse. */
                     const customWrap = mkEl('div', { className: 'mt-1 mb-2' });
-                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1 text-center', textContent: 'Custom coin' }));
+                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1 text-center', textContent: currency.elliptic ? 'Custom slot' : 'Custom coin' }));
                     const customRow = mkEl('div', { className: 'd-flex align-items-end justify-content-center gap-2' });
 
                     const labelWrap = mkEl('div');
                     labelWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Label' }));
-                    const customLabel = mkEl('input', { type: 'text', className: 'form-control form-control-sm', placeholder: 'e.g. 2€' });
-                    customLabel.style.width = '90px';
+                    const customLabel = mkEl('input', { type: 'text', className: 'form-control form-control-sm', placeholder: currency.elliptic ? 'e.g. Penny' : 'e.g. 2€' });
+                    customLabel.style.width = currency.elliptic ? '72px' : '90px';
                     labelWrap.appendChild(customLabel);
                     customRow.appendChild(labelWrap);
 
-                    const diaWrap = mkEl('div');
-                    diaWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: '⌀ mm' }));
-                    const customDia = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
-                    customDia.style.width = '64px';
-                    diaWrap.appendChild(customDia);
-                    customRow.appendChild(diaWrap);
+                    if (currency.elliptic) {
+                        const xWrap = mkEl('div');
+                        xWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'X mm' }));
+                        const customX = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
+                        customX.style.width = '56px';
+                        xWrap.appendChild(customX);
+                        customRow.appendChild(xWrap);
 
-                    const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
-                    customAdd.addEventListener('click', () => {
-                        const lab = customLabel.value.trim() || 'Coin';
-                        const d = parseFloat(customDia.value);
-                        if (!d || d <= 0 || typeof addSingleCoin !== 'function') return;
-                        addSingleCoin(lab, d);
-                        Coach.state.coins = Coach.state.coins || {};
-                        Coach.state.coins[lab] = (Coach.state.coins[lab] || 0) + 1;
-                        updateTally();
-                        autoArrangeRows();
-                    });
-                    customRow.appendChild(customAdd);
+                        const yWrap = mkEl('div');
+                        yWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Y mm' }));
+                        const customY = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
+                        customY.style.width = '56px';
+                        yWrap.appendChild(customY);
+                        customRow.appendChild(yWrap);
+
+                        const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
+                        customAdd.addEventListener('click', () => {
+                            const x = parseFloat(customX.value);
+                            const y = parseFloat(customY.value);
+                            if (!x || x <= 0 || !y || y <= 0) return;
+                            const lab = customLabel.value.trim() || ('Penny ' + x + '×' + y);
+                            addEllipseCoin(lab, x, y);
+                            Coach.state.coins = Coach.state.coins || {};
+                            Coach.state.coins[lab] = (Coach.state.coins[lab] || 0) + 1;
+                            updateTally();
+                            autoArrangeRows();
+                        });
+                        customRow.appendChild(customAdd);
+                    } else {
+                        const diaWrap = mkEl('div');
+                        diaWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: '⌀ mm' }));
+                        const customDia = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
+                        customDia.style.width = '64px';
+                        diaWrap.appendChild(customDia);
+                        customRow.appendChild(diaWrap);
+
+                        const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
+                        customAdd.addEventListener('click', () => {
+                            const lab = customLabel.value.trim() || 'Coin';
+                            const d = parseFloat(customDia.value);
+                            if (!d || d <= 0 || typeof addSingleCoin !== 'function') return;
+                            addSingleCoin(lab, d);
+                            Coach.state.coins = Coach.state.coins || {};
+                            Coach.state.coins[lab] = (Coach.state.coins[lab] || 0) + 1;
+                            updateTally();
+                            autoArrangeRows();
+                        });
+                        customRow.appendChild(customAdd);
+                    }
                     customWrap.appendChild(customRow);
                     el.appendChild(customWrap);
 
@@ -6798,13 +6887,15 @@
                     addAllBtn.style.setProperty('color', '#333', 'important');
                     addAllBtn.style.setProperty('border-color', '#e0a800', 'important');
                     addAllBtn.addEventListener('click', () => {
-                        if (typeof addSingleCoin !== 'function') return;
                         Coach.state.coins = Coach.state.coins || {};
                         rowControls.forEach(({ coin, qtyInput }) => {
                             const q = parseInt(qtyInput.value, 10);
                             if (!q || q < 1) return;
-                            for (let i = 0; i < q; i++) {
-                                addSingleCoin(coin.value, coin.diameter);
+                            if (currency.elliptic) {
+                                for (let i = 0; i < q; i++) addEllipseCoin(coin.value, coin.x, coin.y);
+                            } else {
+                                if (typeof addSingleCoin !== 'function') return;
+                                for (let i = 0; i < q; i++) addSingleCoin(coin.value, coin.diameter);
                             }
                             Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
                         });
