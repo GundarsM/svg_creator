@@ -6631,13 +6631,16 @@
                         australian: {
                             label: 'A$ Australian',
                             icon: 'A$',
+                            // Diameters = Royal Australian Mint spec + 0.15 mm production clearance.
                             coins: [
-                                { label: 'A$2', value: 'A$2', diameter: 20.50 },
-                                { label: 'A$1', value: 'A$1', diameter: 25.00 },
-                                { label: '50c', value: '50c', diameter: 31.65 },
-                                { label: '20c', value: '20c', diameter: 28.65 },
-                                { label: '10c', value: '10c', diameter: 23.60 },
-                                { label: '5c',  value: '5c',  diameter: 19.41 },
+                                { label: 'A$2', value: 'A$2', diameter: 20.65 },
+                                { label: 'A$1', value: 'A$1', diameter: 25.15 },
+                                { label: '50c', value: '50c', diameter: 31.80 },
+                                { label: '20c', value: '20c', diameter: 28.80 },
+                                { label: '10c', value: '10c', diameter: 23.75 },
+                                { label: '5c',  value: '5c',  diameter: 19.56 },
+                                { label: '2c',  value: '2c',  diameter: 21.74 },
+                                { label: '1c',  value: '1c',  diameter: 17.80 },
                             ]
                         },
                         pressed: {
