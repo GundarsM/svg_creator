@@ -6643,6 +6643,58 @@
                                 { label: '1c',  value: '1c',  diameter: 17.80 },
                             ]
                         },
+                        canada: {
+                            label: 'C$ Canada',
+                            icon: 'C$',
+                            // Diameters = Royal Canadian Mint spec + 0.15 mm production clearance.
+                            coins: [
+                                { label: 'C$2',  value: 'C$2',  diameter: 28.15 },
+                                { label: 'C$1',  value: 'C$1',  diameter: 26.65 },
+                                { label: '50¢',  value: '50¢',  diameter: 27.28 },
+                                { label: '25¢',  value: '25¢',  diameter: 24.03 },
+                                { label: '10¢',  value: '10¢',  diameter: 18.18 },
+                                { label: '5¢',   value: '5¢',   diameter: 21.35 },
+                            ]
+                        },
+                        yen: {
+                            label: '¥ Yen',
+                            icon: '¥',
+                            // Diameters = Japan Mint spec + 0.15 mm production clearance.
+                            coins: [
+                                { label: '¥500', value: '¥500', diameter: 26.65 },
+                                { label: '¥100', value: '¥100', diameter: 22.75 },
+                                { label: '¥50',  value: '¥50',  diameter: 21.15 },
+                                { label: '¥10',  value: '¥10',  diameter: 23.65 },
+                                { label: '¥5',   value: '¥5',   diameter: 22.15 },
+                                { label: '¥1',   value: '¥1',   diameter: 20.15 },
+                            ]
+                        },
+                        swiss: {
+                            label: 'CHF Swiss',
+                            icon: 'CHF',
+                            // Diameters = Swissmint spec + 0.15 mm production clearance.
+                            coins: [
+                                { label: '5 Fr',   value: '5 Fr',  diameter: 31.60 },
+                                { label: '2 Fr',   value: '2 Fr',  diameter: 27.55 },
+                                { label: '1 Fr',   value: '1 Fr',  diameter: 23.35 },
+                                { label: '½ Fr',   value: '½ Fr',  diameter: 18.35 },
+                                { label: '20 rp',  value: '20 rp', diameter: 21.20 },
+                                { label: '10 rp',  value: '10 rp', diameter: 19.30 },
+                                { label: '5 rp',   value: '5 rp',  diameter: 17.30 },
+                            ]
+                        },
+                        bullion: {
+                            label: 'Bullion / Collector',
+                            icon: '🥇',
+                            // Diameters = published spec + 0.15 mm production clearance.
+                            coins: [
+                                { label: 'Silver Eagle', value: 'Silver Eagle', diameter: 40.75 },
+                                { label: 'Britannia',    value: 'Britannia',    diameter: 38.75 },
+                                { label: 'Maple Leaf',   value: 'Maple Leaf',   diameter: 38.15 },
+                                { label: 'Monnaie Paris', value: 'MdP token',   diameter: 34.15 },
+                                { label: 'Krugerrand',   value: 'Krugerrand',   diameter: 32.92 },
+                            ]
+                        },
                         pressed: {
                             label: 'Pressed Penny',
                             icon: '🪙',
