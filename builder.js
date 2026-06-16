@@ -6628,13 +6628,25 @@
                                 { label: '1p',   value: '1p',   diameter: 20.47 },
                             ]
                         },
+                        australian: {
+                            label: 'A$ Australian',
+                            icon: 'A$',
+                            coins: [
+                                { label: 'A$2', value: 'A$2', diameter: 20.50 },
+                                { label: 'A$1', value: 'A$1', diameter: 25.00 },
+                                { label: '50c', value: '50c', diameter: 31.65 },
+                                { label: '20c', value: '20c', diameter: 28.65 },
+                                { label: '10c', value: '10c', diameter: 23.60 },
+                                { label: '5c',  value: '5c',  diameter: 19.41 },
+                            ]
+                        },
                         pressed: {
-                            label: '🪙 Pressed Penny',
+                            label: 'Pressed Penny',
                             icon: '🪙',
                             elliptic: true,
                             coins: [
-                                { label: '23 × 38 mm', value: 'Penny 23×38', x: 23, y: 38 },
-                                { label: '38 × 23 mm', value: 'Penny 38×23', x: 38, y: 23 },
+                                { label: 'Vertical', value: 'Penny 23×38', x: 23, y: 38 },
+                                { label: 'Horizontal', value: 'Penny 38×23', x: 38, y: 23 },
                             ]
                         }
                     };
@@ -6817,14 +6829,14 @@
 
                     if (currency.elliptic) {
                         const xWrap = mkEl('div');
-                        xWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'X mm' }));
+                        xWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Width mm' }));
                         const customX = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
                         customX.style.width = '56px';
                         xWrap.appendChild(customX);
                         customRow.appendChild(xWrap);
 
                         const yWrap = mkEl('div');
-                        yWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Y mm' }));
+                        yWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Height mm' }));
                         const customY = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
                         customY.style.width = '56px';
                         yWrap.appendChild(customY);
