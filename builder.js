@@ -782,6 +782,17 @@
                 line-height: 1.35;
             }
             #coach-body p { margin-bottom: 6px; }
+            /* Step explainer callout — outlined box, transparent fill (chosen style). */
+            #coach-body p.coach-intro {
+                border: 1px solid #344734;
+                border-radius: 8px;
+                background: transparent;
+                color: #333;
+                padding: 7px 10px;
+                margin-bottom: 10px !important;
+                font-size: 13px;
+                line-height: 1.45;
+            }
             #coach-body .btn {
                 padding-top: 3px !important;
                 padding-bottom: 3px !important;
@@ -4201,6 +4212,9 @@
                     if (typeof step.renderAction === 'function') {
                         step.renderAction(bodyEl);
                     }
+                    // Style the step explainer (first paragraph) as an outlined callout.
+                    const introEl = bodyEl.querySelector('p');
+                    if (introEl) introEl.classList.add('coach-intro');
                 }
 
                 // Highlights
@@ -5872,7 +5886,7 @@
         Coach.steps = [
             {
                 id: 'occasion',
-                title: 'Welcome & occasion',
+                title: 'Welcome & Occasion',
                 intro: "Let’s design your coin holder. What’s the occasion?",
                 optional: true,
                 highlight: [],
