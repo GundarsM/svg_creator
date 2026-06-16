@@ -782,13 +782,10 @@
                 line-height: 1.35;
             }
             #coach-body p { margin-bottom: 6px; }
-            /* Step explainer callout — outlined box, transparent fill (chosen style). */
+            /* Step explainer — italic lead text, no box (chosen style). */
             #coach-body p.coach-intro {
-                border: 1px solid #344734;
-                border-radius: 8px;
-                background: transparent;
+                font-style: italic;
                 color: #333;
-                padding: 7px 10px;
                 margin-bottom: 10px !important;
                 font-size: 13px;
                 line-height: 1.45;
