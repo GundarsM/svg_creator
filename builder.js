@@ -947,7 +947,7 @@
                             <!-- Holder aspect-ratio lock — mirrors the Coach step-2 toggle and the object's drag behaviour. -->
                             <button type="button" id="coach-aspect-right" class="btn btn-sm w-100 mb-1"
                                     style="background:#ffc107;color:#333;border:1px solid #e0a800;font-weight:bold;"
-                                    onclick="Coach.toggleHolderAspectLock()">🔓 Aspect unlocked</button>
+                                    onclick="Coach.toggleSelectedAspectLock()">🔓 Aspect unlocked</button>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
                                     <label style="white-space: nowrap; font-size: 0.85em;">Corner Roundness:</label>
@@ -4138,6 +4138,13 @@
                                 canvas.sendToBack(o);
                                 canvas.requestRenderAll();
                             }
+                            // New objects default to locked aspect → set their controls.
+                            Coach.applyAspectToObject(o);
+                        });
+                        // Per-object aspect lock: keep uniformScaling + the right-panel
+                        // button in sync with whatever object is selected.
+                        ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
+                            canvas.on(ev, function() { Coach.onAspectSelect(); });
                         });
                         // (The "Start over" ↺ control lives on the step-chip row; see renderTabs.)
                         // Make the engine's main "Start Over" button confirm AND reset the Coach.
@@ -4327,7 +4334,7 @@
             'shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius',
             'realRx', 'realRy', 'realFontSize', 'realCornerRadius',
             'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
-            '_coachEngrave', '_coachOrigFill'
+            '_coachEngrave', '_coachOrigFill', 'coachAspectLocked'
         ];
 
         /* ── Coach.persist ───────────────────────────────────────────── */
@@ -4346,8 +4353,7 @@
                     holderType:   s.holderType,
                     material:     s.material,
                     coins:        s.coins,
-                    coinCurrency: s.coinCurrency,
-                    aspectLocked: s.aspectLocked
+                    coinCurrency: s.coinCurrency
                 };
             },
 
@@ -4829,50 +4835,135 @@
         };
 
 
-        /* ── Aspect-ratio lock ────────────────────────────────────────────
-           When locked, the holder scales proportionally: its middle (side)
-           resize handles are hidden so dragging is corner-only, and Fabric's
-           uniformScaling keeps corner drags proportional — so what the canvas
-           does now matches the "aspect locked" state. The same state drives the
-           left-step toggle and the right-panel button. */
-        Coach.setHolderAspectLock = function(locked) {
-            locked = !!locked;
-            Coach.state.aspectLocked = locked;
+        /* ── Aspect-ratio lock (per object) ────────────────────────────────
+           Each object remembers its own lock state in obj.coachAspectLocked
+           (default = locked). When locked, the object's middle (side) resize
+           handles are hidden so dragging is corner-only, and the canvas's
+           uniformScaling is set to match the active object so corner drags stay
+           proportional. The right-panel button reflects whichever object is
+           selected; the step-2 left button reflects the holder.
+
+           Not every object gets the option:
+             • coins (shapeType 'currency') — a coin is a coin, always uniform,
+               no toggle. EXCEPTION: pressed pennies (currencyType 'pressed') are
+               elliptical, so they keep the toggle.
+             • fixtures — size is locked entirely, so no toggle and no controls
+               change here.
+             • multi-selections — no single state, so no toggle. */
+        Coach.aspectEligible = function(obj) {
+            if (!obj) return false;
+            if (obj.type === 'activeSelection') return false;
+            if (obj.shapeType === 'fixture') return false;
+            if (obj.shapeType === 'currency') return obj.currencyType === 'pressed';
+            return true;
+        };
+
+        // Default is locked: only an explicit false counts as unlocked.
+        Coach.isAspectLocked = function(obj) {
+            return !obj || obj.coachAspectLocked !== false;
+        };
+
+        // The proportionality a given object should actually enforce: eligible
+        // objects follow their own flag; coins (non-pressed) are always uniform;
+        // anything else (e.g. fixtures) is left alone.
+        Coach._effectiveLock = function(obj) {
+            if (!obj) return true;
+            if (Coach.aspectEligible(obj)) return Coach.isAspectLocked(obj);
+            if (obj.shapeType === 'currency') return true; // a coin is a coin
+            return true;
+        };
+
+        // Apply an object's lock to its resize handles (hide the side handles
+        // when locked → corner-only). Fixtures are skipped (already non-resizable).
+        Coach.applyAspectToObject = function(obj) {
+            if (!obj || obj.type === 'activeSelection') return;
+            if (obj.shapeType === 'fixture') return;
+            if (typeof obj.setControlsVisibility !== 'function') return;
+            const locked = Coach._effectiveLock(obj);
+            obj.setControlsVisibility({ mt: !locked, mb: !locked, ml: !locked, mr: !locked });
+            obj.setCoords();
+        };
+
+        Coach.setObjectAspectLock = function(obj, locked) {
+            if (!obj) return;
+            obj.coachAspectLocked = !!locked;
+            Coach.applyAspectToObject(obj);
             if (typeof canvas !== 'undefined' && canvas) {
-                canvas.uniformScaling = true; // corner drags stay proportional (Fabric default, reinforced)
-                const obj = Coach.state.holderObj;
-                if (obj && typeof obj.setControlsVisibility === 'function') {
-                    // Hide the side handles when locked → corners only (proportional).
-                    obj.setControlsVisibility({ mt: !locked, mb: !locked, ml: !locked, mr: !locked });
-                    obj.setCoords();
-                }
+                // Corner-drag proportionality follows the active object's lock.
+                if (canvas.getActiveObject() === obj) canvas.uniformScaling = !!locked;
                 canvas.requestRenderAll();
             }
             Coach._syncAspectButtons();
             if (typeof saveState === 'function') saveState();
         };
 
-        Coach.toggleHolderAspectLock = function() {
-            if (!Coach.state.holderObj && typeof Coach.resolveHolder === 'function') Coach.resolveHolder();
-            Coach.setHolderAspectLock(!Coach.state.aspectLocked);
-            if (typeof Coach.render === 'function') Coach.render(); // refresh the holder step (shows/hides height input)
+        // Toggle the lock on the currently-selected object (right-panel button).
+        Coach.toggleSelectedAspectLock = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            const obj = canvas.getActiveObject();
+            if (!obj || !Coach.aspectEligible(obj)) return;
+            Coach.setObjectAspectLock(obj, !Coach.isAspectLocked(obj));
         };
 
-        Coach.reapplyAspectLock = function() {
-            if (Coach.state && typeof Coach.state.aspectLocked !== 'undefined') {
-                Coach.setHolderAspectLock(Coach.state.aspectLocked);
+        // Toggle the lock on the holder (step-2 left button).
+        Coach.toggleHolderAspectLock = function() {
+            if (!Coach.state.holderObj && typeof Coach.resolveHolder === 'function') Coach.resolveHolder();
+            const h = Coach.state.holderObj;
+            if (!h) return;
+            Coach.setObjectAspectLock(h, !Coach.isAspectLocked(h));
+            if (typeof Coach.render === 'function') Coach.render(); // refresh holder step (shows/hides height input)
+        };
+
+        // Back-compat wrapper used by holder-creation code paths.
+        Coach.setHolderAspectLock = function(locked) {
+            if (!Coach.state.holderObj && typeof Coach.resolveHolder === 'function') Coach.resolveHolder();
+            if (Coach.state.holderObj) Coach.setObjectAspectLock(Coach.state.holderObj, locked);
+        };
+
+        // Sync selection → uniformScaling + controls + buttons. Called on every
+        // selection change so the right-panel button matches the chosen object.
+        Coach.onAspectSelect = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            const obj = canvas.getActiveObject();
+            if (obj && obj.type !== 'activeSelection') {
+                canvas.uniformScaling = Coach._effectiveLock(obj);
+                Coach.applyAspectToObject(obj);
+            } else {
+                canvas.uniformScaling = true; // safe default for none / multi-select
             }
+            Coach._syncAspectButtons();
+        };
+
+        // Re-apply every object's controls (after a resume).
+        Coach.reapplyAspectLock = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            canvas.getObjects().forEach(function(o) { Coach.applyAspectToObject(o); });
+            canvas.uniformScaling = true;
+            Coach._syncAspectButtons();
         };
 
         Coach._syncAspectButtons = function() {
-            const locked = !!Coach.state.aspectLocked;
-            const txt = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
-            ['coach-aspect-left', 'coach-aspect-right'].forEach(function(id) {
-                const b = document.getElementById(id);
-                if (!b) return;
-                b.textContent = txt;
-                b.setAttribute('aria-pressed', locked ? 'true' : 'false');
-            });
+            // Right-panel button reflects the active object (hidden when the object
+            // isn't eligible — coins/fixtures/multi-select).
+            const right = document.getElementById('coach-aspect-right');
+            if (right) {
+                const obj = (typeof canvas !== 'undefined' && canvas) ? canvas.getActiveObject() : null;
+                if (obj && Coach.aspectEligible(obj)) {
+                    const locked = Coach.isAspectLocked(obj);
+                    right.style.display = '';
+                    right.textContent = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
+                    right.setAttribute('aria-pressed', locked ? 'true' : 'false');
+                } else {
+                    right.style.display = 'none';
+                }
+            }
+            // Step-2 left button reflects the holder object.
+            const left = document.getElementById('coach-aspect-left');
+            if (left) {
+                const locked = Coach.isAspectLocked(Coach.state.holderObj);
+                left.textContent = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
+                left.setAttribute('aria-pressed', locked ? 'true' : 'false');
+            }
         };
 
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
@@ -6012,8 +6103,9 @@
                                 }
                             }
                             applyStoredSize();
-                            // Default lock: free for rectangle/circle, locked for country/imported.
-                            Coach.setHolderAspectLock(type === 'country' || type === 'imported');
+                            // New objects default to locked aspect ratio (the customer
+                            // can unlock per object from the toggle).
+                            Coach.setObjectAspectLock(obj, true);
                         }
                     };
 
@@ -6254,7 +6346,7 @@
                     // holder is created, and re-apply live once one exists.
                     const hasHolder  = !!Coach.state.holderObj;
                     const holderType = Coach.state.holderType;
-                    const lockAspect = !!Coach.state.aspectLocked;
+                    const lockAspect = Coach.isAspectLocked(Coach.state.holderObj);
                     const scaleNow   = (typeof canvas !== 'undefined' && canvas && canvas.scale) ? canvas.scale : 1;
 
                     const sizeSection = mkEl('div', { className: 'mb-3' });
@@ -6691,7 +6783,7 @@
                                 { label: 'Silver Eagle', value: 'Silver Eagle', diameter: 40.75 },
                                 { label: 'Britannia',    value: 'Britannia',    diameter: 38.75 },
                                 { label: 'Maple Leaf',   value: 'Maple Leaf',   diameter: 38.15 },
-                                { label: 'Monnaie Paris', value: 'MdP token',   diameter: 34.15 },
+                                { label: 'Monnaie de Paris Tourist Token', value: 'MdP token',   diameter: 34.15 },
                                 { label: 'Krugerrand',   value: 'Krugerrand',   diameter: 32.92 },
                             ]
                         },
