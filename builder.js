@@ -1044,6 +1044,10 @@
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
                             <i class="fas fa-download"></i> Download your design
                         </button>
+                        <button class="btn btn-outline-secondary w-100 mb-2" id="saveProjectBtn" onclick="Coach.persist.exportToFile()" disabled>
+                            <i class="fas fa-floppy-disk"></i> Save project to a file
+                        </button>
+                        <p class="text-muted small mb-0">Saves an editable copy you can re-open later with “Load a saved project”.</p>
                     </div>
                 </div>
             </div>
@@ -3881,6 +3885,18 @@
                                 formData.append('attachment', fileInput.files[0]);
                             }
 
+                            // Attach the editable project file so the design can be
+                            // re-opened and tweaked later (builder only; harmless in
+                            // the plain editor where Coach is undefined).
+                            try {
+                                if (typeof Coach !== 'undefined' && Coach.persist && Coach.persist.buildProjectFile) {
+                                    const projectFile = Coach.persist.buildProjectFile();
+                                    if (projectFile) formData.append('attachment', projectFile);
+                                }
+                            } catch (projErr) {
+                                console.warn('Could not attach project file:', projErr);
+                            }
+
                             // Submit to FormSubmit
                             const response = await fetch('https://formsubmit.co/hillspringcrafts@gmail.com', {
                                 method: 'POST',
@@ -4367,6 +4383,20 @@
                 };
             },
 
+            /* Build the full, self-describing project payload (canvas + Coach
+               state + step). Same shape used for localStorage auto-save, the
+               downloadable project file, and the e-mailed project attachment. */
+            buildPayload() {
+                return {
+                    app:        'hsc-coin-holder',
+                    version:    1,
+                    savedAt:    new Date().toISOString(),
+                    canvasJSON: canvas.toJSON(Coach.EXTRA_PROPS),
+                    step:       Coach.current,
+                    state:      Coach.persist._serializableState()
+                };
+            },
+
             /* Debounced save (~500 ms) */
             save() {
                 if (Coach.persist._t) clearTimeout(Coach.persist._t);
@@ -4375,17 +4405,81 @@
                     if (Coach.persist.disabled) return;
                     if (typeof canvas === 'undefined' || !canvas) return;
                     try {
-                        const payload = {
-                            canvasJSON: canvas.toJSON(Coach.EXTRA_PROPS),
-                            step:       Coach.current,
-                            state:      Coach.persist._serializableState()
-                        };
-                        localStorage.setItem(Coach.persist.KEY, JSON.stringify(payload));
+                        localStorage.setItem(Coach.persist.KEY, JSON.stringify(Coach.persist.buildPayload()));
                     } catch (e) {
                         Coach.persist.disabled = true;
                         Coach.persist.note();
                     }
                 }, 500);
+            },
+
+            /* Filesystem-safe slug from the project name (or a sensible default) */
+            _fileBase() {
+                const raw = (Coach.state && Coach.state.projectName) ? Coach.state.projectName : 'coin-holder';
+                const slug = raw.toString().trim()
+                    .replace(/[^a-z0-9\-_ ]/gi, '')
+                    .replace(/\s+/g, '-')
+                    .toLowerCase();
+                return slug || 'coin-holder';
+            },
+
+            /* Download the current design as an editable .hsc.json project file */
+            exportToFile() {
+                if (typeof canvas === 'undefined' || !canvas) return;
+                if (!canvas.getObjects().length) return;
+                let json;
+                try {
+                    json = JSON.stringify(Coach.persist.buildPayload());
+                } catch (e) {
+                    alert("Sorry — your project couldn't be prepared for download. Please try again.");
+                    return;
+                }
+                const blob = new Blob([json], { type: 'application/json' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url;
+                a.download = Coach.persist._fileBase() + '.hsc.json';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 0);
+            },
+
+            /* Build a File of the current project, for attaching to the e-mail
+               quote. Returns null if there's nothing to save. */
+            buildProjectFile() {
+                if (typeof canvas === 'undefined' || !canvas) return null;
+                if (!canvas.getObjects().length) return null;
+                let json;
+                try { json = JSON.stringify(Coach.persist.buildPayload()); }
+                catch (e) { return null; }
+                const blob = new Blob([json], { type: 'application/json' });
+                return new File([blob], Coach.persist._fileBase() + '-' + Date.now() + '.hsc.json',
+                    { type: 'application/json' });
+            },
+
+            /* Read a chosen project file and restore it onto the canvas */
+            importFromFile(file) {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    let parsed;
+                    try { parsed = JSON.parse(ev.target.result); }
+                    catch (e) { alert("That file isn't a valid project file."); return; }
+                    if (!parsed || !parsed.canvasJSON || !Array.isArray(parsed.canvasJSON.objects)) {
+                        alert("That doesn't look like a coin-holder project file. Please choose a .hsc.json file you saved from this tool.");
+                        return;
+                    }
+                    // Guard against silently wiping out work already on the canvas.
+                    if (typeof canvas !== 'undefined' && canvas && canvas.getObjects().length &&
+                        !confirm('Load this project? Your current design will be replaced.')) {
+                        return;
+                    }
+                    Coach.persist.resume(parsed);
+                    // Make the freshly loaded project the current working state.
+                    Coach.persist.save();
+                };
+                reader.onerror = function() { alert("Sorry — that file couldn't be read."); };
+                reader.readAsText(file);
             },
 
             /* One-time notice when storage is unavailable */
@@ -4986,7 +5080,7 @@
         Coach.updateActionButtons = function() {
             if (typeof canvas === 'undefined' || !canvas) return;
             const has = canvas.getObjects().length > 0;
-            ['clearBtn', 'downloadBtn'].forEach(function(id) {
+            ['clearBtn', 'downloadBtn', 'saveProjectBtn'].forEach(function(id) {
                 const b = document.getElementById(id);
                 if (b) b.disabled = !has;
             });
@@ -6070,6 +6164,37 @@
                         Coach.state.projectName = nameInput.value;
                     });
                     el.appendChild(nameInput);
+
+                    // ── Resume from a previously saved project file ──────────
+                    const loadWrap = document.createElement('div');
+                    loadWrap.className = 'mt-4 pt-3';
+                    loadWrap.style.borderTop = '1px solid rgba(255,255,255,0.2)';
+
+                    const loadHint = document.createElement('p');
+                    loadHint.className = 'small mb-2';
+                    loadHint.style.opacity = '0.85';
+                    loadHint.textContent = 'Already started one? Open a project file you saved earlier.';
+                    loadWrap.appendChild(loadHint);
+
+                    const loadInput = document.createElement('input');
+                    loadInput.type = 'file';
+                    loadInput.accept = '.json,.hsc';
+                    loadInput.style.display = 'none';
+                    loadInput.addEventListener('change', (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (file) Coach.persist.importFromFile(file);
+                        loadInput.value = '';   // allow re-picking the same file
+                    });
+
+                    const loadBtn = document.createElement('button');
+                    loadBtn.type = 'button';
+                    loadBtn.className = 'btn btn-sm btn-outline-light w-100';
+                    loadBtn.innerHTML = '<i class="fas fa-folder-open"></i> Load a saved project';
+                    loadBtn.addEventListener('click', () => loadInput.click());
+
+                    loadWrap.appendChild(loadBtn);
+                    loadWrap.appendChild(loadInput);
+                    el.appendChild(loadWrap);
                 }
             },
             {
