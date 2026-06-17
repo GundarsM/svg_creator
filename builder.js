@@ -882,25 +882,25 @@
                         <button class="btn btn-sm btn-outline-secondary" onclick="zoomOut()" title="Zoom Out">
                             <i class="fas fa-search-minus"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="resetZoom()" title="Reset View">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="resetZoom()" title="Fit to screen">
                             <i class="fas fa-compress-arrows-alt"></i>
                         </button>
                         <div class="toolbar-separator"></div>
                         <div class="settings-dropdown">
-                            <button class="btn btn-sm btn-outline-secondary" id="coachSettingsBtn" onclick="toggleSettingsDropdown()" title="Board Size Settings">
+                            <button class="btn btn-sm btn-outline-secondary" id="coachSettingsBtn" onclick="toggleSettingsDropdown()" title="Holder size settings">
                                 <i class="fas fa-cog"></i>
                             </button>
                             <div class="settings-dropdown-content" id="settingsDropdown">
-                                <label class="form-label" style="font-weight: bold;">Board Size</label>
+                                <label class="form-label" style="font-weight: bold;">Holder size</label>
                                 <select id="canvasSizeToolbar" class="form-select mb-2">
                                     <option value="a4">A4 (210 x 297 mm)</option>
                                     <option value="a3">A3 (297 x 420 mm)</option>
                                     <option value="a2">A2 (420 x 594 mm)</option>
                                     <option value="a1">A1 (594 x 841 mm)</option>
-                                    <option value="custom" selected>Custom Size</option>
+                                    <option value="custom" selected>Custom size</option>
                                 </select>
                                 <div id="customSizeInputsToolbar" style="display:block; margin-top:8px;">
-                                    <label class="form-label" style="color: #333; font-size: 12px;" id="customSizeLabelToolbar">Enter dimensions in mm:</label>
+                                    <label class="form-label" style="color: #333; font-size: 12px;" id="customSizeLabelToolbar">Enter size in mm:</label>
                                     <input type="number" id="customWidthToolbar" placeholder="Width (mm)" class="form-control mb-2" min="0.1" step="0.01" value="390">
                                     <input type="number" id="customHeightToolbar" placeholder="Height (mm)" class="form-control mb-2" min="0.1" step="0.01" value="300">
                                 </div>
@@ -916,7 +916,7 @@
                         <div class="canvas-wrapper" id="canvasWrapper">
                             <canvas id="designCanvas"></canvas>
                             <div class="canvas-hint" id="canvasHint">
-                                Choose a template to get started,<br>or add shapes from the left panel
+                                Follow the steps on the left to build your coin holder
                             </div>
                         </div>
                     </div>
@@ -925,9 +925,9 @@
                 <!-- Right Sidebar - Properties -->
                 <div class="sidebar-right">
                     <div class="tool-panel">
-                        <h3>Object Properties</h3>
+                        <h3>Selected item</h3>
                         <div id="propertiesPanel">
-                            <p class="text-muted">Select an object to edit its properties</p>
+                            <p class="text-muted">Click an item on the canvas to edit it</p>
                         </div>
                         
                         <div class="property-panel" id="objectProperties" style="display:none;">
@@ -954,10 +954,10 @@
                             <!-- Holder aspect-ratio lock — mirrors the Coach step-2 toggle and the object's drag behaviour. -->
                             <button type="button" id="coach-aspect-right" class="btn btn-sm w-100 mb-1"
                                     style="background:#ffc107;color:#333;border:1px solid #e0a800;font-weight:bold;"
-                                    onclick="Coach.toggleSelectedAspectLock()">🔓 Aspect unlocked</button>
+                                    onclick="Coach.toggleSelectedAspectLock()">🔓 Resize freely</button>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner Roundness:</label>
+                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner rounding:</label>
                                     <input type="number" id="cornerRadius" step="0.1" min="0">
                                 </div>
                                 <div style="flex: 1;">
@@ -976,7 +976,7 @@
                             </div>
                             <div class="control-group" style="display: flex; gap: 8px; align-items: flex-start;">
                                 <div style="flex: 1;" id="fillColorGroup">
-                                    <label>Color:</label>
+                                    <label>Colour:</label>
                                     <select id="fillColor" class="form-select" style="font-family: monospace;">
                                         <option value="#000000" style="background: #000000; color: white;">⬛ Black</option>
                                         <option value="#FFFFFF" style="background: #FFFFFF; color: black; border: 1px solid #ccc;">⬜ White</option>
@@ -990,7 +990,7 @@
                                     </select>
                                 </div>
                                 <div style="flex: 1;" id="strokeColorGroup">
-                                    <label>Outline:</label>
+                                    <label>Border:</label>
                                     <div class="color-picker-group">
                                         <input type="color" id="strokeColor">
                                         <input type="number" id="strokeWidth" min="0" max="20" step="0.1" placeholder="Width">
@@ -1014,18 +1014,18 @@
                                 </select>
                                 <label class="mt-2">Font Size:</label>
                                 <input type="number" id="fontSize" min="8" max="200">
-                                <label class="mt-2">Text Content:</label>
+                                <label class="mt-2">Text:</label>
                                 <input type="text" id="textContent">
                             </div>
                             <button class="btn btn-success w-100 mt-3" onclick="duplicateSelected()">
-                                <i class="fas fa-copy"></i> Duplicate (Ctrl+D)
+                                <i class="fas fa-copy"></i> Make a copy
                             </button>
                             <div style="display: flex; gap: 4px; margin-top: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorHorizontal()">
-                                    <i class="fas fa-arrows-alt-h"></i> Mirror H
+                                    <i class="fas fa-arrows-alt-h"></i> Flip H
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorVertical()">
-                                    <i class="fas fa-arrows-alt-v"></i> Mirror V
+                                    <i class="fas fa-arrows-alt-v"></i> Flip V
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="rotate90()">
                                     <i class="fas fa-redo"></i> 90°
@@ -1036,13 +1036,13 @@
                             </button>
                         </div>
                         
-                        <h3 class="mt-4">Actions</h3>
+                        <h3 class="mt-4">Finish up</h3>
                         <!-- Start Over / Download stay disabled until the canvas has objects (Coach.updateActionButtons). -->
                         <button class="btn btn-warning w-100 mb-2" id="clearBtn" onclick="clearCanvas()" disabled>
-                            <i class="fas fa-sync-alt"></i> Start Over
+                            <i class="fas fa-sync-alt"></i> Start over
                         </button>
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
-                            <i class="fas fa-download"></i> Download as SVG
+                            <i class="fas fa-download"></i> Download your design
                         </button>
                     </div>
                 </div>
@@ -3387,11 +3387,11 @@
                 document.getElementById('unitInchToolbar').classList.toggle('active', unit === 'inch');
 
                 if (unit === 'inch') {
-                    document.getElementById('customSizeLabelToolbar').textContent = 'Enter dimensions in inch:';
+                    document.getElementById('customSizeLabelToolbar').textContent = 'Enter size in inches:';
                     document.getElementById('customWidthToolbar').placeholder = 'Width (inch)';
                     document.getElementById('customHeightToolbar').placeholder = 'Height (inch)';
                 } else {
-                    document.getElementById('customSizeLabelToolbar').textContent = 'Enter dimensions in mm:';
+                    document.getElementById('customSizeLabelToolbar').textContent = 'Enter size in mm:';
                     document.getElementById('customWidthToolbar').placeholder = 'Width (mm)';
                     document.getElementById('customHeightToolbar').placeholder = 'Height (mm)';
                 }
@@ -4964,7 +4964,7 @@
                 if (obj && Coach.aspectEligible(obj)) {
                     const locked = Coach.isAspectLocked(obj);
                     right.style.display = '';
-                    right.textContent = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
+                    right.textContent = locked ? '🔒 Keep proportions' : '🔓 Resize freely';
                     right.setAttribute('aria-pressed', locked ? 'true' : 'false');
                 } else {
                     right.style.display = 'none';
@@ -4974,7 +4974,7 @@
             const left = document.getElementById('coach-aspect-left');
             if (left) {
                 const locked = Coach.isAspectLocked(Coach.state.holderObj);
-                left.textContent = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
+                left.textContent = locked ? '🔒 Keep proportions' : '🔓 Resize freely';
                 left.setAttribute('aria-pressed', locked ? 'true' : 'false');
             }
         };
@@ -6000,8 +6000,8 @@
         Coach.steps = [
             {
                 id: 'occasion',
-                title: 'Welcome & Occasion',
-                intro: "Design your coin holder by going through the steps. Let’s start with the occasion?",
+                title: 'Welcome',
+                intro: "Let’s build your coin holder step by step. First — what’s it for?",
                 optional: true,
                 highlight: [],
                 renderAction(el) {
@@ -6074,8 +6074,8 @@
             },
             {
                 id: 'holder',
-                title: 'Choose the holder',
-                intro: 'Pick the shape and size of your coin holder.',
+                title: 'Choose a shape',
+                intro: 'Start with the shape of your holder. You can set the size now or change it anytime.',
                 optional: false,
                 highlight: [
                     Coach.SELECTORS.settings,
@@ -6183,7 +6183,7 @@
                         const btn = mkEl('button', {
                             type: 'button',
                             className: 'btn btn-sm',
-                            textContent: 'Reduce objects'
+                            textContent: 'Clean up outline'
                         });
                         btn.title = 'Keep only the largest outline in the loaded shape, removing the smaller ones';
                         // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
@@ -6198,7 +6198,7 @@
                         el.appendChild(row);
                         el.appendChild(mkEl('p', {
                             className: 'small text-muted mb-3',
-                            textContent: 'Your loaded shape has several outlines in one object. Reduce objects keeps the largest and removes the rest.'
+                            textContent: 'Your file has a few shapes in it — this keeps the biggest one and removes the rest.'
                         }));
                     }());
 
@@ -6237,7 +6237,7 @@
                     shapeGroup.appendChild(circBtn);
 
                     // Row 1 btn: Country / custom shape (toggle)
-                    const countryToggleBtn = makeBtn('Country / SVG', 'fas fa-draw-polygon',
+                    const countryToggleBtn = makeBtn('Custom shape', 'fas fa-draw-polygon',
                         Coach.state.holderType === 'country' || Coach.state.holderType === 'imported');
                     countryToggleBtn.dataset.shape = 'country';
                     countryToggleBtn.addEventListener('click', () => {
@@ -6319,7 +6319,7 @@
                     });
 
                     // Upload SVG — last button in the country/custom panel
-                    const svgBtn = makeBtn('Upload SVG', 'fas fa-shapes', Coach.state.holderType === 'imported');
+                    const svgBtn = makeBtn('Upload your own shape', 'fas fa-shapes', Coach.state.holderType === 'imported');
                     svgBtn.dataset.shape = 'imported';
                     svgBtn.addEventListener('click', () => {
                         if (typeof canvas !== 'undefined' && canvas) {
@@ -6450,7 +6450,7 @@
                             type: 'button',
                             id: 'coach-aspect-left',
                             className: 'btn btn-sm',
-                            textContent: lockAspect ? '🔒 Aspect locked' : '🔓 Aspect unlocked'
+                            textContent: lockAspect ? '🔒 Keep proportions' : '🔓 Resize freely'
                         });
                         lockBtn.addEventListener('click', () => Coach.toggleHolderAspectLock());
                         lockRow.appendChild(lockBtn);
@@ -6460,7 +6460,7 @@
                     if (!hasHolder) {
                         sizeSection.appendChild(mkEl('p', {
                             className: 'small text-muted mb-0 mt-1',
-                            textContent: 'Set a size now or later — it applies as soon as you pick a base shape.'
+                            textContent: "You can set a size now or later — it'll apply as soon as you pick a shape."
                         }));
                     }
 
@@ -6492,8 +6492,8 @@
             },
             {
                 id: 'material',
-                title: 'Pick the material',
-                intro: 'Set material',
+                title: 'Choose a material',
+                intro: 'What should your holder be made of? Pick a wood finish or a solid plastic colour.',
                 optional: false,
                 highlight: [Coach.SELECTORS.material],
                 renderAction(el) {
@@ -6694,7 +6694,7 @@
             {
                 id: 'coins',
                 title: 'Add your coins',
-                intro: 'Choose the currency and add the coins you want to display. Or add a custom coin.',
+                intro: "Pick a currency and add the coins you'd like to display. You can also add a custom one.",
                 optional: false,
                 highlight: [Coach.SELECTORS.coins],
                 isComplete() {
@@ -7033,7 +7033,7 @@
                         customRow.appendChild(customAdd);
                     } else {
                         const diaWrap = mkEl('div');
-                        diaWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: '⌀ mm' }));
+                        diaWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Size (mm)' }));
                         const customDia = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
                         customDia.style.width = '64px';
                         diaWrap.appendChild(customDia);
@@ -7068,7 +7068,7 @@
                     const addAllBtn = mkEl('button', {
                         type: 'button',
                         className: 'btn btn-sm',
-                        textContent: 'Add all (non-zero)'
+                        textContent: 'Add all selected above'
                     });
                     // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
                     addAllBtn.style.setProperty('background', '#ffc107', 'important');
@@ -7134,8 +7134,8 @@
             },
             {
                 id: 'arrange',
-                title: 'Arrange the layout',
-                intro: 'Tidy your coins into a neat layout.',
+                title: 'Arrange the coins',
+                intro: 'Line your coins up neatly — pick a layout below, or just drag them around yourself.',
                 optional: false,
                 highlight: [],
                 renderAction(el) {
@@ -7180,7 +7180,7 @@
                     btnRow.appendChild(makeArrangeBtn('Fit to shape', 'fas fa-draw-polygon',  'shape'));
 
                     // Yellow accent button — moves all coins into tidy rows above the holder.
-                    const outsideBtn = makeArrangeBtn('Reposition to outside', 'fas fa-arrow-up', 'outside');
+                    const outsideBtn = makeArrangeBtn('Move coins above the holder', 'fas fa-arrow-up', 'outside');
                     // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
                     outsideBtn.style.setProperty('background', '#ffc107', 'important');
                     outsideBtn.style.setProperty('color', '#333', 'important');
@@ -7191,7 +7191,7 @@
                     // Hint for the shape-conforming layout
                     const shapeHint = document.createElement('p');
                     shapeHint.className = 'small text-muted mb-2';
-                    shapeHint.textContent = 'Fit the coins you added to the coin holder shape. Reposition them as needed.';
+                    shapeHint.textContent = "Arrange your coins to follow the holder's shape, then drag any coin to fine-tune.";
                     el.appendChild(shapeHint);
 
                     // Muted note
@@ -7203,8 +7203,8 @@
             },
             {
                 id: 'personalize',
-                title: 'Personalize',
-                intro: 'Add a title, a country outline, or a logo.',
+                title: 'Personalise it',
+                intro: 'Make it yours — add a name or message, a country shape, or your own logo.',
                 optional: true,
                 highlight: [
                     Coach.SELECTORS.text,
@@ -7222,7 +7222,7 @@
 
                     const muted = document.createElement('p');
                     muted.className = 'text-muted small mb-3';
-                    muted.textContent = 'All optional — add what you like, or Skip.';
+                    muted.textContent = 'All optional — add what you like, or move on.';
                     el.appendChild(muted);
 
                     /* ── Helper: section label ───────────────────────── */
@@ -7267,7 +7267,7 @@
                     }
 
                     /* ── 1. Engraving text ───────────────────────────── */
-                    el.appendChild(sectionLabel('Engraving text'));
+                    el.appendChild(sectionLabel('Add a name or message'));
 
                     const textRow = document.createElement('div');
                     textRow.className = 'd-flex gap-2 mb-2';
@@ -7306,7 +7306,7 @@
                     el.appendChild(textRow);
 
                     /* ── 2. Country outline ──────────────────────────── */
-                    el.appendChild(sectionLabel('Country shape'));
+                    el.appendChild(sectionLabel('Add a country shape'));
 
                     const countryToggleBtn = document.createElement('button');
                     countryToggleBtn.className = 'btn btn-sm btn-outline-light mb-2';
@@ -7348,6 +7348,11 @@
                     modeRow.appendChild(filledBtn);
                     modeRow.appendChild(outlineBtn);
                     countryPanel.appendChild(modeRow);
+
+                    const modeHint = document.createElement('p');
+                    modeHint.className = 'small text-muted mb-2';
+                    modeHint.textContent = 'Filled = a solid shape · Outline = just the border.';
+                    countryPanel.appendChild(modeHint);
 
                     /* Country buttons */
                     const countries = [
@@ -7393,7 +7398,7 @@
                     el.appendChild(countryPanel);
 
                     /* ── 3. Upload a logo / image ────────────────────── */
-                    el.appendChild(sectionLabel('Upload a logo or image'));
+                    el.appendChild(sectionLabel('Add a logo or image'));
 
                     const uploadBtn = document.createElement('button');
                     uploadBtn.className = 'btn btn-sm btn-outline-light mb-1';
@@ -7412,14 +7417,14 @@
                     // back. The colour follows the material: brown on wood, light grey
                     // on plastic. Acts on the selected image/text, or the most recent
                     // image if nothing suitable is selected.
-                    el.appendChild(sectionLabel('Preview engraved colour for image or text'));
+                    el.appendChild(sectionLabel('See how it looks engraved'));
                     const tintNudge = mkEl('p', { className: 'small text-warning mb-1' });
                     tintNudge.style.display = 'none';
                     const tintRow = mkEl('div', { className: 'coach-row mt-1' });
                     const tintBtn = mkEl('button', {
                         type: 'button',
                         className: 'btn btn-sm',
-                        textContent: 'Preview engraved colour'
+                        textContent: 'Preview engraved look'
                     });
                     // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
                     tintBtn.style.setProperty('background', '#ffc107', 'important');
@@ -7435,12 +7440,12 @@
                     // Reflect the current target's state in the button label.
                     const syncTintLabel = function() {
                         const t = pickEngraveTarget();
-                        tintBtn.textContent = (t && Coach.isEngraved(t)) ? 'Restore colour' : 'Preview engraved colour';
+                        tintBtn.textContent = (t && Coach.isEngraved(t)) ? 'Show original colour' : 'Preview engraved look';
                     };
                     tintBtn.addEventListener('click', function() {
                         const t = pickEngraveTarget();
                         if (!t) {
-                            tintNudge.textContent = 'Select an image or text first, then recolour it.';
+                            tintNudge.textContent = 'Click an image or text on the canvas first, then preview it.';
                             tintNudge.style.display = '';
                             return;
                         }
@@ -7467,8 +7472,8 @@
             },
             {
                 id: 'fixtures',
-                title: 'Add fixtures',
-                intro: 'Add mounting fixtures.',
+                title: 'Add mounting holes',
+                intro: 'Want to hang or screw it to a wall? Add mounting holes, then drag them wherever you like — or skip this step.',
                 optional: true,
                 highlight: [],
                 renderAction(el) {
@@ -7483,14 +7488,14 @@
 
                     const row = mkEl('div', { className: 'coach-row coach-row-2 mb-2' });
 
-                    const addBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add fixtures' });
+                    const addBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add mounting holes' });
                     addBtn.addEventListener('click', () => {
                         const n = Coach.addFixtures();
                         if (n === false || n == null) {
                             nudge.textContent = 'Add a holder first (step 2).';
                             nudge.style.display = '';
                         } else if (n === 0) {
-                            nudge.textContent = 'No room for fixtures without clashing with coins — move some coins inward and try again.';
+                            nudge.textContent = 'No room for holes without overlapping the coins — move some coins inward and try again.';
                             nudge.style.display = '';
                         } else {
                             nudge.style.display = 'none';
@@ -7498,7 +7503,7 @@
                     });
 
                     // Add one free-floating hole to position by hand.
-                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add single fixture' });
+                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add one hole' });
                     singleBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         const scale = canvas.scale || 1;
@@ -7510,7 +7515,7 @@
                         nudge.style.display = 'none';
                     });
 
-                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Clear fixtures' });
+                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove all holes' });
                     clearBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
@@ -7525,7 +7530,7 @@
                     el.appendChild(row);
 
                     // Fixture finish: Black (dark grey) or Silver (light grey)
-                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture finish colour' }));
+                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Hole colour' }));
                     const colorRow = mkEl('div', { className: 'coach-row coach-row-2 mb-1' });
                     const current = Coach.fixtureColorKey();
                     [['black', 'Black'], ['silver', 'Silver']].forEach(([key, label]) => {
@@ -7553,8 +7558,8 @@
             },
             {
                 id: 'review',
-                title: 'Review & request',
-                intro: 'Review your design, then download or request a quote.',
+                title: 'Review & order',
+                intro: 'Take a look at your design, then download it or ask us for a quote.',
                 optional: false,
                 highlight: [Coach.SELECTORS.download],
                 renderAction(el) {
