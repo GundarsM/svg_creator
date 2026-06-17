@@ -771,6 +771,13 @@
                 flex: 1 1 calc(50% - 3px);
                 min-width: calc(50% - 3px);
             }
+            /* Currency tabs (step 5): fixed quarter-width so a lone tab on the
+               last row (e.g. Pressed Penny) doesn't stretch to fill it. */
+            #coach-body .coach-row > .btn.coach-tab {
+                flex: 0 0 calc(25% - 6px);
+                min-width: calc(25% - 6px);
+                max-width: calc(25% - 6px);
+            }
 
             /* ── Compact the in-sidebar Coach so each step fits the viewport
                  height without scrolling (reduce button/input heights, margins
@@ -6776,19 +6783,19 @@
                             ]
                         },
                         bullion: {
-                            label: 'Bullion / Collector',
+                            label: 'Exonumia',
                             icon: '🥇',
                             // Diameters = published spec + 0.15 mm production clearance.
                             coins: [
                                 { label: 'Silver Eagle', value: 'Silver Eagle', diameter: 40.75 },
                                 { label: 'Britannia',    value: 'Britannia',    diameter: 38.75 },
                                 { label: 'Maple Leaf',   value: 'Maple Leaf',   diameter: 38.15 },
-                                { label: 'Monnaie de Paris Tourist Token', value: 'MdP token',   diameter: 34.15 },
+                                { label: 'National Tokens', value: 'MdP token',   diameter: 34.15 },
                                 { label: 'Krugerrand',   value: 'Krugerrand',   diameter: 32.92 },
                             ]
                         },
                         pressed: {
-                            label: 'Pressed Penny',
+                            label: 'Pressed Pennies',
                             icon: '🪙',
                             elliptic: true,
                             coins: [
@@ -6808,7 +6815,7 @@
                         const isActive = key === activeCurrency;
                         const tab = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm' + (isActive ? ' active' : ''),
+                            className: 'btn btn-sm coach-tab' + (isActive ? ' active' : ''),
                             textContent: cur.label
                         });
                         if (isActive) {
