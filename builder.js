@@ -1037,10 +1037,11 @@
                         </div>
                         
                         <h3 class="mt-4">Actions</h3>
-                        <button class="btn btn-warning w-100 mb-2" onclick="clearCanvas()">
+                        <!-- Start Over / Download stay disabled until the canvas has objects (Coach.updateActionButtons). -->
+                        <button class="btn btn-warning w-100 mb-2" id="clearBtn" onclick="clearCanvas()" disabled>
                             <i class="fas fa-sync-alt"></i> Start Over
                         </button>
-                        <button class="btn btn-success w-100 mb-2" id="downloadBtn">
+                        <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
                             <i class="fas fa-download"></i> Download as SVG
                         </button>
                     </div>
@@ -4148,6 +4149,10 @@
                             // New objects default to locked aspect → set their controls.
                             Coach.applyAspectToObject(o);
                         });
+                        // Enable/disable the right-panel Actions as the canvas fills/empties.
+                        ['object:added', 'object:removed'].forEach(function(ev) {
+                            canvas.on(ev, function() { Coach.updateActionButtons(); });
+                        });
                         // Per-object aspect lock: keep uniformScaling + the right-panel
                         // button in sync with whatever object is selected.
                         ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
@@ -4168,6 +4173,7 @@
                             };
                             window.clearCanvas._coachWrapped = true;
                         }
+                        Coach.updateActionButtons();
                         Coach.persist.boot();
                     } else if (tries >= MAX_TRIES) {
                         clearInterval(poll);
@@ -4971,6 +4977,19 @@
                 left.textContent = locked ? '🔒 Aspect locked' : '🔓 Aspect unlocked';
                 left.setAttribute('aria-pressed', locked ? 'true' : 'false');
             }
+        };
+
+        /* ── Coach.updateActionButtons ────────────────────────────────
+           The right-panel "Start Over" and "Download as SVG" actions are only
+           meaningful once the canvas has something on it — disable them while it's
+           empty. Called on add/remove and after boot/resume. */
+        Coach.updateActionButtons = function() {
+            if (typeof canvas === 'undefined' || !canvas) return;
+            const has = canvas.getObjects().length > 0;
+            ['clearBtn', 'downloadBtn'].forEach(function(id) {
+                const b = document.getElementById(id);
+                if (b) b.disabled = !has;
+            });
         };
 
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
@@ -5982,7 +6001,7 @@
             {
                 id: 'occasion',
                 title: 'Welcome & Occasion',
-                intro: "Let’s design your coin holder. What’s the occasion?",
+                intro: "Design your coin holder by going through the steps. Let’s start with the occasion?",
                 optional: true,
                 highlight: [],
                 renderAction(el) {
