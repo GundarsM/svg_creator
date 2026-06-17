@@ -4134,16 +4134,13 @@
                             canvas.on(ev, () => Coach.persist.save());
                         });
                         // Imported SVG vectors → thin 0.07 outline (hairline cut line).
-                        // Country outlines → always the bottom layer, even if added later.
+                        // (A country chosen as the BASE shape is sent to the back where it's
+                        //  captured in step 2 — NOT here — so step-7/template countries stay put.)
                         canvas.on('object:added', (e) => {
                             const o = e.target;
                             if (!o) return;
                             if (o.shapeType === 'imported') {
                                 Coach.normalizeImportedStroke(o);
-                                canvas.requestRenderAll();
-                            }
-                            if (o.shapeType === 'country') {
-                                canvas.sendToBack(o);
                                 canvas.requestRenderAll();
                             }
                             // New objects default to locked aspect → set their controls.
@@ -4615,10 +4612,13 @@
         };
 
         /* ── Coach.reapplyCountryToBack ──────────────────────────────────
-           Keep country outlines on the bottom layer after a resume. */
+           Keep the BASE-shape country on the bottom layer after a resume. Only
+           the holder country (coachHolderId 'holder') is sent back — countries
+           added as step-7 personalization or by a template stay where they are. */
         Coach.reapplyCountryToBack = function() {
             if (typeof canvas === 'undefined' || !canvas) return;
-            canvas.getObjects().filter(function(o) { return o.shapeType === 'country'; })
+            canvas.getObjects()
+                .filter(function(o) { return o.shapeType === 'country' && o.coachHolderId === 'holder'; })
                 .forEach(function(o) { canvas.sendToBack(o); });
             canvas.requestRenderAll();
         };
@@ -6055,7 +6055,7 @@
                     const nameLabel = document.createElement('label');
                     nameLabel.htmlFor = 'coach-project-name';
                     nameLabel.className = 'form-label small mb-1';
-                    nameLabel.textContent = 'Project name (optional)';
+                    nameLabel.textContent = 'Coin holders name (optional)';
                     el.appendChild(nameLabel);
 
                     const nameInput = document.createElement('input');
@@ -6203,7 +6203,7 @@
                     }());
 
                     // ── 2. Base-shape picker (FIX H) ──────────────────────
-                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a base shape for your coin holder' });
+                    const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a shape for your coin holder' });
                     el.appendChild(shapeLabel);
 
                     const shapeGroup = mkEl('div', { className: 'coach-row mb-2' });
@@ -6284,7 +6284,10 @@
                                     if (obj && obj.shapeType === 'currency') return; // ignore stray coins
                                     Coach.state.holderObj = obj;
                                     Coach.state.holderType = 'country';
-                                    if (obj) obj.coachHolderId = 'holder';
+                                    if (obj) {
+                                        obj.coachHolderId = 'holder';
+                                        canvas.sendToBack(obj); // base shape sits on the bottom layer
+                                    }
                                     canvas.off('object:added', handler);
                                     clearTimeout(Coach._pendingHolderTimeout);
                                     Coach._pendingHolderHandler = null;
@@ -6490,7 +6493,7 @@
             {
                 id: 'material',
                 title: 'Pick the material',
-                intro: 'Choose material for your coin holder.',
+                intro: 'Set material',
                 optional: false,
                 highlight: [Coach.SELECTORS.material],
                 renderAction(el) {
@@ -6691,7 +6694,7 @@
             {
                 id: 'coins',
                 title: 'Add your coins',
-                intro: 'Add the coins you want to display. Choose the currency and add the coins you want to display or add a custom coin.',
+                intro: 'Choose the currency and add the coins you want to display. Or add a custom coin.',
                 optional: false,
                 highlight: [Coach.SELECTORS.coins],
                 isComplete() {
@@ -7465,7 +7468,7 @@
             {
                 id: 'fixtures',
                 title: 'Add fixtures',
-                intro: 'Add mounting fixtures for your coin holder.',
+                intro: 'Add mounting fixtures.',
                 optional: true,
                 highlight: [],
                 renderAction(el) {
