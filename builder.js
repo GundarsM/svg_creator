@@ -1044,11 +1044,11 @@
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
                             <i class="fas fa-download"></i> Download your design
                         </button>
-                        <button class="btn btn-outline-secondary w-100 mb-2" id="saveProjectBtn" onclick="Coach.persist.exportToFile()" disabled>
+                        <button class="btn btn-secondary w-100 mb-2" id="saveProjectBtn" onclick="Coach.persist.exportToFile()" disabled>
                             <i class="fas fa-floppy-disk"></i> Save project to a file
                         </button>
                         <p class="text-muted small mb-2">Saves an editable copy you can re-open later with “Load a saved project”.</p>
-                        <button class="btn btn-warning w-100 mb-2" id="clearBtn" onclick="clearCanvas()" disabled>
+                        <button class="btn btn-warning w-100 mb-2" id="clearBtn" onclick="Coach.startOver()" disabled>
                             <i class="fas fa-sync-alt"></i> Start over
                         </button>
                     </div>
@@ -6494,6 +6494,11 @@
                     // Upload SVG — last button in the country/custom panel
                     const svgBtn = makeBtn('Upload your own shape', 'fas fa-shapes', Coach.state.holderType === 'imported');
                     svgBtn.dataset.shape = 'imported';
+                    // Distinct accent (purple) so "Upload your own shape" reads apart
+                    // from both the base shapes and the slate-blue country buttons.
+                    svgBtn.style.setProperty('background', '#6f5b8e', 'important');
+                    svgBtn.style.setProperty('border-color', '#5b4a75', 'important');
+                    svgBtn.style.setProperty('color', '#fff', 'important');
                     svgBtn.addEventListener('click', () => {
                         if (typeof canvas !== 'undefined' && canvas) {
                             // Remove any previously-registered pending import handler to prevent stacking
@@ -7863,40 +7868,44 @@
                     summaryDiv.appendChild(ul);
                     el.appendChild(summaryDiv);
 
-                    /* ── Buttons ────────────────────────────────────────── */
+                    /* ── Buttons — identical set/order/look to the right-panel
+                       "Finish up" actions. The coach forces
+                       ".btn{background:#344734!important}", so each colour is set
+                       with !important to match the right-panel Bootstrap colours. */
                     const btnRow = document.createElement('div');
                     btnRow.className = 'd-flex flex-column gap-2';
 
-                    /* Download SVG */
-                    const dlBtn = document.createElement('button');
-                    dlBtn.className = 'btn btn-success btn-sm';
-                    dlBtn.textContent = 'Download SVG';
-                    dlBtn.addEventListener('click', function() {
-                        if (typeof exportSVG === 'function') {
-                            Promise.resolve(exportSVG()).catch(function() {});
-                        }
-                    });
-                    btnRow.appendChild(dlBtn);
+                    const mkActionBtn = function(label, iconClass, bg, fg, border, onClick) {
+                        const b = document.createElement('button');
+                        b.type = 'button';
+                        b.className = 'btn btn-sm';
+                        b.innerHTML = '<i class="' + iconClass + '"></i> ' + label;
+                        b.style.setProperty('background', bg, 'important');
+                        b.style.setProperty('color', fg, 'important');
+                        b.style.setProperty('border-color', border, 'important');
+                        b.addEventListener('click', onClick);
+                        return b;
+                    };
 
-                    /* Request a Quote */
-                    const quoteBtn = document.createElement('button');
-                    quoteBtn.className = 'btn btn-primary btn-sm';
-                    quoteBtn.textContent = 'Request a Quote';
-                    quoteBtn.addEventListener('click', function() {
-                        Coach.requestQuote();
-                    });
-                    btnRow.appendChild(quoteBtn);
+                    btnRow.appendChild(mkActionBtn('Request a quote', 'fas fa-paper-plane',
+                        '#0d6efd', '#fff', '#0d6efd', function() { Coach.requestQuote(); }));
 
-                    /* Start over (yellow) — clears the design and resets the Coach. */
-                    const startBtn = document.createElement('button');
-                    startBtn.type = 'button';
-                    startBtn.className = 'btn btn-sm';
-                    startBtn.textContent = 'Start over';
-                    startBtn.style.setProperty('background', '#ffc107', 'important');
-                    startBtn.style.setProperty('color', '#333', 'important');
-                    startBtn.style.setProperty('border-color', '#e0a800', 'important');
-                    startBtn.addEventListener('click', function() { Coach.startOver(); });
-                    btnRow.appendChild(startBtn);
+                    btnRow.appendChild(mkActionBtn('Download your design', 'fas fa-download',
+                        '#198754', '#fff', '#198754', function() {
+                            if (typeof exportSVG === 'function') Promise.resolve(exportSVG()).catch(function() {});
+                        }));
+
+                    btnRow.appendChild(mkActionBtn('Save project to a file', 'fas fa-floppy-disk',
+                        '#6c757d', '#fff', '#6c757d', function() { Coach.persist.exportToFile(); }));
+
+                    const saveNote = document.createElement('p');
+                    saveNote.className = 'small mb-0';
+                    saveNote.style.opacity = '0.8';
+                    saveNote.textContent = 'Saves an editable copy you can re-open later with “Load a saved project”.';
+                    btnRow.appendChild(saveNote);
+
+                    btnRow.appendChild(mkActionBtn('Start over', 'fas fa-sync-alt',
+                        '#ffc107', '#333', '#e0a800', function() { Coach.startOver(); }));
 
                     el.appendChild(btnRow);
                 }
