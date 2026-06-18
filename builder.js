@@ -7488,6 +7488,9 @@
                                 }
                             }
                         }
+                        // The new text is already shown in the engrave colour, so the
+                        // preview button should offer to show its original colour.
+                        syncTintLabel();
                     });
 
                     textRow.appendChild(textInput);
@@ -7560,6 +7563,12 @@
                         const btn = document.createElement('button');
                         btn.className = 'btn btn-sm btn-outline-light';
                         btn.textContent = label;
+                        btn.dataset.country = key;
+                        // Same slate-blue accent as the step-2 country buttons.
+                        // !important beats the coach's ".btn{background:#344734!important}" rule.
+                        btn.style.setProperty('background', '#5e7a8c', 'important');
+                        btn.style.setProperty('border-color', '#4d6675', 'important');
+                        btn.style.setProperty('color', '#fff', 'important');
                         btn.addEventListener('click', () => {
                             if (countryMode === 'filled') {
                                 captureAndSize(null, true); // size + tint the fill to the material's engrave colour
