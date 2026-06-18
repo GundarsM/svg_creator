@@ -1037,9 +1037,9 @@
                         </div>
                         
                         <h3 class="mt-4">Finish up</h3>
-                        <!-- Start Over / Download stay disabled until the canvas has objects (Coach.updateActionButtons). -->
-                        <button class="btn btn-warning w-100 mb-2" id="clearBtn" onclick="clearCanvas()" disabled>
-                            <i class="fas fa-sync-alt"></i> Start over
+                        <!-- All actions stay disabled until the canvas has objects (Coach.updateActionButtons). -->
+                        <button class="btn btn-primary w-100 mb-2" id="coachQuoteBtn" onclick="Coach.requestQuote()" disabled>
+                            <i class="fas fa-paper-plane"></i> Request a quote
                         </button>
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
                             <i class="fas fa-download"></i> Download your design
@@ -1047,7 +1047,10 @@
                         <button class="btn btn-outline-secondary w-100 mb-2" id="saveProjectBtn" onclick="Coach.persist.exportToFile()" disabled>
                             <i class="fas fa-floppy-disk"></i> Save project to a file
                         </button>
-                        <p class="text-muted small mb-0">Saves an editable copy you can re-open later with “Load a saved project”.</p>
+                        <p class="text-muted small mb-2">Saves an editable copy you can re-open later with “Load a saved project”.</p>
+                        <button class="btn btn-warning w-100 mb-2" id="clearBtn" onclick="clearCanvas()" disabled>
+                            <i class="fas fa-sync-alt"></i> Start over
+                        </button>
                     </div>
                 </div>
             </div>
@@ -3887,11 +3890,13 @@
 
                             // Attach the editable project file so the design can be
                             // re-opened and tweaked later (builder only; harmless in
-                            // the plain editor where Coach is undefined).
+                            // the plain editor where Coach is undefined). Use a DISTINCT
+                            // field name — FormSubmit keeps only one file per field, so
+                            // appending it under 'attachment' too would overwrite the SVG.
                             try {
                                 if (typeof Coach !== 'undefined' && Coach.persist && Coach.persist.buildProjectFile) {
                                     const projectFile = Coach.persist.buildProjectFile();
-                                    if (projectFile) formData.append('attachment', projectFile);
+                                    if (projectFile) formData.append('project_file', projectFile);
                                 }
                             } catch (projErr) {
                                 console.warn('Could not attach project file:', projErr);
@@ -5080,10 +5085,33 @@
         Coach.updateActionButtons = function() {
             if (typeof canvas === 'undefined' || !canvas) return;
             const has = canvas.getObjects().length > 0;
-            ['clearBtn', 'downloadBtn', 'saveProjectBtn'].forEach(function(id) {
+            ['clearBtn', 'downloadBtn', 'saveProjectBtn', 'coachQuoteBtn'].forEach(function(id) {
                 const b = document.getElementById(id);
                 if (b) b.disabled = !has;
             });
+        };
+
+        /* ── Coach.requestQuote ───────────────────────────────────────
+           Open the quote form and pre-fill it from the Coach state. Shared by
+           the right-panel "Request a quote" button and the Review step. */
+        Coach.requestQuote = async function() {
+            if (typeof showQuoteForm !== 'function') return;
+            await showQuoteForm();
+            const pn = document.getElementById('projectName');
+            if (pn && !pn.value) {
+                pn.value = Coach.state.projectName
+                    || ((Coach.state.occasion ? Coach.state.occasion + ' ' : '') + 'coin holder');
+            }
+            const notes = document.getElementById('userNotes');
+            if (notes && Coach.state.occasion && notes.value.indexOf(Coach.state.occasion) === -1) {
+                notes.value = (notes.value ? notes.value + '\n' : '') + 'Occasion: ' + Coach.state.occasion;
+            }
+            const matSel = document.getElementById('preferredMaterial');
+            const chosenMat = (Coach.state.holderObj && Coach.state.holderObj.materialType) || Coach.state.material;
+            if (matSel && chosenMat) {
+                // 'color' is plastic → the form's Acrylic / Plastic option ("acrylic")
+                matSel.value = (chosenMat === 'color') ? 'acrylic' : chosenMat;
+            }
         };
 
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
@@ -5825,7 +5853,13 @@
         /* ── Fixture finish colour ───────────────────────────────────
            Black → dark grey, Silver → light grey. Default derives from the
            material: any wood → black, plastic (or none) → silver. */
-        Coach.FIXTURE_COLORS = { black: '#3a3a3a', silver: '#c8c8c8' };
+        Coach.FIXTURE_COLORS = {
+            silver:     '#c8c8c8',
+            black:      '#3a3a3a',
+            gold:       '#926C15',
+            goldBright: '#FFD700',
+            red:        '#BC4F5E'
+        };
         Coach.fixtureColorKey = function() {
             if (Coach.state.fixtureColor) return Coach.state.fixtureColor; // explicit choice wins
             const mat = (Coach.state.holderObj && Coach.state.holderObj.materialType) || Coach.state.material;
@@ -5835,7 +5869,7 @@
             return Coach.FIXTURE_COLORS[Coach.fixtureColorKey()] || Coach.FIXTURE_COLORS.silver;
         };
         Coach.applyFixtureColor = function(which) {
-            if (which === 'black' || which === 'silver') Coach.state.fixtureColor = which;
+            if (which && Coach.FIXTURE_COLORS[which]) Coach.state.fixtureColor = which;
             const fill = Coach.fixtureFill();
             if (typeof canvas !== 'undefined' && canvas) {
                 canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => o.set('fill', fill));
@@ -6189,7 +6223,7 @@
                     const loadBtn = document.createElement('button');
                     loadBtn.type = 'button';
                     loadBtn.className = 'btn btn-sm btn-outline-light w-100';
-                    loadBtn.innerHTML = '<i class="fas fa-folder-open"></i> Load a saved project';
+                    loadBtn.innerHTML = '<i class="fas fa-file-import"></i> Load a saved project';
                     loadBtn.addEventListener('click', () => loadInput.click());
 
                     loadWrap.appendChild(loadBtn);
@@ -6398,6 +6432,13 @@
 
                     countries.forEach(({ key, label }) => {
                         const cb = makeBtn(label, null, false);
+                        cb.dataset.country = key;
+                        // Country shapes get their own accent so they read as a distinct
+                        // group from the Rectangle/Circular base shapes. !important beats
+                        // the coach's ".btn{background:#344734!important}" rule.
+                        cb.style.setProperty('background', '#5e7a8c', 'important');
+                        cb.style.setProperty('border-color', '#4d6675', 'important');
+                        cb.style.setProperty('color', '#fff', 'important');
                         cb.addEventListener('click', () => {
                             if (typeof canvas !== 'undefined' && canvas) {
                                 if (Coach._pendingHolderHandler) {
@@ -6431,13 +6472,20 @@
                             // Holder = country OUTLINE (transparent fill) so coins show through
                             if (typeof addCountryOutline === 'function') addCountryOutline(key);
                             else if (typeof addCountry === 'function') addCountry(key);
-                            // Highlight chosen country button
-                            countryPanel.querySelectorAll('button').forEach(b => {
-                                const sel = b.textContent.trim() === label;
+                            // Highlight chosen country button (re-applying the accent to
+                            // the rest — plain styles can't beat the !important accent).
+                            countryPanel.querySelectorAll('button[data-country]').forEach(b => {
+                                const sel = b.dataset.country === key;
                                 b.classList.toggle('active', sel);
-                                b.style.backgroundColor = sel ? '#cfe3cf' : '';
-                                b.style.color = sel ? '#344734' : '';
-                                b.style.borderColor = sel ? '#cfe3cf' : '';
+                                if (sel) {
+                                    b.style.setProperty('background', '#cfe3cf', 'important');
+                                    b.style.setProperty('color', '#344734', 'important');
+                                    b.style.setProperty('border-color', '#cfe3cf', 'important');
+                                } else {
+                                    b.style.setProperty('background', '#5e7a8c', 'important');
+                                    b.style.setProperty('color', '#fff', 'important');
+                                    b.style.setProperty('border-color', '#4d6675', 'important');
+                                }
                             });
                         });
                         countryPanel.appendChild(cb);
@@ -6937,7 +6985,7 @@
                                 { label: 'Silver Eagle', value: 'Silver Eagle', diameter: 40.75 },
                                 { label: 'Britannia',    value: 'Britannia',    diameter: 38.75 },
                                 { label: 'Maple Leaf',   value: 'Maple Leaf',   diameter: 38.15 },
-                                { label: 'National Tokens', value: 'MdP token',   diameter: 34.15 },
+                                { label: 'National Tokens', value: 'National token',   diameter: 34.15 },
                                 { label: 'Krugerrand',   value: 'Krugerrand',   diameter: 32.92 },
                             ]
                         },
@@ -7597,8 +7645,8 @@
             },
             {
                 id: 'fixtures',
-                title: 'Add mounting holes',
-                intro: 'Want to hang or screw it to a wall? Add mounting holes, then drag them wherever you like — or skip this step.',
+                title: 'Add fixtures',
+                intro: 'We need to fix all coin holder layers together? Add fixtures, then drag them wherever you like. Finally, choose their finish colour',
                 optional: true,
                 highlight: [],
                 renderAction(el) {
@@ -7613,7 +7661,7 @@
 
                     const row = mkEl('div', { className: 'coach-row coach-row-2 mb-2' });
 
-                    const addBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add mounting holes' });
+                    const addBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add fixtures' });
                     addBtn.addEventListener('click', () => {
                         const n = Coach.addFixtures();
                         if (n === false || n == null) {
@@ -7628,7 +7676,7 @@
                     });
 
                     // Add one free-floating hole to position by hand.
-                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add one hole' });
+                    const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add one fixture' });
                     singleBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         const scale = canvas.scale || 1;
@@ -7640,7 +7688,7 @@
                         nudge.style.display = 'none';
                     });
 
-                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove all holes' });
+                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove all fixtures' });
                     clearBtn.addEventListener('click', () => {
                         if (typeof canvas === 'undefined' || !canvas) return;
                         canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
@@ -7654,29 +7702,38 @@
                     row.appendChild(clearBtn);
                     el.appendChild(row);
 
-                    // Fixture finish: Black (dark grey) or Silver (light grey)
-                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Hole colour' }));
-                    const colorRow = mkEl('div', { className: 'coach-row coach-row-2 mb-1' });
+                    // Fixture finish: pick a colour swatch (same style as the plastic
+                    // colour swatches in step 3).
+                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture colour' }));
+                    const colorRow = mkEl('div', { className: 'd-flex align-items-center flex-wrap gap-2 mb-1' });
                     const current = Coach.fixtureColorKey();
-                    [['black', 'Black'], ['silver', 'Silver']].forEach(([key, label]) => {
-                        const b = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: label });
+                    const FIXTURE_SWATCHES = [
+                        ['silver',     'Silver'],
+                        ['black',      'Black'],
+                        ['gold',       'Gold'],
+                        ['goldBright', 'Bright gold'],
+                        ['red',        'Red']
+                    ];
+                    FIXTURE_SWATCHES.forEach(([key, label]) => {
+                        // Plain <button> WITHOUT the .btn class — the coach forces
+                        // ".btn{background:#344734!important}", which would mask the swatch.
+                        const sw = mkEl('button', { type: 'button', title: label });
+                        sw.dataset.fixtureColor = key;
+                        sw.style.cssText = 'width:30px;height:30px;border-radius:6px;border:2px solid #888;cursor:pointer;padding:0;';
+                        sw.style.background = Coach.FIXTURE_COLORS[key];
                         if (current === key) {
-                            b.classList.add('active');
-                            b.style.backgroundColor = '#cfe3cf';
-                            b.style.color = '#344734';
-                            b.style.borderColor = '#cfe3cf';
+                            sw.style.borderColor = '#344734';
+                            sw.style.boxShadow = '0 0 0 3px #cfe3cf';
                         }
-                        b.addEventListener('click', () => {
+                        sw.addEventListener('click', () => {
                             Coach.applyFixtureColor(key);
-                            colorRow.querySelectorAll('button').forEach(btn => {
-                                const sel = btn.textContent === label;
-                                btn.classList.toggle('active', sel);
-                                btn.style.backgroundColor = sel ? '#cfe3cf' : '';
-                                btn.style.color = sel ? '#344734' : '';
-                                btn.style.borderColor = sel ? '#cfe3cf' : '';
+                            colorRow.querySelectorAll('button[data-fixture-color]').forEach(btn => {
+                                const sel = btn.dataset.fixtureColor === key;
+                                btn.style.borderColor = sel ? '#344734' : '#888';
+                                btn.style.boxShadow = sel ? '0 0 0 3px #cfe3cf' : 'none';
                             });
                         });
-                        colorRow.appendChild(b);
+                        colorRow.appendChild(sw);
                     });
                     el.appendChild(colorRow);
                 },
@@ -7825,26 +7882,8 @@
                     const quoteBtn = document.createElement('button');
                     quoteBtn.className = 'btn btn-primary btn-sm';
                     quoteBtn.textContent = 'Request a Quote';
-                    quoteBtn.addEventListener('click', async function() {
-                        if (typeof showQuoteForm !== 'function') return;
-                        await showQuoteForm();
-                        /* Pre-fill quote fields */
-                        const pn = document.getElementById('projectName');
-                        if (pn && !pn.value) {
-                            pn.value = Coach.state.projectName
-                                || ((Coach.state.occasion ? Coach.state.occasion + ' ' : '') + 'coin holder');
-                        }
-                        const notes = document.getElementById('userNotes');
-                        if (notes && Coach.state.occasion && notes.value.indexOf(Coach.state.occasion) === -1) {
-                            notes.value = (notes.value ? notes.value + '\n' : '') + 'Occasion: ' + Coach.state.occasion;
-                        }
-                        // Pre-fill Preferred material from the choice made in step 3
-                        const matSel = document.getElementById('preferredMaterial');
-                        const chosenMat = (Coach.state.holderObj && Coach.state.holderObj.materialType) || Coach.state.material;
-                        if (matSel && chosenMat) {
-                            // 'color' is plastic → the form's Acrylic / Plastic option ("acrylic")
-                            matSel.value = (chosenMat === 'color') ? 'acrylic' : chosenMat;
-                        }
+                    quoteBtn.addEventListener('click', function() {
+                        Coach.requestQuote();
                     });
                     btnRow.appendChild(quoteBtn);
 
