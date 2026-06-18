@@ -642,6 +642,17 @@
                 font-family: 'Athelas', Georgia, serif;
             }
 
+            /* …but Font Awesome icons must keep their own font, otherwise the
+               blanket rule above forces them to serif and they show as tofu
+               squares. Weights are left to FA's own .fas/.far rules. */
+            #coach-bubble .fa, #coach-bubble .fas, #coach-bubble .fa-solid,
+            #coach-bubble .far, #coach-bubble .fa-regular {
+                font-family: "Font Awesome 6 Free" !important;
+            }
+            #coach-bubble .fab, #coach-bubble .fa-brands {
+                font-family: "Font Awesome 6 Brands" !important;
+            }
+
             /* Size normalisation */
             #coach-body {
                 font-size: 14px;
