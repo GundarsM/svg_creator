@@ -898,11 +898,11 @@
                         </button>
                         <div class="toolbar-separator"></div>
                         <div class="settings-dropdown">
-                            <button class="btn btn-sm btn-outline-secondary" id="coachSettingsBtn" onclick="toggleSettingsDropdown()" title="Holder size settings">
+                            <button class="btn btn-sm btn-outline-secondary" id="coachSettingsBtn" onclick="toggleSettingsDropdown()" title="Canvas size settings">
                                 <i class="fas fa-cog"></i>
                             </button>
                             <div class="settings-dropdown-content" id="settingsDropdown">
-                                <label class="form-label" style="font-weight: bold;">Holder size</label>
+                                <label class="form-label" style="font-weight: bold;">Canvas size</label>
                                 <select id="canvasSizeToolbar" class="form-select mb-2">
                                     <option value="a4">A4 (210 x 297 mm)</option>
                                     <option value="a3">A3 (297 x 420 mm)</option>
@@ -2808,8 +2808,44 @@
             }
             
             function resetZoom() {
-                canvas.setZoom(1);
-                canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+                if (!canvas) return;
+
+                const vw = canvas.getWidth();
+                const vh = canvas.getHeight();
+                const objects = canvas.getObjects().filter(function(o) { return o && o.visible !== false; });
+
+                // Nothing on the canvas → plain 1:1 view at the origin.
+                if (!objects.length) {
+                    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                    canvas.requestRenderAll();
+                    return;
+                }
+
+                // Bounding box of everything, in scene coords (ignore current viewport).
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                objects.forEach(function(o) {
+                    const r = o.getBoundingRect(true, true);
+                    if (r.left < minX) minX = r.left;
+                    if (r.top  < minY) minY = r.top;
+                    if (r.left + r.width  > maxX) maxX = r.left + r.width;
+                    if (r.top  + r.height > maxY) maxY = r.top + r.height;
+                });
+                const bw = maxX - minX;
+                const bh = maxY - minY;
+                if (!(bw > 0) || !(bh > 0)) {
+                    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                    canvas.requestRenderAll();
+                    return;
+                }
+
+                // Zoom so the whole design fits with a small margin; never zoom past 1:1.
+                const margin = 0.92;
+                const zoom = Math.min(vw / bw, vh / bh, 1 / margin) * margin;
+
+                // Centre the bounding box in the view.
+                const tx = (vw - bw * zoom) / 2 - minX * zoom;
+                const ty = (vh - bh * zoom) / 2 - minY * zoom;
+                canvas.setViewportTransform([zoom, 0, 0, zoom, tx, ty]);
                 canvas.requestRenderAll();
             }
             
