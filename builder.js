@@ -548,11 +548,12 @@
                 background: none;
                 border: none;
                 cursor: pointer;
-                font-size: 0.95rem;
+                font-size: 1.2rem;
+                font-weight: bold;
                 line-height: 1;
                 padding: 0 2px;
-                color: #444;
-                opacity: 0.55;
+                color: #dc3545;
+                opacity: 0.8;
                 transition: opacity .15s;
             }
             .coach-startover:hover { opacity: 1; }
@@ -2901,10 +2902,16 @@
                 document.getElementById('strokeColor').value = strokeColor;
                 document.getElementById('strokeWidth').value = strokeWidth;
                 
-                // Material preset - hide for multiple selections
-                if (obj.type === 'activeSelection') {
+                // Material preset only applies to the coin holder's outer shape —
+                // hide it for everything else (coins, text, country outlines, images,
+                // fixtures, multi-selections). In the plain editor (no Coach) every
+                // object is treated as a holder so the dropdown shows as before.
+                const isHolderShape = (typeof Coach === 'undefined')
+                    || obj.coachHolderId === 'holder'
+                    || (Coach.state && Coach.state.holderObj === obj);
+                if (obj.type === 'activeSelection' || !isHolderShape) {
                     document.getElementById('materialPresetGroup').style.display = 'none';
-                    // Show fill color controls for multiple selections (always solid color)
+                    // No material picker → still allow a solid fill colour.
                     document.getElementById('fillColorGroup').style.display = 'block';
                 } else {
                     document.getElementById('materialPresetGroup').style.display = 'block';
@@ -2933,9 +2940,21 @@
                             }
                         });
                     }
-                    
-                    // Set dropdown to closest match or default to white
+
+                    // Images carry their engrave look in filters, not in `fill` (which
+                    // stays black), so show the engrave colour (brown/grey) when engraved
+                    // — matching how text behaves.
+                    if (obj.type === 'image' && typeof Coach !== 'undefined' &&
+                        Coach.isEngraved && Coach.isEngraved(obj)) {
+                        fillValue = Coach.engraveColor();
+                    }
+
+                    // Set dropdown to closest match, or show the actual colour.
                     const fillColorDropdown = document.getElementById('fillColor');
+                    // Drop any previously-injected custom-colour option; re-added below if needed.
+                    const prevCustom = fillColorDropdown.querySelector('option[data-custom="1"]');
+                    if (prevCustom) prevCustom.remove();
+
                     let foundMatch = false;
                     // Only process if fill is a string (not a Pattern object)
                     if (typeof fillValue === 'string') {
@@ -2948,8 +2967,22 @@
                         }
                     }
                     if (!foundMatch) {
-                        // Default to white if color not in list
-                        fillColorDropdown.value = '#FFFFFF';
+                        if (typeof fillValue === 'string' && fillValue !== 'transparent') {
+                            // Not a preset (e.g. the brown/grey engrave colour on text) —
+                            // show the ACTUAL colour via a reusable option rather than
+                            // misleadingly defaulting to white.
+                            const custom = document.createElement('option');
+                            custom.setAttribute('data-custom', '1');
+                            custom.value = fillValue;
+                            // Friendly names for the engrave colours; hex otherwise.
+                            const CUSTOM_NAMES = { '#5c3316': 'Brown', '#bfbfbf': 'Grey' };
+                            custom.textContent = '⬛ ' + (CUSTOM_NAMES[fillValue.toLowerCase()] || fillValue);
+                            custom.style.background = fillValue;
+                            fillColorDropdown.appendChild(custom);
+                            fillColorDropdown.value = fillValue;
+                        } else {
+                            fillColorDropdown.value = '#FFFFFF';
+                        }
                     }
                 }
                 
@@ -4631,6 +4664,9 @@
                     Coach.refreshEngraveColors();
                     Coach.reapplyAspectLock();
                     canvas.renderAll();
+                    // Frame the restored design — resumed projects often load
+                    // partially off-screen otherwise.
+                    if (typeof resetZoom === 'function') resetZoom();
                     const savedStep = typeof saved.step === 'number' ? saved.step : 0;
                     // Mark every step up to where they left off as visited, and the
                     // ones they advanced past (Next pressed) as done.
@@ -4907,7 +4943,8 @@
            the toggle/label stays in sync. */
         Coach.ENGRAVE_BROWN = '#5c3316';
         Coach.ENGRAVE_GREY  = '#bfbfbf';
-        Coach.ENGRAVE_ALPHA = 0.6; // how strongly the engrave hue replaces the grey
+        Coach.ENGRAVE_ALPHA = 0.6;  // how strongly the engrave hue replaces the grey
+        Coach.ENGRAVE_WHITE_DIST = 0.15; // white-cutout tolerance (0–1): white & near-white go transparent
 
         // Brown when engraving on wood, light grey when engraving on plastic.
         Coach.engraveColor = function() {
@@ -4944,6 +4981,16 @@
                     !fabric.Image.filters.BlendColor || !fabric.Image.filters.Grayscale) return;
                 obj.filters = (obj.filters || []).filter(function(f) { return !Coach._isEngraveFilter(f); });
                 if (on) {
+                    // White (and near-white) areas wouldn't be engraved, so cut them
+                    // out to transparent first, then greyscale + tint what remains.
+                    if (fabric.Image.filters.RemoveColor) {
+                        const cut = new fabric.Image.filters.RemoveColor({
+                            color: '#ffffff',
+                            distance: Coach.ENGRAVE_WHITE_DIST
+                        });
+                        cut._coachEngrave = true;
+                        obj.filters.push(cut);
+                    }
                     const gray = new fabric.Image.filters.Grayscale();
                     gray._coachEngrave = true;
                     const tint = new fabric.Image.filters.BlendColor({ color: color, mode: 'tint', alpha: Coach.ENGRAVE_ALPHA });
@@ -4983,6 +5030,12 @@
             obj.dirty = true;
             if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
             if (typeof saveState === 'function') saveState();
+            // If the engraved object is selected, refresh the right panel so the
+            // "Colour" control reflects its new (engrave) fill straight away.
+            if (typeof updatePropertiesPanel === 'function' &&
+                typeof canvas !== 'undefined' && canvas && canvas.getActiveObject() === obj) {
+                updatePropertiesPanel();
+            }
         };
 
         // After a material change (brown↔grey) re-tint everything already engraved.
@@ -5136,6 +5189,26 @@
                 const b = document.getElementById(id);
                 if (b) b.disabled = !has;
             });
+        };
+
+        /* ── Coach.fitIfNeeded ────────────────────────────────────────
+           Run "Fit to screen" only when something has drifted outside the
+           visible canvas (e.g. coins pushed above the holder). Uses each
+           object's screen-space bounding rect so the test respects the
+           current zoom/pan. */
+        Coach.fitIfNeeded = function() {
+            if (typeof canvas === 'undefined' || !canvas || typeof resetZoom !== 'function') return;
+            const objs = canvas.getObjects();
+            if (!objs.length) return;
+            const vw = canvas.getWidth();
+            const vh = canvas.getHeight();
+            for (let i = 0; i < objs.length; i++) {
+                const r = objs[i].getBoundingRect(); // screen coords (includes viewport transform)
+                if (r.left < 0 || r.top < 0 || r.left + r.width > vw || r.top + r.height > vh) {
+                    resetZoom();
+                    return;
+                }
+            }
         };
 
         /* ── Coach.requestQuote ───────────────────────────────────────
@@ -7410,6 +7483,8 @@
                     outsideBtn.style.setProperty('background', '#ffc107', 'important');
                     outsideBtn.style.setProperty('color', '#333', 'important');
                     outsideBtn.style.setProperty('border-color', '#e0a800', 'important');
+                    // Moving coins above the holder can push them out of view — fit then.
+                    outsideBtn.addEventListener('click', () => Coach.fitIfNeeded());
                     btnRow.appendChild(outsideBtn);
                     el.appendChild(btnRow);
 
