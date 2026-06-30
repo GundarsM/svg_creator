@@ -1071,31 +1071,68 @@
             <div style="max-width: 1800px; margin: 0 auto; padding: 20px;">
                 <div class="tool-panel">
                     <h3>Tips & Shortcuts</h3>
-                    <div style="display: flex; gap: 40px; flex-wrap: wrap;">
+                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px;">
+                        <!-- Column 1 — guided-builder manual -->
                         <div>
                             <h5 style="font-size: 0.95em;">How to use</h5>
+                            <p style="font-size: 0.85em; margin: 0 0 8px;">
+                                This is a guided builder. The panel on the left walks you through eight steps —
+                                tap the numbered circles at the top to jump between them anytime. Your progress
+                                saves automatically on this device, so you can leave and come back later.
+                            </p>
+
+                            <h6 style="font-size: 0.88em; font-weight: bold; margin: 10px 0 2px;">The eight steps</h6>
                             <ol style="font-size: 0.85em; padding-left: 1.2em; margin: 0;">
-                                <li>Choose a template or add shapes from the left panel</li>
-                                <li>Click an object to select it — drag to move, use handles to resize or rotate</li>
-                                <li>Adjust fill, stroke, and material in the right panel</li>
-                                <li>Use <strong>Undo</strong> / <strong>Redo</strong> buttons (or keyboard shortcuts) to step through changes</li>
-                                <li>Click <strong>Request a Quote</strong> when your design is ready</li>
+                                <li><strong>Welcome</strong> — name your design and pick the occasion (optional). Returning? Use <strong>Load a saved project</strong> here.</li>
+                                <li><strong>Choose a shape</strong> — a rectangle, circle, a country outline, or upload your own SVG. Set the size in millimetres.</li>
+                                <li><strong>Choose a material</strong> — a wood finish (birch, oak, walnut) or a solid plastic colour.</li>
+                                <li><strong>Add fixtures</strong> — optional mounting holes. Add them automatically or one at a time, drag them into place, and pick their colour.</li>
+                                <li><strong>Add your coins</strong> — pick a currency tab and add coins (or use “Add all selected” for the whole set), or enter a custom size.</li>
+                                <li><strong>Arrange the coins</strong> — try a layout (Grid, Circle, Rows, Fit to shape), move them all above the holder, or drag each coin yourself.</li>
+                                <li><strong>Personalise it</strong> — add a name or message, a country shape, or upload a logo, then preview the engraved look.</li>
+                                <li><strong>Review &amp; order</strong> — check the summary, then download the design, save the project, or request a quote.</li>
                             </ol>
+
+                            <h6 style="font-size: 0.88em; font-weight: bold; margin: 12px 0 2px;">Working on the canvas</h6>
+                            <ul style="font-size: 0.85em; padding-left: 1.2em; margin: 0;">
+                                <li>Click an item to select it — drag to move, use the corner handles to resize.</li>
+                                <li>Edit colour, border, font and size in the <strong>Selected item</strong> panel on the right.</li>
+                                <li><strong>Keep proportions / Resize freely</strong> sets whether a shape holds its aspect ratio while resizing.</li>
+                                <li>The toolbar above the canvas has zoom, <strong>Fit to screen</strong>, and holder size / unit settings.</li>
+                            </ul>
+
+                            <h6 style="font-size: 0.88em; font-weight: bold; margin: 12px 0 2px;">Saving &amp; ordering</h6>
+                            <ul style="font-size: 0.85em; padding-left: 1.2em; margin: 0;">
+                                <li><strong>Save project to a file</strong> downloads an editable copy — reopen it later with <strong>Load a saved project</strong> on step 1.</li>
+                                <li><strong>Download your design</strong> exports a print-ready SVG.</li>
+                                <li><strong>Request a quote</strong> e-mails your design to us, with the editable project file attached.</li>
+                            </ul>
                         </div>
+
+                        <!-- Column 2 — shortcuts, mouse, good to know -->
                         <div>
                             <h5 style="font-size: 0.95em;">Keyboard Shortcuts</h5>
                             <table style="font-size: 0.85em;">
-                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected objects</td></tr>
-                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected items</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected items</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Z</kbd></td><td>Undo</td></tr>
-                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Y</kbd></td><td>Redo</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Y</kbd> or <kbd>Ctrl + Shift + Z</kbd></td><td>Redo</td></tr>
                             </table>
 
                             <h5 style="font-size: 0.95em; margin-top: 16px;">Mouse Controls</h5>
                             <table style="font-size: 0.85em;">
-                                <tr><td style="padding: 2px 12px 2px 0;">Ctrl + Scroll wheel</td><td>Zoom in/out</td></tr>
-                                <tr><td style="padding: 2px 12px 2px 0;">Alt/Ctrl + drag</td><td>Pan the canvas</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Drag</kbd></td><td>Move the selected item</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Corner handles</kbd></td><td>Resize the selected item</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Scroll wheel</kbd></td><td>Zoom in / out</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Alt / Ctrl + drag</kbd></td><td>Pan the canvas</td></tr>
                             </table>
+
+                            <h5 style="font-size: 0.95em; margin-top: 16px;">Good to know</h5>
+                            <ul style="font-size: 0.85em; padding-left: 1.2em; margin: 0;">
+                                <li>Coins use real-world sizes, so slots match the actual coins.</li>
+                                <li>Text becomes outlines on export, so your design looks identical on any computer.</li>
+                                <li>Lost something off-screen? Press <strong>Fit to screen</strong> in the toolbar.</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -4178,6 +4215,23 @@
                         if (isTyping) return; // Allow normal behavior in input fields
                         e.preventDefault();
                         duplicateSelected();
+                    }
+
+                    const mod = e.ctrlKey || e.metaKey; // Ctrl (Win/Linux) or Cmd (Mac)
+                    const k = e.key.toLowerCase();
+
+                    // Undo: Ctrl/Cmd + Z (without Shift)
+                    if (mod && !e.shiftKey && k === 'z') {
+                        if (isTyping) return;
+                        e.preventDefault();
+                        undo();
+                    }
+
+                    // Redo: Ctrl/Cmd + Y, or Ctrl/Cmd + Shift + Z
+                    if (mod && (k === 'y' || (e.shiftKey && k === 'z'))) {
+                        if (isTyping) return;
+                        e.preventDefault();
+                        redo();
                     }
                 });
                 
