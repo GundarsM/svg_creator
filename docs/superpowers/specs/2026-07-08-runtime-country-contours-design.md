@@ -128,8 +128,9 @@ borders are dissolved — required for outline (stroke-only) rendering.
 
 `addCountry(key)` and `addCountryOutline(key)` keep their names and signatures
 but become async: they `await getCountryPathData(key)` and then run their
-existing body (fabric SVG load, `shapeType = 'country'`, `countryName = key`,
-fills/strokes) unchanged. The Coach captures the new shape via the canvas
+existing body (fabric SVG load, `shapeType = 'country'`, fills/strokes)
+unchanged — except `countryName` stores the resolved slug, not the raw
+argument, per resolution step 2. The Coach captures the new shape via the canvas
 `object:added` event (`Coach.captureNextAdded`), which is indifferent to the
 added asynchrony.
 
