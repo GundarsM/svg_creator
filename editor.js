@@ -1712,7 +1712,7 @@
                 canvas.requestRenderAll();
             }
             
-            // Add country outline (solid brown fill)
+            // Add country shape (solid brown fill)
             function addCountry(country) {
                 return getCountryPathData(country).then(pathData => {
                     if (!pathData) return;
@@ -2324,19 +2324,20 @@
                     circleGroup.realRadius = 133 / 2;
                     elements.push(circleGroup);
                     
-                    // UK outline (scaled down) - if pathData exists
-                    const ukPathData = countryPaths['uk'];
-                    if (ukPathData) {
+                    // UK outline (scaled down) — generated at runtime; on fetch
+                    // failure the template degrades to its coins-only branch.
+                    getCountryPathData('uk').then(ukPathData => {
+                        if (!ukPathData) { addUKCoinsToTemplate(); return; }
                         fabric.loadSVGFromString(`<svg><path d="${ukPathData}" /></svg>`, function(objects, options) {
                             const ukShape = fabric.util.groupSVGElements(objects, options);
                             ukShape.set({
                                 fill: '#5c3316',
                                 stroke: '#5c3316',
                                 strokeWidth: 0.1,
-                                scaleX: scale * 0.5, // Adjusted for 63mm height
-                                scaleY: scale * 0.5,
+                                scaleX: scale * 0.525, // 63mm target / 120-unit fit box
+                                scaleY: scale * 0.525,
                                 left: baseX - 14 * scale, // Moved 14mm to the left
-                                top: baseY-4,
+                                top: baseY - 4,
                                 originX: 'center',
                                 originY: 'center'
                             });
@@ -2344,14 +2345,14 @@
                             ukShape.materialType = 'color'; // Set default material type
                             ukShape.countryName = 'uk';
                             elements.push(ukShape);
-                            
+
                             // Add UK coins arranged in circular fashion
                             addUKCoinsToTemplate();
                         });
-                    } else {
-                        // If no UK path, just add coins
+                    }).catch(err => {
+                        console.warn('UK outline unavailable — template degrades to coins-only', err);
                         addUKCoinsToTemplate();
-                    }
+                    });
                     
                     function addUKCoinsToTemplate() {
                         const ukCoins = [
@@ -2480,11 +2481,6 @@
                         canvas.setActiveObject(selection);
                         canvas.requestRenderAll();
                         saveState();
-                    }
-                    
-                    // If UK path loading is not involved, add elements immediately
-                    if (!ukPathData) {
-                        addElementsToCanvas();
                     }
                     
                     return; // Exit early for UK template due to async loading
