@@ -53,8 +53,10 @@ Added as ordinary `<script>` tags next to the existing CDN dependencies
 (Fabric, opentype.js):
 
 - `topojson-client@3` (UMD, ~10 KB) — TopoJSON → GeoJSON features, `merge` for composites.
-- `d3-geo@3` (UMD; pin ≥ 3.1 for `geoPath().digits()`) plus its `d3-array@3`
-  dependency if the UMD build requires it (verify during implementation).
+- `d3-geo@3` (UMD; pin ≥ 3.1 for `geoPath().digits()`) plus `d3-array@3`,
+  which the d3-geo UMD build declares as an external dependency and must be
+  loaded first. The implementation plan carries an explicit step verifying the
+  script-tag load order works standalone (no other d3 modules present).
 
 ### Engine API (replaces the `countryPaths` object)
 
@@ -62,22 +64,37 @@ Added as ordinary `<script>` tags next to the existing CDN dependencies
 // Legacy key → dataset country name. Every key used by the Coach and the
 // engine buttons appears here. New countries picked via search use their
 // dataset name directly (slugified as the stored key).
+// `mainlandOnly` keeps only the largest polygon of a multipolygon country —
+// needed where the dataset bundles far-flung territories into one feature
+// (France includes French Guiana, which would otherwise dominate fitSize).
+// UK/Japan/Greece etc. keep their full multipolygon (islands are the point).
 const COUNTRY_KEY_MAP = {
-    usa: 'United States of America',
-    uk: 'United Kingdom',
-    southkorea: 'South Korea',
+    usa: { name: 'United States of America' },
+    uk: { name: 'United Kingdom' },
+    southkorea: { name: 'South Korea' },
+    france: { name: 'France', mainlandOnly: true },
     /* ... remaining direct-name keys ... */
 };
 
-// Composite shapes are merged from member-country numeric ids.
+// Composite shapes are topojson.merge'd from member-country ids.
+// Ids are the ISO 3166-1 numeric `id` fields on world-atlas features;
+// membership follows the UN geoscheme continental grouping.
+// Boundary decisions: europe EXCLUDES Russia and Turkey (no way to clip a
+// single country polygon at the Urals/Bosporus — accepted limitation);
+// africa includes Egypt and Morocco (also standalone keys). After merging,
+// polygons whose centroid falls outside the continent's geographic window
+// (europe: lon −25..45, lat 34..72) are dropped, which removes members'
+// overseas territories (e.g. French Guiana) from the continent shape.
 const COMPOSITE_SHAPES = {
     world:  'ALL',          // topojson.merge of every country geometry
-    europe: [/* ~50 ids */],
-    africa: [/* ~55 ids */],
+    europe: [/* ids */], africa: [/* ids */],
 };
 
 async function getCountryPathData(key) { /* returns SVG path string */ }
 ```
+
+Composites use `topojson.merge` (not a plain feature union) so shared internal
+borders are dissolved — required for outline (stroke-only) rendering.
 
 `getCountryPathData(key)`:
 
@@ -100,6 +117,24 @@ fills/strokes) unchanged. The Coach captures the new shape via the canvas
 `object:added` event (`Coach.captureNextAdded`), which is indifferent to the
 added asynchrony.
 
+### Third call site: the UK coin-holder template
+
+Besides `addCountry`/`addCountryOutline`, `countryPaths` is read directly by
+the UK coin-holder template: `const ukPathData = countryPaths['uk'];` at
+editor.js:2144 (builder.js:2404). The template builds an `elements` array and
+already gates `addUKCoinsToTemplate()` behind the async
+`fabric.loadSVGFromString` callback, so it adapts cleanly:
+
+- Replace the direct read with `getCountryPathData('uk').then(ukPathData =>
+  { /* existing loadSVGFromString flow */ }).catch(() => { console.warn(...);
+  addUKCoinsToTemplate(); })` — on fetch failure the template degrades to its
+  existing "no UK path → coins only" branch instead of alerting mid-template.
+- The template's UK-shape constants (`scaleX: scale * 0.5`, `left: baseX −
+  14 * scale`, `top: baseY − 4`) were tuned to the old path's coordinate
+  space. They must be re-derived against the generated path's fitSize box to
+  reproduce the current visual target: UK outline ~63 mm tall, centred ~14 mm
+  left of the circle centre.
+
 ### UI
 
 - Engine "Add Country Outlines" panel: existing curated buttons stay unchanged.
@@ -111,9 +146,14 @@ added asynchrony.
 
 ### Error handling
 
-- Fetch failure (offline, CDN down): show an alert ("Could not load country
-  shapes — please check your connection and try again"), log to console, and
-  **clear the cached promise** so the next click retries.
+- Fetch failure on an **add click** (offline, CDN down): show an alert ("Could
+  not load country shapes — please check your connection and try again"), log
+  to console, and **clear the cached promise** so the next click retries.
+- Fetch failure on **datalist prefetch** (search-box focus): silent
+  `console.warn` only — no alert for a UI warm-up; the alert path fires if the
+  user then actually tries to add.
+- Fetch failure inside the **UK template**: degrade to coins-only (see above),
+  no alert.
 - Unknown key (stale saved reference, typo): console warning, no shape added.
 
 ### Compatibility
@@ -150,12 +190,17 @@ country-using sessions pay.
 1. Open editor.js and builder.js in a browser.
 2. Add each of the 19 legacy keys as filled and as outline; confirm each is a
    recognizable, sensibly-sized shape (spot-check Canada for projection
-   distortion, UK/Japan/Greece for multi-island rendering, europe/africa/world
-   composites for completeness).
+   distortion, UK/Japan/Greece for multi-island rendering, France for
+   mainland-only, europe/africa/world composites for completeness, and the
+   africa **fill** for interior holes — Lesotho must render as a hole, which
+   depends on ring winding + Fabric's fill rule).
 3. Search box: find and add a country with no curated button (e.g. Portugal).
-4. Coach flow: step 2 country-as-holder (capture, aspect lock, send-to-back)
+4. UK coin-holder template: UK outline appears at the expected size/position
+   and the coin ring still renders (including with devtools offline — template
+   degrades to coins-only).
+5. Coach flow: step 2 country-as-holder (capture, aspect lock, send-to-back)
    and step 7 filled/outline personalization shapes.
-5. Save → reload from localStorage with a country on canvas.
-6. SVG export containing a country shape.
-7. Simulate fetch failure (devtools offline) → alert shown, retry works after
-   reconnecting.
+6. Save → reload from localStorage with a country on canvas.
+7. SVG export containing a country shape.
+8. Simulate fetch failure (devtools offline) → alert shown on add click, retry
+   works after reconnecting; search-box focus failure warns silently.
