@@ -13,10 +13,16 @@ files are pasted into Squarespace Page Header Code Injection, every visitor
 downloads and parses all of it on page load. Adding a new country means manually
 tracing/exporting an SVG and pasting a huge path string into the code.
 
-A second problem surfaced during design: the new countries were added directly to
-builder.js's engine region, so the engine regions of the two files have diverged,
-violating the CLAUDE.md rule that builder's engine region is a verbatim copy of
-editor.js.
+A second problem surfaced during design: the engine regions of the two files
+have diverged far beyond the CLAUDE.md "verbatim copy" rule — a diff shows ~48
+substantive hunks. Builder's engine region intentionally replaces the engine
+sidebar with the Coach bubble markup, removes the quote footer, rewrites the
+instructions panel, adds Coach-aware guards, and contains the fit-to-screen fix
+(commit 7aee27b) that was never ported to editor.js. A blind re-paste of
+editor.js into builder would therefore break the shipping builder. Full
+reconciliation is out of scope for this project (decided with the user); this
+spec applies the country-system change surgically to both files and updates
+CLAUDE.md so the stale invariant stops misleading future work.
 
 ## Goals
 
@@ -26,15 +32,18 @@ editor.js.
    (`Coach.COUNTRY_OPTIONS`, `COUNTRY_OPTIONS_EXTRA`) reference keys
    `usa, uk, australia, canada, germany, italy, france, greece, japan, africa,
    brazil, egypt, india, southkorea, morocco, tunisia, mexico, europe, world`.
-4. Restore the verbatim-copy relationship: implement in editor.js, re-paste the
-   engine region into builder.js.
+4. Apply the change identically to both files' engine regions (surgical dual
+   application — see Sync procedure), and update CLAUDE.md to document the
+   actual editor/builder relationship.
 
 ## Non-goals
 
-- No change to the Coach's hand-maintained region beyond what the re-synced
-  engine requires (its country buttons keep working as-is).
+- No change to the Coach's hand-maintained region beyond the stale comment
+  update in the Sync procedure (its country buttons keep working as-is).
 - No search UI inside Coach steps (possible follow-up).
 - No preservation of the exact pixel geometry of the current hand-traced shapes.
+- No full reconciliation of the diverged engine regions — that is a separate
+  future project; this change is applied surgically to both files.
 
 ## Design
 
@@ -69,11 +78,12 @@ Added as ordinary `<script>` tags next to the existing CDN dependencies
 // (France includes French Guiana, which would otherwise dominate fitSize).
 // UK/Japan/Greece etc. keep their full multipolygon (islands are the point).
 const COUNTRY_KEY_MAP = {
-    usa: { name: 'United States of America' },
+    usa: { name: 'United States of America', mainlandOnly: true }, // contiguous 48 — Alaska/Hawaii would shrink it in the fit box
     uk: { name: 'United Kingdom' },
     southkorea: { name: 'South Korea' },
     france: { name: 'France', mainlandOnly: true },
-    /* ... remaining direct-name keys ... */
+    /* ... remaining direct-name keys — the implementation plan decides
+       mainlandOnly per key explicitly (default: full multipolygon) ... */
 };
 
 // Composite shapes are topojson.merge'd from member-country ids.
@@ -106,6 +116,9 @@ borders are dissolved — required for outline (stroke-only) rendering.
    Mercator distortion of high-latitude countries (Canada), and a fixed fit box
    gives every country a consistent ~120 mm default size (path units are treated
    as millimetres by the engine; today's defaults vary arbitrarily per path).
+   **Exception:** the `world` composite uses `d3.geoNaturalEarth1()` — an
+   azimuthal projection centered on a global feature is degenerate at the
+   antipode.
 4. Render to a path string with `d3.geoPath(projection).digits(2)` — 2-decimal
    coordinates keep each generated path to a few KB, which also keeps canvas
    JSON (localStorage autosave, quote submissions) small.
@@ -155,6 +168,13 @@ already gates `addUKCoinsToTemplate()` behind the async
 - Fetch failure inside the **UK template**: degrade to coins-only (see above),
   no alert.
 - Unknown key (stale saved reference, typo): console warning, no shape added.
+- **Coach armed capture:** `Coach.captureNextAdded` stays armed for up to
+  120 s after a country click; if the fetch fails, no shape is added and the
+  capture could adopt the next unrelated `object:added` as the holder. The
+  async fetch widens this previously tiny window, so this is a known,
+  accepted edge (the 120 s self-cancel bounds it); if it proves annoying in
+  practice, a follow-up Coach change can cancel the pending capture when the
+  add promise rejects.
 
 ### Compatibility
 
@@ -169,11 +189,23 @@ already gates `addUKCoinsToTemplate()` behind the async
 
 ### Sync procedure
 
-Implement everything in editor.js. Then re-paste editor.js into builder.js's
-engine region (above/below the `ENGINE (verbatim copy of editor.js)` marker per
-CLAUDE.md), leaving the Coach `<style>`/markup/`<script>` region untouched.
-This restores the verbatim-copy invariant and gives editor.js users the full
-country set too.
+**No re-paste.** The engine regions have diverged too far for a verbatim copy
+to be safe (see Problem). Instead:
+
+1. Implement and verify the change in editor.js.
+2. Apply the **identical** edits to the corresponding locations in builder.js's
+   engine region (delete `countryPaths`, add the same
+   `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`/`getCountryPathData`, same
+   `addCountry`/`addCountryOutline`/UK-template adaptations, same script tags,
+   same search UI where builder's engine still renders that panel).
+3. Update CLAUDE.md: replace the "verbatim copy / re-paste" maintenance note
+   with the actual relationship (builder's engine region started as a copy of
+   editor.js but carries intentional builder-only modifications; engine changes
+   must be applied to both files; full reconciliation is a separate future
+   project).
+4. Update the stale Coach comment at builder.js:4472–4473 ("Each key must have
+   a matching entry in the engine's `countryPaths` map…") to reference
+   `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`.
 
 ### Size impact (approximate)
 
