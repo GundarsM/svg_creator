@@ -576,6 +576,16 @@
                             </button>
                         </div>
                         </div>
+                        <div style="display: flex; gap: 8px; margin: 8px 0; align-items: center;">
+                            <input id="countrySearchInput" list="countrySearchList" class="form-control form-control-sm" style="flex: 2;" placeholder="Search any country…" onfocus="populateCountrySearch()">
+                            <datalist id="countrySearchList"></datalist>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addSearchedCountry(false)">
+                                <i class="fas fa-map"></i> Solid
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" style="flex: 1;" onclick="addSearchedCountry(true)">
+                                <i class="far fa-map"></i> Outline
+                            </button>
+                        </div>
 
                         <h3 class="mt-4">Add Shapes</h3>
                         <div class="shape-row-label">Filled:</div>
@@ -1712,6 +1722,30 @@
                 canvas.requestRenderAll();
             }
             
+            // Country search: datalist is filled on first focus (triggers the
+            // dataset fetch); a prefetch failure only warns — the alert path
+            // belongs to actual add clicks.
+            let countrySearchPopulated = false;
+            function populateCountrySearch() {
+                if (countrySearchPopulated) return;
+                getCountryNames().then(names => {
+                    const dl = document.getElementById('countrySearchList');
+                    dl.innerHTML = '';
+                    names.forEach(n => {
+                        const o = document.createElement('option');
+                        o.value = n;
+                        dl.appendChild(o);
+                    });
+                    countrySearchPopulated = true;
+                }).catch(err => console.warn('Country list prefetch failed', err));
+            }
+            function addSearchedCountry(outline) {
+                const input = document.getElementById('countrySearchInput');
+                const name = input.value.trim();
+                if (!name) return;
+                if (outline) { addCountryOutline(name); } else { addCountry(name); }
+            }
+
             // Add country shape (solid brown fill)
             function addCountry(country) {
                 return getCountryPathData(country).then(pathData => {
