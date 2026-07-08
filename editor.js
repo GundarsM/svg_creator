@@ -2394,7 +2394,7 @@
                                 strokeWidth: 0.1,
                                 scaleX: scale * 0.525, // 63mm target / 120-unit fit box
                                 scaleY: scale * 0.525,
-                                left: baseX - 14 * scale, // Moved 14mm to the left
+                                left: baseX - 3 * scale, // UK map centred at X ≈ 192 mm on the default canvas
                                 top: baseY - 4,
                                 originX: 'center',
                                 originY: 'center'

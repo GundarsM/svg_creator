@@ -2606,7 +2606,7 @@
                                 strokeWidth: 0.1,
                                 scaleX: scale * 0.525, // 63mm target / 120-unit fit box
                                 scaleY: scale * 0.525,
-                                left: baseX - 14 * scale, // Moved 14mm to the left
+                                left: baseX - 3 * scale, // UK map centred at X ≈ 192 mm on the default canvas
                                 top: baseY - 4,
                                 originX: 'center',
                                 originY: 'center'
@@ -6759,6 +6759,21 @@
                         resizeHolder(w, lock ? null : h, lock);
                     };
 
+                    // Countries arrive at a predictable size: the larger dimension is
+                    // normalised to 130 mm — the raw generated size can leave small
+                    // countries (San Marino…) lost on the canvas. The width box still
+                    // lets the customer resize afterwards.
+                    const COUNTRY_HOLDER_MM = 130;
+                    const sizeCountryHolder = () => {
+                        const obj = Coach.state.holderObj;
+                        if (!obj || !cv()) return;
+                        const scale = canvas.scale || 1;
+                        const wMm = obj.getScaledWidth() / scale;
+                        const hMm = obj.getScaledHeight() / scale;
+                        if (!wMm || !hMm) return;
+                        resizeHolder(COUNTRY_HOLDER_MM * wMm / Math.max(wMm, hMm), null, true);
+                    };
+
                     // ── 1. Intro ───────────────────────────────────────────
                     const intro = mkEl('p', { className: 'mb-3', textContent: this.intro });
                     el.appendChild(intro);
@@ -6854,7 +6869,7 @@
                                     obj.coachHolderId = 'holder';
                                     canvas.sendToBack(obj); // base shape sits on the bottom layer
                                 }
-                                applyStoredSize();
+                                sizeCountryHolder();
                                 Coach.setHolderAspectLock(true); // country shapes lock aspect by default
                                 markSelected(shapeGroup, 'country');
                                 Coach.render();
@@ -6878,7 +6893,7 @@
                                 obj.coachHolderId = 'holder';
                                 canvas.sendToBack(obj); // base shape sits on the bottom layer
                             }
-                            applyStoredSize();
+                            sizeCountryHolder();
                             Coach.setHolderAspectLock(true); // country shapes lock aspect by default
                             markSelected(shapeGroup, 'country');
                             Coach.render();
