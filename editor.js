@@ -1303,6 +1303,11 @@
             // Replaces the old multi-megabyte inline `countryPaths` SVG data.
             // Path units are millimetres (the engine treats raw path units as mm).
             const WORLD_ATLAS_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json';
+            // High-detail (1:10m, ~3.3 MB) edition of the same dataset — fetched only
+            // when a small country needs it; 1:50m geometry is too coarse once a
+            // Latvia-sized (or smaller) shape is blown up to the 120 mm fit box.
+            const WORLD_ATLAS_URL_HI = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json';
+            const HI_RES_MAX_DEG = 8; // bbox span (degrees) below which the 10m data is used
             const COUNTRY_FIT_MM = 120; // every generated shape fits a 120×120 mm box
 
             // Legacy key → dataset country name. mainlandOnly keeps only the largest
@@ -1376,20 +1381,22 @@
                 return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
-            let worldTopoPromise = null;
-            function loadWorldTopo() {
-                if (!worldTopoPromise) {
-                    worldTopoPromise = fetch(WORLD_ATLAS_URL)
+            // Two promise caches: [0] = 1:50m default, [1] = 1:10m high-detail.
+            const worldTopoPromises = [null, null];
+            function loadWorldTopo(hiRes) {
+                const slot = hiRes ? 1 : 0;
+                if (!worldTopoPromises[slot]) {
+                    worldTopoPromises[slot] = fetch(hiRes ? WORLD_ATLAS_URL_HI : WORLD_ATLAS_URL)
                         .then(r => {
                             if (!r.ok) throw new Error('world-atlas fetch failed: HTTP ' + r.status);
                             return r.json();
                         })
                         .catch(err => {
-                            worldTopoPromise = null; // clear the cache so the next call retries
+                            worldTopoPromises[slot] = null; // clear the cache so the next call retries
                             throw err;
                         });
                 }
-                return worldTopoPromise;
+                return worldTopoPromises[slot];
             }
 
             // Planar bbox area of a polygon's exterior ring — a robust proxy for
@@ -1464,6 +1471,23 @@
                     if (!feature) {
                         console.warn('Unknown country key: "' + key + '"');
                         return null;
+                    }
+                    // Small countries look blocky when 1:50m geometry is blown up to
+                    // the fit box — swap in the 1:10m feature for them. geoBounds
+                    // handles antimeridian wrap (lon span may come back negative).
+                    const b = d3.geoBounds(feature);
+                    const lonSpan = (b[1][0] - b[0][0] + 360) % 360;
+                    const latSpan = b[1][1] - b[0][1];
+                    if (Math.max(lonSpan, latSpan) < HI_RES_MAX_DEG) {
+                        try {
+                            const worldHi = await loadWorldTopo(true);
+                            const hiFeature = topojson.feature(worldHi, worldHi.objects.countries).features
+                                .find(f => countrySlug(f.properties.name) === wanted);
+                            if (hiFeature) feature = hiFeature;
+                        } catch (err) {
+                            // 50m geometry is a usable fallback — don't fail the add.
+                            console.warn('High-detail dataset unavailable, using 50m geometry', err);
+                        }
                     }
                     if (entry && entry.mainlandOnly) {
                         feature = { type: 'Feature', properties: feature.properties,
