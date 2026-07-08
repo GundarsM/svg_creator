@@ -109,8 +109,11 @@ borders are dissolved — required for outline (stroke-only) rendering.
 `getCountryPathData(key)`:
 
 1. Await the (cached) world TopoJSON fetch.
-2. Resolve `key` → a GeoJSON feature: direct country via `COUNTRY_KEY_MAP` /
-   dataset name match; composite via `topojson.merge` over the id list.
+2. Resolve `key` → a GeoJSON feature: composite via `topojson.merge` over the
+   id list; otherwise via `COUNTRY_KEY_MAP`, falling back to a
+   **slug-normalized dataset-name match** (lowercase, strip non-alphanumerics)
+   — so `addCountry('Portugal')` and `addCountry('portugal')` both resolve.
+   The slug is what gets stored as `countryName`.
 3. Project with `d3.geoAzimuthalEqualArea()` centered on the feature and
    `fitSize([120, 120], feature)` — equal-area projection avoids the extreme
    Mercator distortion of high-latitude countries (Canada), and a fixed fit box
@@ -165,7 +168,10 @@ already gates `addUKCoinsToTemplate()` behind the async
   key: step 2 arms `Coach.captureNextAdded('holder', …)` then calls
   `addCountryOutline`; step 7 respects the filled/outline `countryMode` toggle
   and calls `captureAndSize` + `addCountry`/`addCountryOutline`. The curated
-  button lists themselves are unchanged.
+  button lists themselves are unchanged. (Step 2's active-highlight loop
+  matches buttons by `dataset.country` — a searched slug matches none, so it
+  naturally clears all curated-button highlights, which is the desired state;
+  `markSelected` runs in the capture callback and works for search too.)
 
 ### Error handling
 
@@ -174,7 +180,8 @@ already gates `addUKCoinsToTemplate()` behind the async
   to console, and **clear the cached promise** so the next click retries.
 - Fetch failure on **datalist prefetch** (search-box focus): silent
   `console.warn` only — no alert for a UI warm-up; the alert path fires if the
-  user then actually tries to add.
+  user then actually tries to add. Because the failed promise is cleared from
+  the cache, a later focus retries the prefetch.
 - Fetch failure inside the **UK template**: degrade to coins-only (see above),
   no alert.
 - Unknown key (stale saved reference, typo): console warning, no shape added.
@@ -205,8 +212,10 @@ to be safe (see Problem). Instead:
 1. Implement and verify the change in editor.js.
 2. Apply the **identical** edits to the corresponding locations in builder.js's
    engine region (delete `countryPaths`, add the same
-   `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`/`getCountryPathData`, same
-   `addCountry`/`addCountryOutline`/UK-template adaptations, same script tags).
+   `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`/`getCountryPathData`/`getCountryNames`,
+   same `addCountry`/`addCountryOutline`/UK-template adaptations, same script
+   tags — `getCountryNames` especially, since builder's Coach panels are its
+   main consumer).
    Note: builder's engine region no longer renders the "Add Country Outlines"
    panel (the sidebar was replaced by Coach markup), so the engine-panel search
    UI renders in editor.js only; builder users get search via the Coach country
@@ -248,7 +257,9 @@ country-using sessions pay.
 3. Search fields: find and add a country with no curated button (e.g.
    Portugal) — in editor.js via the engine panel, and in builder via the Coach
    step-2 panel (must become the holder: captured, aspect-locked, sent to
-   back) and the step-7 panel (respecting the filled/outline toggle).
+   back — which requires the searched shape to carry `shapeType = 'country'`,
+   the invariant the capture filter hangs on) and the step-7 panel
+   (respecting the filled/outline toggle).
 4. UK coin-holder template: UK outline appears at the expected size/position
    and the coin ring still renders (including with devtools offline — template
    degrades to coins-only).
