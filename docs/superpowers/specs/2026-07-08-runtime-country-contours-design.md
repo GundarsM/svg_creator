@@ -86,9 +86,10 @@ const COUNTRY_KEY_MAP = {
        mainlandOnly per key explicitly (default: full multipolygon) ... */
 };
 
-// Composite shapes are topojson.merge'd from member-country ids.
-// Ids are the ISO 3166-1 numeric `id` fields on world-atlas features;
-// membership follows the UN geoscheme continental grouping.
+// Composite shapes are topojson.merge'd from member-country lists.
+// Members are identified by their world-atlas feature (dataset name or
+// ISO 3166-1 numeric `id` — the plan picks one form and the code warns on
+// unresolved members); membership follows the UN geoscheme grouping.
 // Boundary decisions: europe EXCLUDES Russia and Turkey (no way to clip a
 // single country polygon at the Urals/Bosporus — accepted limitation);
 // africa includes Egypt and Morocco (also standalone keys). After merging,
