@@ -4210,6 +4210,13 @@
         const cv = () => (typeof canvas !== 'undefined' && canvas) ? canvas : null;
         const engineSave = () => { if (typeof saveState === 'function') saveState(); };
         const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
+        // Slate-accented country button, shared by the step-2 base-shape picker
+        // and the step-7 personalise panel.
+        const mkCountryBtn = (key, label) => {
+            const b = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light coach-btn-country', textContent: label });
+            b.dataset.country = key;
+            return b;
+        };
 
         const Coach = {
             current: 0,
@@ -5379,21 +5386,43 @@
             canvas.requestRenderAll();
         };
 
+        /* ── One-shot object capture ─────────────────────────────────────
+           Grab the next object added to the canvas, skipping objects the
+           filter rejects (those leave the capture armed). Re-registering a
+           slot replaces its previous pending capture, and a 120 s timeout
+           disarms it if the picker/creation was cancelled. Slots in use:
+           'holder' and 'import' (step 2), 'size' (step 7). */
+        Coach.captureNextAdded = function(slot, filter, onCapture) {
+            if (!cv()) return;
+            Coach.cancelCapture(slot);
+            const handler = (e) => {
+                const obj = e.target;
+                if (obj && filter && !filter(obj)) return; // not ours — stay armed
+                Coach.cancelCapture(slot);
+                onCapture(obj);
+            };
+            Coach._captures = Coach._captures || {};
+            Coach._captures[slot] = { handler, timeout: setTimeout(() => Coach.cancelCapture(slot), 120000) };
+            canvas.on('object:added', handler);
+        };
+        Coach.cancelCapture = function(slot) {
+            const c = Coach._captures && Coach._captures[slot];
+            if (!c) return;
+            clearTimeout(c.timeout);
+            if (cv()) canvas.off('object:added', c.handler);
+            Coach._captures[slot] = null;
+        };
+        Coach.cancelAllCaptures = function() {
+            Object.keys(Coach._captures || {}).forEach(s => Coach.cancelCapture(s));
+        };
+
         /* ── Coach.resetSelf ─────────────────────────────────────────────
            Reset ONLY the Coach (state, step, visited, bubble, saved progress).
            Does NOT touch the canvas — callers clear that first. Shared by the
            Coach's own "Start over" and the engine's main "Start Over" button. */
         Coach.resetSelf = function() {
             Coach.persist.clear();
-            // Cancel any pending one-shot capture handlers / timeouts
-            if (cv()) {
-                ['_pendingHolderHandler', '_pendingImportHandler', '_pendingSizeHandler'].forEach(h => {
-                    if (Coach[h]) { canvas.off('object:added', Coach[h]); Coach[h] = null; }
-                });
-            }
-            ['_pendingHolderTimeout', '_pendingImportTimeout', '_pendingSizeTimeout'].forEach(t => {
-                if (Coach[t]) { clearTimeout(Coach[t]); Coach[t] = null; }
-            });
+            Coach.cancelAllCaptures(); // pending one-shot captures / timeouts
 
             Coach.state = {};
             Coach.current = 0;
@@ -5481,6 +5510,8 @@
                 dist[i] = m;
             }
             return {
+                bounds: br,                // holder's absolute bbox in canvas coords
+                pxPerCanvas: pxPerCanvas,  // mask px per canvas px (sampling resolution)
                 centroid: { x: br.left + (sx / c) / pxPerCanvas, y: br.top + (sy / c) / pxPerCanvas },
                 distAt(px, py) {
                     const mx = Math.round((px - br.left) * pxPerCanvas);
@@ -5727,235 +5758,167 @@
                 Coach._fitRot = (Coach._fitRot || 0) + 1;
                 // Follow the holder's OUTLINE: inset the silhouette by ~one coin radius and
                 // place coins along that contour, then step inward by ~2r for each successive
-                // ring (concentric, outline-following). Implemented with a distance transform:
-                // every interior pixel knows its distance to the edge, so a "ring" is the set
-                // of pixels at a target inset distance. Coins are placed ordered around the
-                // centroid (so they trace the contour) and rejected if they'd overlap.
-                let maskCanvas = null;
-                const saved = [];
-                const solidify = (o) => {
-                    saved.push([o, o.fill, o.opacity, o.stroke, o.strokeWidth]);
-                    o.set({ fill: '#000', opacity: 1, stroke: '#000', strokeWidth: 0 });
-                };
-                try {
-                    if (holder.type === 'group') holder.forEachObject(solidify);
-                    else solidify(holder);
-                    if (typeof holder.toCanvasElement === 'function') {
-                        maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false });
-                    }
-                } catch (e) { maskCanvas = null; }
-                // Restore the holder's real styling (no visible flash — canvas not re-rendered yet)
-                saved.forEach(([o, f, op, s, sw]) => o.set({ fill: f, opacity: op, stroke: s, strokeWidth: sw }));
+                // ring (concentric, outline-following). The shared distance field
+                // (Coach._holderDistanceField) knows every interior point's distance to the
+                // edge, so a "ring" is the set of points at a target inset distance. Coins
+                // are placed ordered around the centroid (so they trace the contour) and
+                // rejected if they'd overlap.
+                const sfield = Coach._holderDistanceField(holder);
+                if (sfield) {
+                    const br = sfield.bounds;
 
-                if (maskCanvas) {
-                    const br = holder.getBoundingRect(true); // absolute bbox in canvas coords
-                    const W = maskCanvas.width, H = maskCanvas.height;
-                    const mctx = maskCanvas.getContext('2d');
-                    let md = null;
-                    try { md = mctx.getImageData(0, 0, W, H).data; } catch (e) { md = null; }
+                    // Per-coin radius (canvas px) — each coin hugs the outline by ITS OWN
+                    // radius so the gap to the edge is the same for big and small coins.
+                    const coinR = targets.map(c => Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2);
+                    const minCoinR = Math.min.apply(null, coinR);
+                    const offset = maxFoot * 0.06 + 4 * (canvas.scale || 1);  // edge gap (+4mm further in)
+                    const minGapPx = 3 * (canvas.scale || 1);                 // never closer than 3 mm edge-to-edge
+                    const gap    = Math.max(maxFoot * 0.06, minGapPx);        // min gap between neighbouring coins
+                    const minNeed = minCoinR + offset; // smallest usable inset (smallest coin)
 
-                    if (md && br.width > 0 && br.height > 0 && W > 1 && H > 1) {
-                        const pxPerCanvas = W / br.width;          // mask px per canvas px (≈ sy too)
-                        const SQRT2 = Math.SQRT2, INF = 1e9;
+                    // Centroid in canvas coords (for angular ordering)
+                    const cxC = sfield.centroid.x;
+                    const cyC = sfield.centroid.y;
 
-                        // inside[i] = 1 where silhouette is opaque
-                        const N = W * H;
-                        const dist = new Float32Array(N);
-                        let cxSum = 0, cySum = 0, cCount = 0;
-                        for (let i = 0; i < N; i++) {
-                            const inside = md[i * 4 + 3] > 40;
-                            dist[i] = inside ? INF : 0;
-                            if (inside) { cxSum += (i % W); cySum += ((i / W) | 0); cCount++; }
+                    // Candidate sampling step (finer than the smallest coin so rings populate well)
+                    const sampleStep = Math.max(2, minCoinR * 0.35);
+                    const shell      = Math.max(minCoinR * 0.5, 1); // depth bucket for ordering
+
+                    // Candidates: every inside point that could host at least the smallest coin.
+                    // d = distance from the edge (canvas px). Sort outer-first, then by angle so
+                    // a coin sweeps around the contour.
+                    const candidates = [];
+                    for (let py = br.top; py <= br.top + br.height; py += sampleStep) {
+                        for (let px = br.left; px <= br.left + br.width; px += sampleStep) {
+                            const dCanvas = sfield.distAt(px, py);
+                            if (dCanvas < minNeed) continue;
+                            candidates.push({
+                                x: px, y: py, d: dCanvas, used: false,
+                                bucket: Math.floor(dCanvas / shell),
+                                ang: Math.atan2(py - cyC, px - cxC)
+                            });
                         }
-                        if (cCount > 0) {
-                            // Distance transform (2-pass chamfer 1 / √2), in mask pixels
-                            for (let y = 0; y < H; y++) {
-                                for (let x = 0; x < W; x++) {
-                                    const i = y * W + x;
-                                    if (dist[i] === 0) continue;
-                                    let m = dist[i];
-                                    if (x > 0)            m = Math.min(m, dist[i - 1] + 1);
-                                    if (y > 0)            m = Math.min(m, dist[i - W] + 1);
-                                    if (x > 0 && y > 0)   m = Math.min(m, dist[i - W - 1] + SQRT2);
-                                    if (x < W - 1 && y > 0) m = Math.min(m, dist[i - W + 1] + SQRT2);
-                                    dist[i] = m;
-                                }
+                    }
+                    candidates.sort((a, b) => (a.bucket - b.bucket) || (a.ang - b.ang));
+
+                    // Placement order: largest coins first, rotated each press.
+                    let order = targets.map((_, i) => i).sort((a, b) => coinR[b] - coinR[a]);
+                    if (order.length > 1) {
+                        const rot = (Coach._fitRot - 1) % order.length; // 0 on the first press
+                        if (rot > 0) order = order.slice(rot).concat(order.slice(0, rot));
+                    }
+                    const positionsByIndex = new Array(targets.length).fill(null);
+                    const placedCoins = [];
+                    const isRect = (holder.shapeType === 'rectangle' || holder.shapeType === 'rectangle-outline');
+
+                    if (isRect) {
+                        // Rectangle: a centred interior grid, inset from every edge so
+                        // coins never touch the sides/corners. Slots are spaced by the
+                        // coin footprint + gap (>= 3 mm), fixture-clashing slots skipped.
+                        const maxR    = Math.max.apply(null, coinR);
+                        const insetPx = maxR + 4 * (canvas.scale || 1); // coin edge >= 4 mm off the wall
+                        const cellSz  = maxFoot + gap;
+                        const innerW  = Math.max(cellSz, hw - 2 * insetPx);
+                        const innerH  = Math.max(cellSz, hh - 2 * insetPx);
+                        const maxCols = Math.max(1, Math.floor(innerW / cellSz) + 1);
+                        const maxRows = Math.max(1, Math.floor(innerH / cellSz) + 1);
+                        const n = targets.length;
+                        // Aspect-balanced grid that fills the width, capped to what fits.
+                        let cols = Math.max(1, Math.min(maxCols, Math.round(Math.sqrt(n * (innerW / innerH)))));
+                        let rows = Math.min(maxRows, Math.ceil(n / cols));
+                        const blockW = (cols - 1) * cellSz;
+                        const blockH = (rows - 1) * cellSz;
+                        const startX = hc.x - blockW / 2;
+                        const startY = hc.y - blockH / 2;
+                        const slots = [];
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                slots.push({ x: startX + c * cellSz, y: startY + r * cellSz });
                             }
-                            for (let y = H - 1; y >= 0; y--) {
-                                for (let x = W - 1; x >= 0; x--) {
-                                    const i = y * W + x;
-                                    if (dist[i] === 0) continue;
-                                    let m = dist[i];
-                                    if (x < W - 1)             m = Math.min(m, dist[i + 1] + 1);
-                                    if (y < H - 1)             m = Math.min(m, dist[i + W] + 1);
-                                    if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + SQRT2);
-                                    if (x > 0 && y < H - 1)     m = Math.min(m, dist[i + W - 1] + SQRT2);
-                                    dist[i] = m;
-                                }
+                        }
+                        const usedSlot = new Array(slots.length).fill(false);
+                        const overflow = [];
+                        for (let oi = 0; oi < order.length; oi++) {
+                            const idx = order[oi];
+                            const rc = coinR[idx];
+                            let chosen = -1;
+                            for (let s = 0; s < slots.length; s++) {
+                                if (usedSlot[s]) continue;
+                                if (!clearOfFixtures(slots[s].x, slots[s].y, rc)) continue;
+                                chosen = s; break;
                             }
-
-                            // Per-coin radius (canvas px) — each coin hugs the outline by ITS OWN
-                            // radius so the gap to the edge is the same for big and small coins.
-                            const coinR = targets.map(c => Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2);
-                            const minCoinR = Math.min.apply(null, coinR);
-                            const offset = maxFoot * 0.06 + 4 * (canvas.scale || 1);  // edge gap (+4mm further in)
-                            const minGapPx = 3 * (canvas.scale || 1);                 // never closer than 3 mm edge-to-edge
-                            const gap    = Math.max(maxFoot * 0.06, minGapPx);        // min gap between neighbouring coins
-                            const minNeed = minCoinR + offset; // smallest usable inset (smallest coin)
-
-                            // Centroid in canvas coords (for angular ordering)
-                            const cxC = br.left + (cxSum / cCount) / pxPerCanvas;
-                            const cyC = br.top  + (cySum / cCount) / pxPerCanvas;
-
-                            // Candidate sampling step (finer than the smallest coin so rings populate well)
-                            const sampleStep = Math.max(2, minCoinR * 0.35);
-                            const shell      = Math.max(minCoinR * 0.5, 1); // depth bucket for ordering
-
-                            const distAtCanvas = (px, py) => {
-                                const mx = Math.round((px - br.left) * pxPerCanvas);
-                                const my = Math.round((py - br.top) * pxPerCanvas);
-                                if (mx < 0 || my < 0 || mx >= W || my >= H) return 0;
-                                const d = dist[my * W + mx];
-                                return d >= INF ? 0 : d / pxPerCanvas; // canvas px
-                            };
-
-                            // Candidates: every inside point that could host at least the smallest coin.
-                            // d = distance from the edge (canvas px). Sort outer-first, then by angle so
-                            // a coin sweeps around the contour.
-                            const candidates = [];
-                            for (let py = br.top; py <= br.top + br.height; py += sampleStep) {
-                                for (let px = br.left; px <= br.left + br.width; px += sampleStep) {
-                                    const dCanvas = distAtCanvas(px, py);
-                                    if (dCanvas < minNeed) continue;
-                                    candidates.push({
-                                        x: px, y: py, d: dCanvas, used: false,
-                                        bucket: Math.floor(dCanvas / shell),
-                                        ang: Math.atan2(py - cyC, px - cxC)
-                                    });
+                            if (chosen >= 0) { usedSlot[chosen] = true; positionsByIndex[idx] = slots[chosen]; }
+                            else overflow.push(idx);
+                        }
+                        if (overflow.length) {
+                            const per = perimeterPositions(overflow.length, left, top, hw, hh, cell, hc);
+                            overflow.forEach((idx, k) => { positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y }; });
+                        }
+                    } else {
+                        // Circle / irregular: outline-following fill — outermost ring first,
+                        // swept by angle, each coin hugging the outline by `offset`.
+                        for (let oi = 0; oi < order.length; oi++) {
+                            const idx = order[oi];
+                            const rc = coinR[idx];
+                            const need = rc + offset;          // coin edge sits ~offset from the outline
+                            let chosen = -1;
+                            for (let k = 0; k < candidates.length; k++) {
+                                const cand = candidates[k];
+                                if (cand.used || cand.d < need) continue;
+                                if (!clearOfFixtures(cand.x, cand.y, rc)) continue; // keep 5 mm off fixtures
+                                let ok = true;
+                                for (let p = 0; p < placedCoins.length; p++) {
+                                    const pc = placedCoins[p];
+                                    const dx = pc.x - cand.x, dy = pc.y - cand.y;
+                                    const md = pc.r + rc + gap; // size-aware spacing
+                                    if (dx * dx + dy * dy < md * md) { ok = false; break; }
                                 }
+                                if (ok) { chosen = k; break; }
                             }
-                            candidates.sort((a, b) => (a.bucket - b.bucket) || (a.ang - b.ang));
-
-                            // Placement order: largest coins first, rotated each press.
-                            let order = targets.map((_, i) => i).sort((a, b) => coinR[b] - coinR[a]);
-                            if (order.length > 1) {
-                                const rot = (Coach._fitRot - 1) % order.length; // 0 on the first press
-                                if (rot > 0) order = order.slice(rot).concat(order.slice(0, rot));
+                            if (chosen >= 0) {
+                                const c = candidates[chosen];
+                                c.used = true;
+                                placedCoins.push({ x: c.x, y: c.y, r: rc });
+                                positionsByIndex[idx] = { x: c.x, y: c.y };
                             }
-                            const positionsByIndex = new Array(targets.length).fill(null);
-                            const placedCoins = [];
-                            const isRect = (holder.shapeType === 'rectangle' || holder.shapeType === 'rectangle-outline');
+                        }
 
-                            if (isRect) {
-                                // Rectangle: a centred interior grid, inset from every edge so
-                                // coins never touch the sides/corners. Slots are spaced by the
-                                // coin footprint + gap (>= 3 mm), fixture-clashing slots skipped.
-                                const maxR    = Math.max.apply(null, coinR);
-                                const insetPx = maxR + 4 * (canvas.scale || 1); // coin edge >= 4 mm off the wall
-                                const cellSz  = maxFoot + gap;
-                                const innerW  = Math.max(cellSz, hw - 2 * insetPx);
-                                const innerH  = Math.max(cellSz, hh - 2 * insetPx);
-                                const maxCols = Math.max(1, Math.floor(innerW / cellSz) + 1);
-                                const maxRows = Math.max(1, Math.floor(innerH / cellSz) + 1);
-                                const n = targets.length;
-                                // Aspect-balanced grid that fills the width, capped to what fits.
-                                let cols = Math.max(1, Math.min(maxCols, Math.round(Math.sqrt(n * (innerW / innerH)))));
-                                let rows = Math.min(maxRows, Math.ceil(n / cols));
-                                const blockW = (cols - 1) * cellSz;
-                                const blockH = (rows - 1) * cellSz;
-                                const startX = hc.x - blockW / 2;
-                                const startY = hc.y - blockH / 2;
-                                const slots = [];
-                                for (let r = 0; r < rows; r++) {
-                                    for (let c = 0; c < cols; c++) {
-                                        slots.push({ x: startX + c * cellSz, y: startY + r * cellSz });
-                                    }
+                        // Coins the greedy couldn't seat → emptiest interior spot with >= 3 mm
+                        // clearance; if none, to the outer perimeter (never overlapping inside).
+                        const missing = [];
+                        for (let i = 0; i < positionsByIndex.length; i++) {
+                            if (!positionsByIndex[i]) missing.push(i);
+                        }
+                        const overflow = [];
+                        missing.forEach((idx) => {
+                            const rc = coinR[idx];
+                            let best = null, bestScore = -Infinity;
+                            for (let k = 0; k < candidates.length; k++) {
+                                const cand = candidates[k];
+                                if (cand.d < rc + offset) continue;
+                                if (!clearOfFixtures(cand.x, cand.y, rc)) continue;
+                                let minSlack = Infinity;
+                                for (let p = 0; p < placedCoins.length; p++) {
+                                    const pc = placedCoins[p];
+                                    const slack = Math.hypot(pc.x - cand.x, pc.y - cand.y) - (pc.r + rc);
+                                    if (slack < minSlack) minSlack = slack;
                                 }
-                                const usedSlot = new Array(slots.length).fill(false);
-                                const overflow = [];
-                                for (let oi = 0; oi < order.length; oi++) {
-                                    const idx = order[oi];
-                                    const rc = coinR[idx];
-                                    let chosen = -1;
-                                    for (let s = 0; s < slots.length; s++) {
-                                        if (usedSlot[s]) continue;
-                                        if (!clearOfFixtures(slots[s].x, slots[s].y, rc)) continue;
-                                        chosen = s; break;
-                                    }
-                                    if (chosen >= 0) { usedSlot[chosen] = true; positionsByIndex[idx] = slots[chosen]; }
-                                    else overflow.push(idx);
-                                }
-                                if (overflow.length) {
-                                    const per = perimeterPositions(overflow.length, left, top, hw, hh, cell, hc);
-                                    overflow.forEach((idx, k) => { positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y }; });
-                                }
+                                if (minSlack > bestScore) { bestScore = minSlack; best = cand; }
+                            }
+                            if (best && bestScore >= minGapPx) {
+                                placedCoins.push({ x: best.x, y: best.y, r: rc });
+                                positionsByIndex[idx] = { x: best.x, y: best.y };
                             } else {
-                                // Circle / irregular: outline-following fill — outermost ring first,
-                                // swept by angle, each coin hugging the outline by `offset`.
-                                for (let oi = 0; oi < order.length; oi++) {
-                                    const idx = order[oi];
-                                    const rc = coinR[idx];
-                                    const need = rc + offset;          // coin edge sits ~offset from the outline
-                                    let chosen = -1;
-                                    for (let k = 0; k < candidates.length; k++) {
-                                        const cand = candidates[k];
-                                        if (cand.used || cand.d < need) continue;
-                                        if (!clearOfFixtures(cand.x, cand.y, rc)) continue; // keep 5 mm off fixtures
-                                        let ok = true;
-                                        for (let p = 0; p < placedCoins.length; p++) {
-                                            const pc = placedCoins[p];
-                                            const dx = pc.x - cand.x, dy = pc.y - cand.y;
-                                            const md = pc.r + rc + gap; // size-aware spacing
-                                            if (dx * dx + dy * dy < md * md) { ok = false; break; }
-                                        }
-                                        if (ok) { chosen = k; break; }
-                                    }
-                                    if (chosen >= 0) {
-                                        const c = candidates[chosen];
-                                        c.used = true;
-                                        placedCoins.push({ x: c.x, y: c.y, r: rc });
-                                        positionsByIndex[idx] = { x: c.x, y: c.y };
-                                    }
-                                }
-
-                                // Coins the greedy couldn't seat → emptiest interior spot with >= 3 mm
-                                // clearance; if none, to the outer perimeter (never overlapping inside).
-                                const missing = [];
-                                for (let i = 0; i < positionsByIndex.length; i++) {
-                                    if (!positionsByIndex[i]) missing.push(i);
-                                }
-                                const overflow = [];
-                                missing.forEach((idx) => {
-                                    const rc = coinR[idx];
-                                    let best = null, bestScore = -Infinity;
-                                    for (let k = 0; k < candidates.length; k++) {
-                                        const cand = candidates[k];
-                                        if (cand.d < rc + offset) continue;
-                                        if (!clearOfFixtures(cand.x, cand.y, rc)) continue;
-                                        let minSlack = Infinity;
-                                        for (let p = 0; p < placedCoins.length; p++) {
-                                            const pc = placedCoins[p];
-                                            const slack = Math.hypot(pc.x - cand.x, pc.y - cand.y) - (pc.r + rc);
-                                            if (slack < minSlack) minSlack = slack;
-                                        }
-                                        if (minSlack > bestScore) { bestScore = minSlack; best = cand; }
-                                    }
-                                    if (best && bestScore >= minGapPx) {
-                                        placedCoins.push({ x: best.x, y: best.y, r: rc });
-                                        positionsByIndex[idx] = { x: best.x, y: best.y };
-                                    } else {
-                                        overflow.push(idx);
-                                    }
-                                });
-                                if (overflow.length) {
-                                    const per = perimeterPositions(overflow.length, left, top, hw, hh, cell, hc);
-                                    overflow.forEach((idx, k) => { positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y }; });
-                                }
+                                overflow.push(idx);
                             }
-
-                            positions = positionsByIndex;
+                        });
+                        if (overflow.length) {
+                            const per = perimeterPositions(overflow.length, left, top, hw, hh, cell, hc);
+                            overflow.forEach((idx, k) => { positionsByIndex[idx] = per[k] || { x: hc.x, y: hc.y }; });
                         }
                     }
+
+                    positions = positionsByIndex;
                 }
 
                 // Any coins that didn't fit inside the silhouette → outer perimeter (still visible, no overlap)
@@ -6304,131 +6267,80 @@
                     }
                 }
             } else {
-                // Irregular (country / imported / ellipse): mask + distance transform,
-                // collect the 12 mm-inset contour, walk it placing a hole every ~100 mm.
-                let maskCanvas = null;
-                const saved = [];
-                const solidify = (o) => {
-                    saved.push([o, o.fill, o.opacity, o.stroke, o.strokeWidth]);
-                    o.set({ fill: '#000', opacity: 1, stroke: '#000', strokeWidth: 0 });
-                };
-                try {
-                    if (holder.type === 'group') holder.forEachObject(solidify);
-                    else solidify(holder);
-                    if (typeof holder.toCanvasElement === 'function') {
-                        maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false });
-                    }
-                } catch (e) { maskCanvas = null; }
-                saved.forEach(([o, f, op, s, sw]) => o.set({ fill: f, opacity: op, stroke: s, strokeWidth: sw }));
+                // Irregular (country / imported / ellipse): distance field over the
+                // holder silhouette, collect the 12 mm-inset contour, walk it placing
+                // a hole every ~100 mm.
+                const field = Coach._holderDistanceField(holder);
+                if (field) {
+                    const br = field.bounds;
+                    // Sample on the same grid the mask was rasterised at (~1 canvas px),
+                    // with the same tolerance the mask-space walk used.
+                    const stepC  = Math.max(1, Math.round(field.pxPerCanvas)) / field.pxPerCanvas;
+                    const bandC  = Math.max(1.5, 1.2 * field.pxPerCanvas) / field.pxPerCanvas;
+                    const target = OFFSET * scale;   // inset distance, canvas px
 
-                if (maskCanvas) {
-                    const br = holder.getBoundingRect(true);
-                    const W = maskCanvas.width, H = maskCanvas.height;
-                    const ctx = maskCanvas.getContext('2d');
-                    let md = null;
-                    try { md = ctx.getImageData(0, 0, W, H).data; } catch (e) { md = null; }
-                    if (md && br.width > 0 && br.height > 0 && W > 1 && H > 1) {
-                        const pxPerCanvas = W / br.width;
-                        const SQRT2 = Math.SQRT2, INF = 1e9;
-                        const N = W * H;
-                        const dist = new Float32Array(N);
-                        let cxSum = 0, cySum = 0, cCount = 0;
-                        for (let i = 0; i < N; i++) {
-                            const inside = md[i * 4 + 3] > 40;
-                            dist[i] = inside ? INF : 0;
-                            if (inside) { cxSum += i % W; cySum += (i / W) | 0; cCount++; }
+                    const band = [];
+                    for (let py = br.top; py < br.top + br.height; py += stepC) {
+                        for (let px = br.left; px < br.left + br.width; px += stepC) {
+                            const d = field.distAt(px, py);
+                            if (d && Math.abs(d - target) <= bandC) {
+                                band.push({ x: px, y: py, ang: Math.atan2(py - field.centroid.y, px - field.centroid.x) });
+                            }
                         }
-                        if (cCount > 0) {
-                            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-                                const i = y * W + x; if (dist[i] === 0) continue;
-                                let m = dist[i];
-                                if (x > 0)             m = Math.min(m, dist[i - 1] + 1);
-                                if (y > 0)             m = Math.min(m, dist[i - W] + 1);
-                                if (x > 0 && y > 0)    m = Math.min(m, dist[i - W - 1] + SQRT2);
-                                if (x < W - 1 && y > 0) m = Math.min(m, dist[i - W + 1] + SQRT2);
-                                dist[i] = m;
-                            }
-                            for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
-                                const i = y * W + x; if (dist[i] === 0) continue;
-                                let m = dist[i];
-                                if (x < W - 1)             m = Math.min(m, dist[i + 1] + 1);
-                                if (y < H - 1)             m = Math.min(m, dist[i + W] + 1);
-                                if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + SQRT2);
-                                if (x > 0 && y < H - 1)     m = Math.min(m, dist[i + W - 1] + SQRT2);
-                                dist[i] = m;
-                            }
+                    }
+                    band.sort((a, b) => a.ang - b.ang);
 
-                            const cxC = br.left + (cxSum / cCount) / pxPerCanvas;
-                            const cyC = br.top  + (cySum / cCount) / pxPerCanvas;
-                            const targetMask = (OFFSET * scale) * pxPerCanvas;        // mask px
-                            const bandMask   = Math.max(1.5, 1.2 * pxPerCanvas);      // tolerance
-                            const step       = Math.max(1, Math.round(pxPerCanvas));  // ~1 canvas px
+                    // Collapse the 2-D band to one point per small angle bin → a clean
+                    // ordered loop. The raw band zig-zags radially, which hugely
+                    // over-counts the perimeter and spawned far too many fixtures.
+                    const BINS = 360;
+                    const loop = [];
+                    let lastBin = -1;
+                    for (let i = 0; i < band.length; i++) {
+                        const b = Math.floor((band[i].ang + Math.PI) / (2 * Math.PI) * BINS);
+                        if (b !== lastBin) { loop.push(band[i]); lastBin = b; }
+                    }
 
-                            const band = [];
-                            for (let my = 0; my < H; my += step) for (let mx = 0; mx < W; mx += step) {
-                                const d = dist[my * W + mx];
-                                if (d >= INF) continue;
-                                if (Math.abs(d - targetMask) <= bandMask) {
-                                    const px = br.left + mx / pxPerCanvas;
-                                    const py = br.top  + my / pxPerCanvas;
-                                    band.push({ x: px, y: py, ang: Math.atan2(py - cyC, px - cxC) });
+                    if (loop.length) {
+                        // Cumulative arc length around the (closed) contour loop.
+                        const cum = [0];
+                        for (let i = 1; i < loop.length; i++) {
+                            cum[i] = cum[i - 1] + Math.hypot(loop[i].x - loop[i - 1].x, loop[i].y - loop[i - 1].y);
+                        }
+                        const closeSeg = Math.hypot(
+                            loop[0].x - loop[loop.length - 1].x,
+                            loop[0].y - loop[loop.length - 1].y);
+                        const total = cum[cum.length - 1] + closeSeg;
+
+                        // Greedy walk: place a hole as soon as we've travelled >= spacing
+                        // since the last one AND the spot is clear of coins and not within
+                        // ~spacing of an existing fixture. This keeps a consistent ~100 mm
+                        // gap, skips coin-blocked spots (waiting for the next clear point),
+                        // and fills every place a fixture actually fits.
+                        const walk = (spacingPx) => {
+                            placed.length = 0;
+                            const minFixGap = spacingPx * 0.8;
+                            let lastArc = -Infinity;
+                            for (let i = 0; i < loop.length; i++) {
+                                if (cum[i] - lastArc < spacingPx) continue;
+                                const pt = loop[i];
+                                if (!clearOfCoins(pt.x, pt.y)) continue;
+                                let tooNear = false;
+                                for (let p = 0; p < placed.length; p++) {
+                                    if (Math.hypot(placed[p].x - pt.x, placed[p].y - pt.y) < minFixGap) { tooNear = true; break; }
                                 }
+                                if (tooNear) continue;
+                                placed.push({ x: pt.x, y: pt.y });
+                                lastArc = cum[i];
                             }
-                            band.sort((a, b) => a.ang - b.ang);
+                        };
 
-                            // Collapse the 2-D band to one point per small angle bin → a clean
-                            // ordered loop. The raw band zig-zags radially, which hugely
-                            // over-counts the perimeter and spawned far too many fixtures.
-                            const BINS = 360;
-                            const loop = [];
-                            let lastBin = -1;
-                            for (let i = 0; i < band.length; i++) {
-                                const b = Math.floor((band[i].ang + Math.PI) / (2 * Math.PI) * BINS);
-                                if (b !== lastBin) { loop.push(band[i]); lastBin = b; }
-                            }
-
-                            if (loop.length) {
-                                // Cumulative arc length around the (closed) contour loop.
-                                const cum = [0];
-                                for (let i = 1; i < loop.length; i++) {
-                                    cum[i] = cum[i - 1] + Math.hypot(loop[i].x - loop[i - 1].x, loop[i].y - loop[i - 1].y);
-                                }
-                                const closeSeg = Math.hypot(
-                                    loop[0].x - loop[loop.length - 1].x,
-                                    loop[0].y - loop[loop.length - 1].y);
-                                const total = cum[cum.length - 1] + closeSeg;
-
-                                // Greedy walk: place a hole as soon as we've travelled >= spacing
-                                // since the last one AND the spot is clear of coins and not within
-                                // ~spacing of an existing fixture. This keeps a consistent ~100 mm
-                                // gap, skips coin-blocked spots (waiting for the next clear point),
-                                // and fills every place a fixture actually fits.
-                                const walk = (spacingPx) => {
-                                    placed.length = 0;
-                                    const minFixGap = spacingPx * 0.8;
-                                    let lastArc = -Infinity;
-                                    for (let i = 0; i < loop.length; i++) {
-                                        if (cum[i] - lastArc < spacingPx) continue;
-                                        const pt = loop[i];
-                                        if (!clearOfCoins(pt.x, pt.y)) continue;
-                                        let tooNear = false;
-                                        for (let p = 0; p < placed.length; p++) {
-                                            if (Math.hypot(placed[p].x - pt.x, placed[p].y - pt.y) < minFixGap) { tooNear = true; break; }
-                                        }
-                                        if (tooNear) continue;
-                                        placed.push({ x: pt.x, y: pt.y });
-                                        lastArc = cum[i];
-                                    }
-                                };
-
-                                const spacing100 = 100 * scale;
-                                walk(spacing100);
-                                // At least 5 where the perimeter allows (small shapes pack closer).
-                                if (placed.length < 5 && total > 0) {
-                                    const tighter = Math.min(spacing100, total / 5);
-                                    if (tighter < spacing100) walk(tighter);
-                                }
-                            }
+                        const spacing100 = 100 * scale;
+                        walk(spacing100);
+                        // At least 5 where the perimeter allows (small shapes pack closer).
+                        if (placed.length < 5 && total > 0) {
+                            const tighter = Math.min(spacing100, total / 5);
+                            if (tighter < spacing100) walk(tighter);
                         }
                     }
                 }
@@ -6651,33 +6563,21 @@
 
                     const shapeGroup = mkEl('div', { className: 'coach-row mb-2' });
 
-                    // Row 1 btn: Rectangle
-                    const rectBtn = makeBtn('Rectangle', 'fas fa-square', Coach.state.holderType === 'rectangle');
-                    rectBtn.dataset.shape = 'rectangle';
-                    rectBtn.addEventListener('click', () => {
-                        if (typeof addShape === 'function') {
-                            addShape('rectangle');
-                            captureHolder('rectangle');
-                        }
-                        markSelected(shapeGroup, 'rectangle');
-                        countryPanel.style.display = 'none';
-                        Coach.render();
+                    // Row 1 btns: Rectangle / Circular base shapes
+                    [['rectangle', 'Rectangle', 'fas fa-square'], ['circle', 'Circular', 'fas fa-circle']].forEach(([shape, label, icon]) => {
+                        const b = makeBtn(label, icon, Coach.state.holderType === shape);
+                        b.dataset.shape = shape;
+                        b.addEventListener('click', () => {
+                            if (typeof addShape === 'function') {
+                                addShape(shape);
+                                captureHolder(shape);
+                            }
+                            markSelected(shapeGroup, shape);
+                            countryPanel.style.display = 'none';
+                            Coach.render();
+                        });
+                        shapeGroup.appendChild(b);
                     });
-                    shapeGroup.appendChild(rectBtn);
-
-                    // Row 1 btn: Circular
-                    const circBtn = makeBtn('Circular', 'fas fa-circle', Coach.state.holderType === 'circle');
-                    circBtn.dataset.shape = 'circle';
-                    circBtn.addEventListener('click', () => {
-                        if (typeof addShape === 'function') {
-                            addShape('circle');
-                            captureHolder('circle');
-                        }
-                        markSelected(shapeGroup, 'circle');
-                        countryPanel.style.display = 'none';
-                        Coach.render();
-                    });
-                    shapeGroup.appendChild(circBtn);
 
                     // Row 1 btn: Country / custom shape (toggle)
                     const countryToggleBtn = makeBtn('Custom shape', 'fas fa-draw-polygon',
@@ -6710,39 +6610,21 @@
                     countries.forEach(({ key, label }) => {
                         // Country shapes get their own accent so they read as a distinct
                         // group from the Rectangle/Circular base shapes.
-                        const cb = makeBtn(label, null, false);
-                        cb.dataset.country = key;
-                        cb.classList.add('coach-btn-country');
+                        const cb = mkCountryBtn(key, label);
                         cb.addEventListener('click', () => {
-                            if (cv()) {
-                                if (Coach._pendingHolderHandler) {
-                                    canvas.off('object:added', Coach._pendingHolderHandler);
-                                    clearTimeout(Coach._pendingHolderTimeout);
+                            // Capture the country shape as the holder (stray coins ignored).
+                            Coach.captureNextAdded('holder', o => o.shapeType !== 'currency', (obj) => {
+                                Coach.state.holderObj = obj;
+                                Coach.state.holderType = 'country';
+                                if (obj) {
+                                    obj.coachHolderId = 'holder';
+                                    canvas.sendToBack(obj); // base shape sits on the bottom layer
                                 }
-                                const handler = (e) => {
-                                    const obj = e.target;
-                                    if (obj && obj.shapeType === 'currency') return; // ignore stray coins
-                                    Coach.state.holderObj = obj;
-                                    Coach.state.holderType = 'country';
-                                    if (obj) {
-                                        obj.coachHolderId = 'holder';
-                                        canvas.sendToBack(obj); // base shape sits on the bottom layer
-                                    }
-                                    canvas.off('object:added', handler);
-                                    clearTimeout(Coach._pendingHolderTimeout);
-                                    Coach._pendingHolderHandler = null;
-                                    applyStoredSize();
-                                    Coach.setHolderAspectLock(true); // country shapes lock aspect by default
-                                    markSelected(shapeGroup, 'country');
-                                    Coach.render();
-                                };
-                                Coach._pendingHolderHandler = handler;
-                                Coach._pendingHolderTimeout = setTimeout(() => {
-                                    canvas.off('object:added', handler);
-                                    Coach._pendingHolderHandler = null;
-                                }, 120000);
-                                canvas.on('object:added', handler);
-                            }
+                                applyStoredSize();
+                                Coach.setHolderAspectLock(true); // country shapes lock aspect by default
+                                markSelected(shapeGroup, 'country');
+                                Coach.render();
+                            });
                             // Holder = country OUTLINE (transparent fill) so coins show through
                             if (typeof addCountryOutline === 'function') addCountryOutline(key);
                             else if (typeof addCountry === 'function') addCountry(key);
@@ -6761,50 +6643,20 @@
                     // from both the base shapes and the slate-blue country buttons.
                     svgBtn.classList.add('coach-btn-upload');
                     svgBtn.addEventListener('click', () => {
-                        if (cv()) {
-                            // Remove any previously-registered pending import handler to prevent stacking
-                            if (Coach._pendingImportHandler) {
-                                canvas.off('object:added', Coach._pendingImportHandler);
-                                Coach._pendingImportHandler = null;
-                            }
-                            if (Coach._pendingImportTimeout) {
-                                clearTimeout(Coach._pendingImportTimeout);
-                                Coach._pendingImportTimeout = null;
-                            }
-
-                            const handler = (e) => {
-                                const obj = e.target;
-                                // Ignore coins — a stray coin after a cancelled picker must not be captured as the holder
-                                if (obj && obj.shapeType === 'currency') {
-                                    return;
-                                }
-                                // Successful capture
-                                Coach.state.holderObj = obj;
-                                Coach.state.holderType = 'imported';
-                                if (obj) obj.coachHolderId = 'holder';
-                                canvas.off('object:added', handler);
-                                clearTimeout(Coach._pendingImportTimeout);
-                                Coach._pendingImportTimeout = null;
-                                Coach._pendingImportHandler = null;
-                                applyStoredSize();
-                                Coach.setHolderAspectLock(true); // imported shapes lock aspect by default
-                                markSelected(shapeGroup, 'country'); // keep country toggle highlighted
-                                // Defer the re-render one tick: a multi-element SVG adds its
-                                // remaining objects synchronously right after this first one,
-                                // and the "Clean up outline" offer must see the whole batch.
-                                setTimeout(() => Coach.render(), 0);
-                            };
-
-                            Coach._pendingImportHandler = handler;
-                            canvas.on('object:added', handler);
-
-                            // Safety timeout: if the file picker is cancelled the handler won't linger indefinitely
-                            Coach._pendingImportTimeout = setTimeout(() => {
-                                canvas.off('object:added', handler);
-                                Coach._pendingImportHandler = null;
-                                Coach._pendingImportTimeout = null;
-                            }, 120000);
-                        }
+                        // Capture the imported shape as the holder (coins are ignored — a
+                        // stray coin after a cancelled picker must not become the holder).
+                        Coach.captureNextAdded('import', o => o.shapeType !== 'currency', (obj) => {
+                            Coach.state.holderObj = obj;
+                            Coach.state.holderType = 'imported';
+                            if (obj) obj.coachHolderId = 'holder';
+                            applyStoredSize();
+                            Coach.setHolderAspectLock(true); // imported shapes lock aspect by default
+                            markSelected(shapeGroup, 'country'); // keep country toggle highlighted
+                            // Defer the re-render one tick: a multi-element SVG adds its
+                            // remaining objects synchronously right after this first one,
+                            // and the "Clean up outline" offer must see the whole batch.
+                            setTimeout(() => Coach.render(), 0);
+                        });
                         document.getElementById('fileImport')?.click();
                     });
                     countryPanel.appendChild(svgBtn);
@@ -7235,6 +7087,21 @@
                         : c);
                     const denom = mkEl('div', { className: 'd-flex flex-column gap-2 mb-3' });
 
+                    // Add q coins of one denomination (ellipse for pressed pennies,
+                    // circle otherwise), record the tally, then tidy into rows.
+                    // skipTidy lets "Add all" tally/arrange once at the end instead.
+                    const addCoins = (coin, q, skipTidy) => {
+                        if (!q || q < 1) return;
+                        if (currency.elliptic) {
+                            for (let i = 0; i < q; i++) addEllipseCoin(coin.value, coin.x, coin.y);
+                        } else {
+                            if (typeof addSingleCoin !== 'function') return;
+                            for (let i = 0; i < q; i++) addSingleCoin(coin.value, coin.diameter);
+                        }
+                        Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
+                        if (!skipTidy) { updateTally(); autoArrangeRows(); }
+                    };
+
                     // rowControls keeps references so "Add all" can iterate them
                     const rowControls = [];
 
@@ -7296,22 +7163,7 @@
                             className: 'btn btn-sm',
                             textContent: 'Add'
                         });
-                        addBtn.addEventListener('click', () => {
-                            const q = parseInt(qty.value, 10);
-                            if (!q || q < 1) return;
-                            Coach.state.coins = Coach.state.coins || {};
-                            if (currency.elliptic) {
-                                for (let i = 0; i < q; i++) addEllipseCoin(coin.value, coin.x, coin.y);
-                            } else {
-                                if (typeof addSingleCoin !== 'function') return;
-                                for (let i = 0; i < q; i++) addSingleCoin(coin.value, coin.diameter);
-                            }
-                            Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
-                            // Refresh tally
-                            updateTally();
-                            // Auto-tidy into rows when more than one coin exists
-                            autoArrangeRows();
-                        });
+                        addBtn.addEventListener('click', () => addCoins(coin, parseInt(qty.value, 10)));
 
                         row.appendChild(addBtn);
                         denom.appendChild(row);
@@ -7335,55 +7187,40 @@
                     labelWrap.appendChild(customLabel);
                     customRow.appendChild(labelWrap);
 
+                    const numInput = (labelText, width) => {
+                        const wrap = mkEl('div');
+                        wrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: labelText }));
+                        const inp = mkEl('input', {
+                            type: 'number', min: '1', step: '0.1',
+                            className: 'form-control form-control-sm', placeholder: 'mm',
+                            style: 'width:' + width
+                        });
+                        wrap.appendChild(inp);
+                        customRow.appendChild(wrap);
+                        return inp;
+                    };
+
+                    let addCustom;
                     if (currency.elliptic) {
-                        const xWrap = mkEl('div');
-                        xWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Width mm' }));
-                        const customX = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
-                        customX.style.width = '56px';
-                        xWrap.appendChild(customX);
-                        customRow.appendChild(xWrap);
-
-                        const yWrap = mkEl('div');
-                        yWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Height mm' }));
-                        const customY = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
-                        customY.style.width = '56px';
-                        yWrap.appendChild(customY);
-                        customRow.appendChild(yWrap);
-
-                        const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
-                        customAdd.addEventListener('click', () => {
+                        const customX = numInput('Width mm', '56px');
+                        const customY = numInput('Height mm', '56px');
+                        addCustom = () => {
                             const x = parseFloat(customX.value);
                             const y = parseFloat(customY.value);
                             if (!x || x <= 0 || !y || y <= 0) return;
-                            const lab = customLabel.value.trim() || ('Penny ' + x + '×' + y);
-                            addEllipseCoin(lab, x, y);
-                            Coach.state.coins = Coach.state.coins || {};
-                            Coach.state.coins[lab] = (Coach.state.coins[lab] || 0) + 1;
-                            updateTally();
-                            autoArrangeRows();
-                        });
-                        customRow.appendChild(customAdd);
+                            addCoins({ value: customLabel.value.trim() || ('Penny ' + x + '×' + y), x: x, y: y }, 1);
+                        };
                     } else {
-                        const diaWrap = mkEl('div');
-                        diaWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Size (mm)' }));
-                        const customDia = mkEl('input', { type: 'number', min: '1', step: '0.1', className: 'form-control form-control-sm', placeholder: 'mm' });
-                        customDia.style.width = '64px';
-                        diaWrap.appendChild(customDia);
-                        customRow.appendChild(diaWrap);
-
-                        const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
-                        customAdd.addEventListener('click', () => {
-                            const lab = customLabel.value.trim() || 'Coin';
+                        const customDia = numInput('Size (mm)', '64px');
+                        addCustom = () => {
                             const d = parseFloat(customDia.value);
-                            if (!d || d <= 0 || typeof addSingleCoin !== 'function') return;
-                            addSingleCoin(lab, d);
-                            Coach.state.coins = Coach.state.coins || {};
-                            Coach.state.coins[lab] = (Coach.state.coins[lab] || 0) + 1;
-                            updateTally();
-                            autoArrangeRows();
-                        });
-                        customRow.appendChild(customAdd);
+                            if (!d || d <= 0) return;
+                            addCoins({ value: customLabel.value.trim() || 'Coin', diameter: d }, 1);
+                        };
                     }
+                    const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
+                    customAdd.addEventListener('click', addCustom);
+                    customRow.appendChild(customAdd);
                     customWrap.appendChild(customRow);
                     el.appendChild(customWrap);
 
@@ -7403,18 +7240,8 @@
                         textContent: 'Add all selected above'
                     });
                     addAllBtn.addEventListener('click', () => {
-                        Coach.state.coins = Coach.state.coins || {};
-                        rowControls.forEach(({ coin, qtyInput }) => {
-                            const q = parseInt(qtyInput.value, 10);
-                            if (!q || q < 1) return;
-                            if (currency.elliptic) {
-                                for (let i = 0; i < q; i++) addEllipseCoin(coin.value, coin.x, coin.y);
-                            } else {
-                                if (typeof addSingleCoin !== 'function') return;
-                                for (let i = 0; i < q; i++) addSingleCoin(coin.value, coin.diameter);
-                            }
-                            Coach.state.coins[coin.value] = (Coach.state.coins[coin.value] || 0) + q;
-                        });
+                        rowControls.forEach(({ coin, qtyInput }) =>
+                            addCoins(coin, parseInt(qtyInput.value, 10), true));
                         updateTally();
                         autoArrangeRows();
                     });
@@ -7532,37 +7359,23 @@
                     /* Capture the next non-coin object added and size it to the holder. */
                     function captureAndSize(mode, engraveFill) {
                         if (!cv()) return;
-                        if (Coach._pendingSizeHandler) {
-                            canvas.off('object:added', Coach._pendingSizeHandler);
-                            clearTimeout(Coach._pendingSizeTimeout);
-                            Coach._pendingSizeHandler = null;
-                        }
                         // Snapshot the viewport so we can undo the engine's "auto-centre on add",
                         // which otherwise pans to a JPG/PNG dropped at a fixed corner and shoves the
                         // rest of the design out of the visible frame. Nothing should jump.
                         const savedVP = canvas.viewportTransform ? canvas.viewportTransform.slice() : null;
-                        const handler = (e) => {
-                            const obj = e.target;
-                            // Only size country outlines / images — never coins or text
-                            if (obj && (obj.shapeType === 'currency' || obj.type === 'i-text' || obj.type === 'text')) return;
-                            canvas.off('object:added', handler);
-                            clearTimeout(Coach._pendingSizeTimeout);
-                            Coach._pendingSizeHandler = null;
-                            Coach.sizeToHolder(obj, mode);
-                            // Filled country outlines take the engraving colour of the holder
-                            // material (brown on wood, grey on plastic) and stay in sync on changes.
-                            if (engraveFill && typeof Coach.applyEngrave === 'function') Coach.applyEngrave(obj, true);
-                            // Keep the coin slots on top — the shape we just added must
-                            // never cover a coin.
-                            if (typeof Coach.raiseCoinsToFront === 'function') Coach.raiseCoinsToFront();
-                            if (savedVP) { canvas.setViewportTransform(savedVP); canvas.requestRenderAll(); }
-                        };
-                        Coach._pendingSizeHandler = handler;
-                        canvas.on('object:added', handler);
-                        Coach._pendingSizeTimeout = setTimeout(() => {
-                            canvas.off('object:added', handler);
-                            Coach._pendingSizeHandler = null;
-                        }, 120000);
+                        // Only size country outlines / images — never coins or text.
+                        Coach.captureNextAdded('size',
+                            o => o.shapeType !== 'currency' && o.type !== 'i-text' && o.type !== 'text',
+                            (obj) => {
+                                Coach.sizeToHolder(obj, mode);
+                                // Filled country outlines take the engraving colour of the holder
+                                // material (brown on wood, grey on plastic) and stay in sync on changes.
+                                if (engraveFill && typeof Coach.applyEngrave === 'function') Coach.applyEngrave(obj, true);
+                                // Keep the coin slots on top — the shape we just added must
+                                // never cover a coin.
+                                if (typeof Coach.raiseCoinsToFront === 'function') Coach.raiseCoinsToFront();
+                                if (savedVP) { canvas.setViewportTransform(savedVP); canvas.requestRenderAll(); }
+                            });
                     }
 
                     /* ── 1. Engraving text ───────────────────────────── */
@@ -7644,11 +7457,7 @@
 
                     countries.forEach(({ key, label }) => {
                         // Same slate-blue accent as the step-2 country buttons.
-                        const btn = mkEl('button', {
-                            className: 'btn btn-sm btn-outline-light coach-btn-country',
-                            textContent: label
-                        });
-                        btn.dataset.country = key;
+                        const btn = mkCountryBtn(key, label);
                         btn.addEventListener('click', () => {
                             if (countryMode === 'filled') {
                                 captureAndSize(null, true); // size + tint the fill to the material's engrave colour
