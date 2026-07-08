@@ -1384,6 +1384,8 @@
 
             // Planar bbox area of a polygon's exterior ring — a robust proxy for
             // "largest polygon" that sidesteps spherical winding pitfalls.
+            // Assumes no single ring crosses the ±180° antimeridian (true for the
+            // pinned world-atlas dataset — a wrapped ring would inflate its bbox).
             function polygonBboxArea(polygonCoords) {
                 const ring = polygonCoords[0];
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -1403,6 +1405,8 @@
                 return { type: 'Polygon', coordinates: best };
             }
 
+            // Note: keeps/drops WHOLE polygons by centroid (not area overlap) —
+            // size composite windows accordingly.
             function filterByWindow(geometry, win) {
                 if (!win || geometry.type !== 'MultiPolygon') return geometry;
                 const [lonMin, latMin, lonMax, latMax] = win;
@@ -1708,69 +1712,77 @@
                 canvas.requestRenderAll();
             }
             
-            // Add country outline
+            // Add country outline (solid brown fill)
             function addCountry(country) {
-                const pathData = countryPaths[country];
-                const scale = canvas.scale;
-                const centerX = canvas.width / 2;
-                const centerY = canvas.height / 2;
-                
-                fabric.loadSVGFromString(`<svg><path d="${pathData}" /></svg>`, function(objects, options) {
-                    const shape = fabric.util.groupSVGElements(objects, options);
-                    shape.set({
-                        left: centerX,
-                        top: centerY,
-                        fill: '#5c3316',
-                        stroke: '#5c3316',
-                        strokeWidth: 0.1,
-                        scaleX: scale,
-                        scaleY: scale,
-                        strokeUniform: true,
-                        originX: 'center',
-                        originY: 'center'
+                return getCountryPathData(country).then(pathData => {
+                    if (!pathData) return;
+                    const scale = canvas.scale;
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    fabric.loadSVGFromString(`<svg><path d="${pathData}" /></svg>`, function(objects, options) {
+                        const shape = fabric.util.groupSVGElements(objects, options);
+                        shape.set({
+                            left: centerX,
+                            top: centerY,
+                            fill: '#5c3316',
+                            stroke: '#5c3316',
+                            strokeWidth: 0.1,
+                            scaleX: scale,
+                            scaleY: scale,
+                            strokeUniform: true,
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        shape.shapeType = 'country';
+                        shape.countryName = countrySlug(country);
+                        shape.materialType = 'color'; // Set default material type
+                        shape.realWidth = shape.width;
+                        shape.realHeight = shape.height;
+                        shape.setCoords();
+                        canvas.add(shape);
+                        canvas.setActiveObject(shape);
+                        canvas.requestRenderAll();
                     });
-                    shape.shapeType = 'country';
-                    shape.countryName = country;
-                    shape.materialType = 'color'; // Set default material type
-                    shape.realWidth = shape.width;
-                    shape.realHeight = shape.height;
-                    shape.setCoords();
-                    canvas.add(shape);
-                    canvas.setActiveObject(shape);
-                    canvas.requestRenderAll();
+                }).catch(err => {
+                    console.error('addCountry failed', err);
+                    alert('Could not load country shapes — please check your connection and try again.');
                 });
             }
 
-            // Add country outline (transparent fill, brown stroke)
+            // Add country outline (transparent fill, blue stroke)
             function addCountryOutline(country) {
-                const pathData = countryPaths[country];
-                const scale = canvas.scale;
-                const centerX = canvas.width / 2;
-                const centerY = canvas.height / 2;
-
-                fabric.loadSVGFromString(`<svg><path d="${pathData}" /></svg>`, function(objects, options) {
-                    const shape = fabric.util.groupSVGElements(objects, options);
-                    shape.set({
-                        left: centerX,
-                        top: centerY,
-                        fill: 'transparent',
-                        stroke: '#0000FF',
-                        strokeWidth: 0.5,
-                        scaleX: scale,
-                        scaleY: scale,
-                        strokeUniform: true,
-                        originX: 'center',
-                        originY: 'center'
+                return getCountryPathData(country).then(pathData => {
+                    if (!pathData) return;
+                    const scale = canvas.scale;
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    fabric.loadSVGFromString(`<svg><path d="${pathData}" /></svg>`, function(objects, options) {
+                        const shape = fabric.util.groupSVGElements(objects, options);
+                        shape.set({
+                            left: centerX,
+                            top: centerY,
+                            fill: 'transparent',
+                            stroke: '#0000FF',
+                            strokeWidth: 0.5,
+                            scaleX: scale,
+                            scaleY: scale,
+                            strokeUniform: true,
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        shape.shapeType = 'country';
+                        shape.countryName = countrySlug(country);
+                        shape.materialType = 'color';
+                        shape.realWidth = shape.width;
+                        shape.realHeight = shape.height;
+                        shape.setCoords();
+                        canvas.add(shape);
+                        canvas.setActiveObject(shape);
+                        canvas.requestRenderAll();
                     });
-                    shape.shapeType = 'country';
-                    shape.countryName = country;
-                    shape.materialType = 'color';
-                    shape.realWidth = shape.width;
-                    shape.realHeight = shape.height;
-                    shape.setCoords();
-                    canvas.add(shape);
-                    canvas.setActiveObject(shape);
-                    canvas.requestRenderAll();
+                }).catch(err => {
+                    console.error('addCountryOutline failed', err);
+                    alert('Could not load country shapes — please check your connection and try again.');
                 });
             }
 
