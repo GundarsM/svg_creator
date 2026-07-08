@@ -1,0 +1,7 @@
+# Local agent/tooling session state — never ship, never review
+.superpowers/
+.agents/
+.claude/settings.local.json
+
+# Scratch/test copies of the injected pages
+*.test.html

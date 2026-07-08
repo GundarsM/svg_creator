@@ -1,4 +1,4 @@
-<!-- builder.js — engine region is a verbatim copy of editor.js; do not hand-edit below the ENGINE marker -->
+<!-- builder.js — engine region started as a copy of editor.js but has intentionally diverged; engine changes must be applied surgically to BOTH files (see the maintenance note in CLAUDE.md — do NOT re-paste editor.js over it) -->
 <!-- ===== ENGINE (verbatim copy of editor.js) ===== -->
 <!DOCTYPE html>
     <html lang="en">
