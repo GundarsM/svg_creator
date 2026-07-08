@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-08
 **Status:** Approved by user (design conversation), pending spec review
-**Files affected:** `editor.js` (engine source of truth), `builder.js` (engine region re-synced from editor.js)
+**Files affected:** `editor.js`, `builder.js` (identical edits applied surgically to its engine region — no re-paste), `CLAUDE.md`
 
 ## Problem
 
@@ -196,13 +196,19 @@ to be safe (see Problem). Instead:
 2. Apply the **identical** edits to the corresponding locations in builder.js's
    engine region (delete `countryPaths`, add the same
    `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`/`getCountryPathData`, same
-   `addCountry`/`addCountryOutline`/UK-template adaptations, same script tags,
-   same search UI where builder's engine still renders that panel).
-3. Update CLAUDE.md: replace the "verbatim copy / re-paste" maintenance note
-   with the actual relationship (builder's engine region started as a copy of
-   editor.js but carries intentional builder-only modifications; engine changes
-   must be applied to both files; full reconciliation is a separate future
-   project).
+   `addCountry`/`addCountryOutline`/UK-template adaptations, same script tags).
+   Note: builder's engine region no longer renders the "Add Country Outlines"
+   panel (the sidebar was replaced by Coach markup), so the datalist search UI
+   is **editor.js-only**. Accepted consequence: builder users can only reach
+   the Coach's curated countries until a follow-up adds search to a Coach step
+   (listed in Non-goals).
+3. Update CLAUDE.md in **both** places that assert the verbatim relationship —
+   the builder.js bullet in Project Overview ("verbatim copy of the editor.js
+   engine") and the blockquote maintenance note ("must NOT be hand-edited …
+   re-paste") — replacing them with the actual relationship (builder's engine
+   region started as a copy of editor.js but carries intentional builder-only
+   modifications; engine changes must be applied to both files; full
+   reconciliation is a separate future project).
 4. Update the stale Coach comment at builder.js:4472–4473 ("Each key must have
    a matching entry in the engine's `countryPaths` map…") to reference
    `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`.
@@ -221,7 +227,10 @@ country-using sessions pay.
 
 1. Open editor.js and builder.js in a browser.
 2. Add each of the 19 legacy keys as filled and as outline; confirm each is a
-   recognizable, sensibly-sized shape (spot-check Canada for projection
+   recognizable, sensibly-sized shape. In editor.js only 6 keys have buttons
+   and the composites are not dataset names reachable via search — exercise the
+   remaining keys through builder's Coach buttons and/or console calls to
+   `addCountry(key)` in editor.js (spot-check Canada for projection
    distortion, UK/Japan/Greece for multi-island rendering, France for
    mainland-only, europe/africa/world composites for completeness, and the
    africa **fill** for interior holes — Lesotho must render as a hole, which
