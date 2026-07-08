@@ -7,11 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Four self-contained browser tools for [HillSpring Crafts](https://hillspringcrafts.com), deployed via **Squarespace Page Header Code Injection**. Each file is a complete HTML document (with embedded CSS and JS) that Squarespace injects into a page. No build step, no package manager, no server.
 
 - **editor.js** — Canvas-based product design tool (the primary tool; ~3800 lines)
-- **builder.js** — Guided coin-holder builder: a **verbatim copy of the editor.js engine** plus an additive scripted "Coach" overlay (`#coach-root`) that walks a customer through 7 steps (occasion → holder → material → coins → arrange → personalize → review) while the full editor stays editable. No AI/backend. Auto-saves to `localStorage`.
+- **builder.js** — Guided coin-holder builder: an **engine copied from editor.js (now with intentional builder-only modifications — see maintenance note)** plus an additive scripted "Coach" overlay (`#coach-bubble`) that walks a customer through 7 steps (occasion → holder → material → coins → arrange → personalize → review) while the full editor stays editable. No AI/backend. Auto-saves to `localStorage`.
 - **converter.html** — Image to vector SVG converter
 - **bg-remover.html** — AI background remover with brush touch-up
 
-> **builder.js maintenance:** the region below the `<!-- ===== ENGINE (verbatim copy of editor.js) ===== -->` marker is a byte-for-byte copy of `editor.js` and must NOT be hand-edited. When `editor.js` changes, re-paste it into that region; only the appended `COACH` region (`<style>` scoped under `#coach-root`, the `#coach-root` markup, and the `Coach` `<script>`) is hand-maintained. The Coach drives existing engine globals and reads the global Fabric `canvas`; it never modifies engine internals.
+> **builder.js maintenance:** the region below the `<!-- ===== ENGINE (verbatim copy of editor.js) ===== -->` marker started as a copy of `editor.js` but has intentionally diverged (Coach-bubble markup replaces the engine sidebar, quote footer removed, instructions rewritten, Coach-aware guards, builder-only fixes). Do NOT re-paste editor.js over it — that breaks the builder. Engine changes must be applied surgically to BOTH files at the matching locations; full reconciliation is a separate future project. The appended `COACH` region (Coach `<style>` rules, the `#coach-bubble` markup, and the `Coach` `<script>`) remains hand-maintained. The Coach drives existing engine globals and reads the global Fabric `canvas`; it never modifies engine internals.
 
 ## Deployment
 
@@ -27,8 +27,8 @@ All three files share the same foundation:
 | Font Awesome | 6.4.0 | Icons |
 
 Additional per file:
-- **editor.js**: Fabric.js 5.3.0 (canvas), opentype.js 1.3.4 (text→vector paths on export), Google Fonts (Anton, Cormorant Garamond, EB Garamond, Inconsolata, Josefin Sans, Lora, Nunito, Open Sans, Patrick Hand, PT Sans, Roboto)
-- **builder.js**: same as editor.js (it embeds the editor engine verbatim); the Coach overlay adds no new libraries.
+- **editor.js**: Fabric.js 5.3.0 (canvas), opentype.js 1.3.4 (text→vector paths on export), Google Fonts (Anton, Cormorant Garamond, EB Garamond, Inconsolata, Josefin Sans, Lora, Nunito, Open Sans, Patrick Hand, PT Sans, Roboto), d3-geo 3.1.1 + d3-array 3.2.4 + topojson-client 3.1.0 (runtime country contours from the world-atlas dataset, fetched lazily from jsDelivr)
+- **builder.js**: same as editor.js (it embeds the editor engine — see maintenance note); the Coach overlay adds no new libraries.
 - **converter.html**: ImageTracer.js 1.2.6 (raster→vector tracing)
 - **bg-remover.html**: OpenCV.js 4.8.0 (background detection)
 
@@ -40,7 +40,7 @@ Additional per file:
 <link rel="stylesheet" href="...bootstrap..." data-precedence="bootstrap">
 ```
 
-Each file scopes its CSS under a wrapper ID (`#design-tool-wrapper`, `#converter-wrapper`, `#bg-remover-wrapper`) to avoid leaking styles into the Squarespace host page. `builder.js` reuses `#design-tool-wrapper` (from the engine copy) and adds its Coach styles scoped under `#coach-root` (with one intentionally top-level `.coach-highlight` rule that glows engine toolbar elements during a step).
+Each file scopes its CSS under a wrapper ID (`#design-tool-wrapper`, `#converter-wrapper`, `#bg-remover-wrapper`) to avoid leaking styles into the Squarespace host page. `builder.js` reuses `#design-tool-wrapper` (from the engine copy) and adds its Coach styles scoped under `#coach-bubble` and the other `#coach-*` containers (with one intentionally top-level `.coach-highlight` rule that glows engine toolbar elements during a step).
 
 **Theme**: All three share `--lunar-green: #344734` as the primary dark background color. Fonts use `'IvyMode', 'Times New Roman', serif` for headings and `'Athelas', Georgia, serif` for body text (converter and bg-remover) or serif variants within the tool wrappers.
 
