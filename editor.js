@@ -431,9 +431,10 @@
 
         <!-- opentype.js for text-to-path export -->
         <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/d3-array@3/dist/d3-array.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/d3-geo@3/dist/d3-geo.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+        <!-- d3-geo + topojson-client for runtime country contour generation -->
+        <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
     </head>
     <body>
         <div id="design-tool-wrapper">
