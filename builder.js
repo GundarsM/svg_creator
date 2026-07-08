@@ -4385,6 +4385,46 @@
             return b;
         };
 
+        /* Type-ahead country search shared by the step-2 and step-7 country
+           panels. Backed by the engine's getCountryNames(); the datalist is a
+           single lazily-created element reused by both inputs. onPick receives
+           (name, slugKey) — slugKey is what the engine add-functions expect. */
+        const mkCountrySearch = (onPick) => {
+            const LIST_ID = 'coachCountrySearchList';
+            const wrap = mkEl('div', { className: 'mt-1 w-100' });
+            const input = mkEl('input', { className: 'form-control form-control-sm', placeholder: 'Search any country…' });
+            input.setAttribute('list', LIST_ID);
+            if (!document.getElementById(LIST_ID)) {
+                const dl = mkEl('datalist');
+                dl.id = LIST_ID;
+                // The Coach mount is #coach-bubble — it persists across
+                // Coach.render(), so the shared datalist survives re-renders.
+                document.getElementById('coach-bubble').appendChild(dl);
+            }
+            let populated = false;
+            input.addEventListener('focus', () => {
+                if (populated || typeof getCountryNames !== 'function') return;
+                getCountryNames().then(names => {
+                    const dl = document.getElementById(LIST_ID);
+                    dl.innerHTML = '';
+                    names.forEach(n => {
+                        const o = mkEl('option');
+                        o.value = n;
+                        dl.appendChild(o);
+                    });
+                    populated = true;
+                }).catch(err => console.warn('Country list prefetch failed', err));
+            });
+            input.addEventListener('change', () => {
+                const name = input.value.trim();
+                if (!name) return;
+                input.value = '';
+                onPick(name, typeof countrySlug === 'function' ? countrySlug(name) : name.toLowerCase());
+            });
+            wrap.appendChild(input);
+            return wrap;
+        };
+
         const Coach = {
             current: 0,
             state: {},
@@ -4635,9 +4675,12 @@
         ];
 
         /* ── Coach.COUNTRY_OPTIONS ─────────────────────────────────────
-           Country-shape buttons for step 2 (base holder). Each key must have a
-           matching entry in the engine's `countryPaths` map. To add a country:
-           add its path to countryPaths, then add one { key, label } line here.
+           Country-shape buttons for step 2 (base holder). Keys resolve through
+           the engine's COUNTRY_KEY_MAP / COMPOSITE_SHAPES (world-atlas dataset
+           at runtime). To add a curated button: add one { key, label } line
+           here — the key is the countrySlug() of the dataset name (no path
+           data needed). Any other country is reachable via the panel's search
+           field.
            Step 7 (personalise) additionally offers the larger continent/world
            shapes listed in COUNTRY_OPTIONS_EXTRA — see COUNTRY_OPTIONS_STEP7. */
         Coach.COUNTRY_OPTIONS = [
@@ -6803,6 +6846,27 @@
                         countryPanel.appendChild(cb);
                     });
 
+                    countryPanel.appendChild(mkCountrySearch((name, key) => {
+                        Coach.captureNextAdded('holder', o => o.shapeType !== 'currency', (obj) => {
+                            Coach.state.holderObj = obj;
+                            Coach.state.holderType = 'country';
+                            if (obj) {
+                                obj.coachHolderId = 'holder';
+                                canvas.sendToBack(obj); // base shape sits on the bottom layer
+                            }
+                            applyStoredSize();
+                            Coach.setHolderAspectLock(true); // country shapes lock aspect by default
+                            markSelected(shapeGroup, 'country');
+                            Coach.render();
+                        });
+                        if (typeof addCountryOutline === 'function') addCountryOutline(key);
+                        else if (typeof addCountry === 'function') addCountry(key);
+                        // A searched slug matches no curated button, so this clears
+                        // all curated-button highlights — the desired state.
+                        countryPanel.querySelectorAll('button[data-country]').forEach(b =>
+                            b.classList.remove('active'));
+                    }));
+
                     // Upload SVG — last button in the country/custom panel
                     const svgBtn = makeBtn('Upload your own shape', 'fas fa-shapes', Coach.state.holderType === 'imported');
                     svgBtn.dataset.shape = 'imported';
@@ -7638,6 +7702,16 @@
                     });
 
                     countryPanel.appendChild(countryGrid);
+
+                    countryPanel.appendChild(mkCountrySearch((name, key) => {
+                        if (countryMode === 'filled') {
+                            captureAndSize(null, true); // size + tint the fill to the material's engrave colour
+                            if (typeof addCountry === 'function') addCountry(key);
+                        } else {
+                            captureAndSize(); // outline: size only, keep its outline colour
+                            if (typeof addCountryOutline === 'function') addCountryOutline(key);
+                        }
+                    }));
 
                     countryToggleBtn.addEventListener('click', () => {
                         const hidden = countryPanel.style.display === 'none';
