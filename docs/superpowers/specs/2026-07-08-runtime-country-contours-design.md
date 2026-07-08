@@ -38,9 +38,9 @@ CLAUDE.md so the stale invariant stops misleading future work.
 
 ## Non-goals
 
-- No change to the Coach's hand-maintained region beyond the stale comment
-  update in the Sync procedure (its country buttons keep working as-is).
-- No search UI inside Coach steps (possible follow-up).
+- No change to the Coach's hand-maintained region beyond the country search
+  fields in the step-2/step-7 country panels and the stale comment update in
+  the Sync procedure (the country buttons keep working as-is).
 - No preservation of the exact pixel geometry of the current hand-traced shapes.
 - No full reconciliation of the diverged engine regions — that is a separate
   future project; this change is applied surgically to both files.
@@ -150,12 +150,22 @@ already gates `addUKCoinsToTemplate()` behind the async
 
 ### UI
 
-- Engine "Add Country Outlines" panel: existing curated buttons stay unchanged.
-  Below them, a type-ahead search — `<input list=...>` + `<datalist>` populated
-  with all dataset country names (populated on first focus, triggering the
-  dataset fetch). Choosing a name calls `addCountry`/`addCountryOutline` with
-  that country.
-- Coach button lists: unchanged.
+- The engine exposes `getCountryNames(): Promise<string[]>` (all dataset
+  country names, sorted; triggers/awaits the dataset fetch) so both UIs below
+  build the same type-ahead — an `<input list=...>` + `<datalist>` populated on
+  first focus. Composites (europe/africa/world) are not dataset names and stay
+  button-only.
+- Engine "Add Country Outlines" panel (renders in editor.js only): existing
+  curated buttons stay unchanged; the type-ahead search sits below them and
+  calls `addCountry`/`addCountryOutline` with the chosen name.
+- **Coach country panels (builder, hand-maintained region): the search field
+  lives here** — one in the step-2 base-holder country panel and one in the
+  step-7 personalise country panel, below the curated buttons. Choosing a name
+  runs the exact logic of a country-button click with the slugified name as
+  key: step 2 arms `Coach.captureNextAdded('holder', …)` then calls
+  `addCountryOutline`; step 7 respects the filled/outline `countryMode` toggle
+  and calls `captureAndSize` + `addCountry`/`addCountryOutline`. The curated
+  button lists themselves are unchanged.
 
 ### Error handling
 
@@ -198,10 +208,10 @@ to be safe (see Problem). Instead:
    `COUNTRY_KEY_MAP`/`COMPOSITE_SHAPES`/`getCountryPathData`, same
    `addCountry`/`addCountryOutline`/UK-template adaptations, same script tags).
    Note: builder's engine region no longer renders the "Add Country Outlines"
-   panel (the sidebar was replaced by Coach markup), so the datalist search UI
-   is **editor.js-only**. Accepted consequence: builder users can only reach
-   the Coach's curated countries until a follow-up adds search to a Coach step
-   (listed in Non-goals).
+   panel (the sidebar was replaced by Coach markup), so the engine-panel search
+   UI renders in editor.js only; builder users get search via the Coach country
+   panels instead (see UI). The Coach search fields are a hand-maintained-region
+   change made directly in builder.js.
 3. Update CLAUDE.md in **both** places that assert the verbatim relationship —
    the builder.js bullet in Project Overview ("verbatim copy of the editor.js
    engine") and the blockquote maintenance note ("must NOT be hand-edited …
@@ -235,7 +245,10 @@ country-using sessions pay.
    mainland-only, europe/africa/world composites for completeness, and the
    africa **fill** for interior holes — Lesotho must render as a hole, which
    depends on ring winding + Fabric's fill rule).
-3. Search box: find and add a country with no curated button (e.g. Portugal).
+3. Search fields: find and add a country with no curated button (e.g.
+   Portugal) — in editor.js via the engine panel, and in builder via the Coach
+   step-2 panel (must become the holder: captured, aspect-locked, sent to
+   back) and the step-7 panel (respecting the filled/outline toggle).
 4. UK coin-holder template: UK outline appears at the expected size/position
    and the coin ring still renders (including with devtools offline — template
    degrades to coins-only).
