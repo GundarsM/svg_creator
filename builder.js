@@ -503,7 +503,6 @@
                 color: #333;
                 border-radius: 10px;
                 box-shadow: 0 4px 6px rgba(0, 0, 0, .1);
-                font-family: 'Athelas', Georgia, serif;
                 font-size: 14px;
                 overflow: hidden;
             }
@@ -515,7 +514,7 @@
                 flex-wrap: wrap;
                 align-items: center;
                 gap: 5px;
-                padding: 8px 12px 4px;
+                padding: 6px 12px 2px;
             }
             .coach-step-chip {
                 flex: 0 0 auto;
@@ -564,12 +563,12 @@
                 flex-direction: row;
                 align-items: baseline;
                 gap: 8px;
-                padding: 2px 12px 6px;
+                padding: 0 12px 4px;
                 background: transparent;
             }
 
             #coach-progress {
-                font-size: 10px;
+                font-size: 11px;
                 text-transform: uppercase;
                 letter-spacing: .06em;
                 color: #4a7c4a;
@@ -580,16 +579,17 @@
                 font-weight: bold;
                 color: #333;
                 flex: 1;
-                font-size: 14px;
+                font-size: 16px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
 
             #coach-body {
-                padding: 14px 16px;
+                padding: 8px 12px;
                 min-height: 60px;
-                line-height: 1.5;
+                line-height: 1.35;
+                font-size: 14px;
                 color: #333;
             }
 
@@ -602,37 +602,6 @@
                 padding: 6px 12px;
                 border-top: 1px solid rgba(52, 71, 52, .12);
                 border-bottom: 1px solid rgba(52, 71, 52, .12);
-            }
-
-            #coach-back {
-                background: none;
-                border: 1px solid rgba(52, 71, 52, .35);
-                border-radius: 6px;
-                padding: 5px 11px;
-                cursor: pointer;
-                font-family: 'Athelas', Georgia, serif;
-                font-size: 13px;
-                color: #344734;
-            }
-
-            #coach-back:hover {
-                background: rgba(52, 71, 52, .08);
-            }
-
-            #coach-next {
-                background: #344734;
-                color: #fff;
-                border: none;
-                border-radius: 6px;
-                padding: 5px 14px;
-                cursor: pointer;
-                font-family: 'Athelas', Georgia, serif;
-                font-size: 13px;
-                font-weight: bold;
-            }
-
-            #coach-next:hover {
-                background: #2a3a2a;
             }
 
             /* ── FIX I: Button colours & font consistency inside coach bubble ── */
@@ -654,38 +623,17 @@
                 font-family: "Font Awesome 6 Brands" !important;
             }
 
-            /* Size normalisation */
-            #coach-body {
-                font-size: 14px;
-            }
-            #coach-title {
-                font-size: 16px;
-                font-weight: bold;
-            }
-            #coach-progress {
-                font-size: 11px;
-            }
-            #coach-bubble .btn {
-                font-size: 13px;
-            }
-
             /* Default filled green for ALL buttons inside coach bubble */
             #coach-bubble .btn {
                 background: #344734 !important;
                 color: #fff !important;
                 border: 1px solid #344734 !important;
                 font-family: inherit !important;
+                font-size: 13px;
             }
             #coach-bubble .btn:hover {
                 background: #2a3a2a !important;
                 border-color: #2a3a2a !important;
-            }
-
-            /* Active / selected state (JS also sets inline styles, but this covers non-inline cases) */
-            #coach-bubble .btn.active {
-                background: #cfe3cf !important;
-                color: #344734 !important;
-                border-color: #cfe3cf !important;
             }
 
             /* btn-secondary and btn-outline-secondary in coach — keep dark-muted style */
@@ -700,8 +648,18 @@
                 background: #5a6268 !important;
                 border-color: #5a6268 !important;
             }
-            #coach-bubble .btn-secondary.active,
-            #coach-bubble .btn-outline-secondary.active {
+
+            /* Accent button variants — JS adds the class (replaces the old inline
+               !important styles). The :hover selector keeps the accent colour on
+               hover, matching the old inline behaviour of no hover change. */
+            #coach-bubble .coach-btn-yellow, #coach-bubble .coach-btn-yellow:hover { background: #ffc107 !important; color: #333 !important; border-color: #e0a800 !important; }
+            #coach-bubble .coach-btn-red, #coach-bubble .coach-btn-red:hover { background: #dc3545 !important; color: #fff !important; border-color: #b02a37 !important; }
+            #coach-bubble .coach-btn-country, #coach-bubble .coach-btn-country:hover { background: #5e7a8c !important; color: #fff !important; border-color: #4d6675 !important; }
+            #coach-bubble .coach-btn-upload, #coach-bubble .coach-btn-upload:hover { background: #6f5b8e !important; color: #fff !important; border-color: #5b4a75 !important; }
+
+            /* Active / selected state — after the accents so a selected accent
+               button still shows the light-green chosen look */
+            #coach-bubble .btn.active, #coach-bubble .btn.active:hover {
                 background: #cfe3cf !important;
                 color: #344734 !important;
                 border-color: #cfe3cf !important;
@@ -727,31 +685,28 @@
                 border-color: #2a3a2a !important;
             }
 
-            /* Back / Next footer nav buttons — yellow accent */
+            /* Back / Next footer nav buttons — equal, compact, yellow accent */
             #coach-back,
             #coach-next {
                 background: #ffc107 !important;
                 color: #333 !important;
-                border-color: #e0a800 !important;
                 font-weight: bold !important;
+                box-sizing: border-box !important;
+                border: 1px solid #e0a800 !important;
+                border-radius: 6px;
+                padding: 4px 18px !important;
+                line-height: 1.3 !important;
+                font-size: 13px;
+                cursor: pointer;
+                vertical-align: middle;
+                white-space: nowrap !important;   /* keep the ‹ / › on one line */
+                flex: 0 0 auto;                    /* don't let flexbox shrink & wrap them */
             }
             #coach-back:hover,
             #coach-next:hover {
                 background: #e0a800 !important;
                 border-color: #c69500 !important;
                 color: #333 !important;
-            }
-
-            /* Equal, compact footer buttons */
-            #coach-back,
-            #coach-next {
-                box-sizing: border-box !important;
-                border: 1px solid #e0a800 !important;
-                padding: 4px 18px !important;
-                line-height: 1.3 !important;
-                vertical-align: middle;
-                white-space: nowrap !important;   /* keep the ‹ / › on one line */
-                flex: 0 0 auto;                    /* don't let flexbox shrink & wrap them */
             }
 
             /* Action-button rows fill the bubble width; buttons share it equally
@@ -794,12 +749,6 @@
             /* ── Compact the in-sidebar Coach so each step fits the viewport
                  height without scrolling (reduce button/input heights, margins
                  and gaps; the sidebar still scrolls as a fallback). ── */
-            #coach-steps { padding: 6px 12px 2px; }
-            #coach-header { padding: 0 12px 4px; }
-            #coach-body {
-                padding: 8px 12px;
-                line-height: 1.35;
-            }
             #coach-body p { margin-bottom: 6px; }
             /* Step explainer — italic lead text, no box (chosen style). */
             #coach-body p.coach-intro {
@@ -838,14 +787,6 @@
             #coach-body .mt-4 { margin-top: 4px !important; }
             #coach-body .gap-2 { gap: 4px !important; }
             #coach-body .d-flex.flex-column.gap-2 { gap: 3px !important; }
-
-            /* Responsive — mobile sheet */
-            @media (max-width: 768px) {
-                /* On mobile the sidebar stacks above the canvas; the Coach just flows. */
-                #coach-bubble {
-                    border-radius: 10px;
-                }
-            }
         </style>
         <!-- ═══════════════════════════════════════════════════════
              END COACH STYLES
@@ -4262,6 +4203,14 @@
         /* ─────────────────────────────────────────────────────────
            Coach — guided builder core
            ───────────────────────────────────────────────────────── */
+
+        /* Shared helpers. The engine's globals may be missing (script failed,
+           text-only mode), so cv() resolves the live Fabric canvas or null and
+           engineSave() snapshots engine undo state only when it exists. */
+        const cv = () => (typeof canvas !== 'undefined' && canvas) ? canvas : null;
+        const engineSave = () => { if (typeof saveState === 'function') saveState(); };
+        const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
+
         const Coach = {
             current: 0,
             state: {},
@@ -4295,7 +4244,7 @@
 
                 const poll = setInterval(() => {
                     tries++;
-                    if (typeof canvas !== 'undefined' && canvas) {
+                    if (cv()) {
                         clearInterval(poll);
                         // Register autosave on canvas events
                         ['object:added', 'object:modified', 'object:removed'].forEach(ev => {
@@ -4440,9 +4389,7 @@
                 stepsEl.innerHTML = '';
 
                 Coach.steps.forEach((step, i) => {
-                    const chip = document.createElement('button');
-                    chip.type = 'button';
-                    chip.className = 'coach-step-chip';
+                    const chip = mkEl('button', { type: 'button', className: 'coach-step-chip' });
 
                     const isCurrent = i === Coach.current;
                     const isVisited = Coach.visited.has(i);
@@ -4461,12 +4408,10 @@
 
                 // Trailing "Start over" ↺ control on the same row as the step chips
                 // (pushed to the far right via margin-left:auto in .coach-startover).
-                const reset = document.createElement('button');
-                reset.type = 'button';
-                reset.id = 'coach-startover';
-                reset.className = 'coach-startover';
-                reset.title = 'Start over';
-                reset.textContent = '↺';
+                const reset = mkEl('button', {
+                    type: 'button', id: 'coach-startover', className: 'coach-startover',
+                    title: 'Start over', textContent: '↺'
+                });
                 reset.addEventListener('click', () => Coach.startOver());
                 stepsEl.appendChild(reset);
             },
@@ -4590,7 +4535,7 @@
                 Coach.persist._t = setTimeout(function() {
                     Coach.persist._t = null;
                     if (Coach.persist.disabled) return;
-                    if (typeof canvas === 'undefined' || !canvas) return;
+                    if (!cv()) return;
                     try {
                         localStorage.setItem(Coach.persist.KEY, JSON.stringify(Coach.persist.buildPayload()));
                     } catch (e) {
@@ -4610,22 +4555,25 @@
                 return slug || 'coin-holder';
             },
 
+            /* Blob of the current project JSON — null if the canvas is empty or
+               missing, or the payload can't be serialised. */
+            _projectBlob() {
+                if (!cv() || !canvas.getObjects().length) return null;
+                try {
+                    return new Blob([JSON.stringify(Coach.persist.buildPayload())], { type: 'application/json' });
+                } catch (e) { return null; }
+            },
+
             /* Download the current design as an editable .hsc.json project file */
             exportToFile() {
-                if (typeof canvas === 'undefined' || !canvas) return;
-                if (!canvas.getObjects().length) return;
-                let json;
-                try {
-                    json = JSON.stringify(Coach.persist.buildPayload());
-                } catch (e) {
+                if (!cv() || !canvas.getObjects().length) return;
+                const blob = Coach.persist._projectBlob();
+                if (!blob) {
                     alert("Sorry — your project couldn't be prepared for download. Please try again.");
                     return;
                 }
-                const blob = new Blob([json], { type: 'application/json' });
-                const url  = URL.createObjectURL(blob);
-                const a    = document.createElement('a');
-                a.href = url;
-                a.download = Coach.persist._fileBase() + '.hsc.json';
+                const url = URL.createObjectURL(blob);
+                const a   = mkEl('a', { href: url, download: Coach.persist._fileBase() + '.hsc.json' });
                 document.body.appendChild(a);
                 a.click();
                 setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 0);
@@ -4634,13 +4582,8 @@
             /* Build a File of the current project, for attaching to the e-mail
                quote. Returns null if there's nothing to save. */
             buildProjectFile() {
-                if (typeof canvas === 'undefined' || !canvas) return null;
-                if (!canvas.getObjects().length) return null;
-                let json;
-                try { json = JSON.stringify(Coach.persist.buildPayload()); }
-                catch (e) { return null; }
-                const blob = new Blob([json], { type: 'application/json' });
-                return new File([blob], Coach.persist._fileBase() + '-' + Date.now() + '.hsc.json',
+                const blob = Coach.persist._projectBlob();
+                return blob && new File([blob], Coach.persist._fileBase() + '-' + Date.now() + '.hsc.json',
                     { type: 'application/json' });
             },
 
@@ -4657,7 +4600,7 @@
                         return;
                     }
                     // Guard against silently wiping out work already on the canvas.
-                    if (typeof canvas !== 'undefined' && canvas && canvas.getObjects().length &&
+                    if (cv() && canvas.getObjects().length &&
                         !confirm('Load this project? Your current design will be replaced.')) {
                         return;
                     }
@@ -4675,10 +4618,10 @@
                 Coach.persist._noted = true;
                 const bodyEl = document.getElementById('coach-body');
                 if (bodyEl) {
-                    const msg = document.createElement('p');
-                    msg.style.cssText = 'font-size:0.75rem;color:#888;margin-top:8px;';
-                    msg.textContent = "Heads up — your progress won't be saved on this device (private mode or storage full).";
-                    bodyEl.appendChild(msg);
+                    bodyEl.appendChild(mkEl('p', {
+                        style: 'font-size:0.75rem;color:#888;margin-top:8px;',
+                        textContent: "Heads up — your progress won't be saved on this device (private mode or storage full)."
+                    }));
                 } else {
                     console.info("[Coach] Progress won't be saved on this device (private mode or storage full).");
                 }
@@ -4718,32 +4661,22 @@
 
                 bodyEl.innerHTML = '';
 
-                const msg = document.createElement('p');
-                msg.style.cssText = 'margin-bottom:10px;font-size:0.9rem;';
-                msg.textContent = 'You have an unfinished design. Would you like to pick up where you left off?';
+                const msg = mkEl('p', {
+                    style: 'margin-bottom:10px;font-size:0.9rem;',
+                    textContent: 'You have an unfinished design. Would you like to pick up where you left off?'
+                });
                 bodyEl.appendChild(msg);
 
                 // coach-row gives its .btn children equal width (flex:1 1 0),
                 // matching every other button row in the helper.
-                const btnRow = document.createElement('div');
-                btnRow.className = 'coach-row coach-row-2';
+                const btnRow = mkEl('div', { className: 'coach-row coach-row-2' });
 
-                const resumeBtn = document.createElement('button');
-                resumeBtn.type      = 'button';
-                resumeBtn.className = 'btn btn-primary btn-sm';
-                resumeBtn.textContent = 'Resume';
+                const resumeBtn = mkEl('button', { type: 'button', className: 'btn btn-primary btn-sm', textContent: 'Resume' });
                 resumeBtn.addEventListener('click', function() {
                     Coach.persist.resume(saved);
                 });
 
-                const freshBtn = document.createElement('button');
-                freshBtn.type      = 'button';
-                freshBtn.className = 'btn btn-sm';
-                freshBtn.textContent = 'Start fresh';
-                // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
-                freshBtn.style.setProperty('background', '#ffc107', 'important');
-                freshBtn.style.setProperty('color', '#333', 'important');
-                freshBtn.style.setProperty('border-color', '#e0a800', 'important');
+                const freshBtn = mkEl('button', { type: 'button', className: 'btn btn-sm coach-btn-yellow', textContent: 'Start fresh' });
                 freshBtn.addEventListener('click', function() {
                     Coach.persist.clear();
                     Coach.go(0);
@@ -4781,7 +4714,7 @@
 
         /* ── Coach.reapplyMaterials ──────────────────────────────────── */
         Coach.reapplyMaterials = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             // Non-imported first (these may cascade flat colours onto contained objects)...
             canvas.getObjects().forEach(function(obj) {
                 if (obj.materialType && obj.materialType !== 'color' &&
@@ -4837,14 +4770,14 @@
             obj.dirty = true;
             obj.materialType = fillType;
             obj.setCoords();
-            if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
+            if (cv()) canvas.requestRenderAll();
         };
 
         /* ── Coach.reapplyFixtureLocks ───────────────────────────────────
            Fabric doesn't serialise the lock/control flags, so restore them on
            loaded fixture holes after a resume. */
         Coach.reapplyFixtureLocks = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             canvas.getObjects().forEach(function(obj) {
                 if (obj.shapeType === 'fixture') {
                     obj.set({
@@ -4888,7 +4821,7 @@
            Re-thin every imported vector after a resume (loadFromJSON keeps the
            saved stroke width, which we want overridden back to 0.07). */
         Coach.reapplyImportedStrokes = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             canvas.getObjects().forEach(function(obj) {
                 if (obj.shapeType === 'imported') Coach.normalizeImportedStroke(obj);
             });
@@ -4900,7 +4833,7 @@
            the holder country (coachHolderId 'holder') is sent back — countries
            added as step-7 personalization or by a template stay where they are. */
         Coach.reapplyCountryToBack = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             canvas.getObjects()
                 .filter(function(o) { return o.shapeType === 'country' && o.coachHolderId === 'holder'; })
                 .forEach(function(o) { canvas.sendToBack(o); });
@@ -4953,7 +4886,7 @@
            biggest subpath, preserving on-canvas position/scale/style) and a group
            (removes all but the biggest child). Returns true if it reduced. */
         Coach.reduceToLargestOutline = function(obj) {
-            if (!obj || typeof canvas === 'undefined' || !canvas) return false;
+            if (!obj || !cv()) return false;
 
             // Group: keep the largest child.
             if (obj.type === 'group' && typeof obj.getObjects === 'function') {
@@ -4972,7 +4905,7 @@
                 });
                 obj.setCoords();
                 canvas.requestRenderAll();
-                if (typeof saveState === 'function') saveState();
+                engineSave();
                 return true;
             }
 
@@ -5029,11 +4962,46 @@
                 if (wasActive) canvas.setActiveObject(newPath);
                 newPath.setCoords();
                 canvas.requestRenderAll();
-                if (typeof saveState === 'function') saveState();
+                engineSave();
                 return true;
             }
 
             return false;
+        };
+
+        /* ── Coach.importedSiblings ──────────────────────────────────────
+           Other 'imported' objects on the canvas besides `h`. A multi-element
+           SVG import creates these: the engine adds each SVG element as its
+           own object, and the step-2 holder capture keeps only the first. */
+        Coach.importedSiblings = function(h) {
+            if (!h || h.shapeType !== 'imported' || !cv()) return [];
+            return canvas.getObjects().filter(o => o !== h && o.shapeType === 'imported');
+        };
+
+        /* ── Coach.reduceHolderOutlines ──────────────────────────────────
+           "Clean up outline" on the holder — two layers of cleanup:
+           1. Multi-element SVG import → keep the largest imported object as
+              the holder and remove its siblings.
+           2. Compound path / group → keep only the largest outline inside
+              the kept object (reduceToLargestOutline). */
+        Coach.reduceHolderOutlines = function() {
+            let h = Coach.state.holderObj;
+            if (!h || !cv()) return false;
+            const sibs = Coach.importedSiblings(h);
+            if (sibs.length) {
+                const area = o => o.getScaledWidth() * o.getScaledHeight();
+                const best = sibs.concat(h).reduce((a, b) => (area(b) > area(a) ? b : a));
+                sibs.concat(h).forEach(o => { if (o !== best) canvas.remove(o); });
+                if (best !== h) {
+                    best.coachHolderId = 'holder';
+                    Coach.state.holderObj = best;
+                    h = best;
+                }
+                canvas.setActiveObject(h);
+                canvas.requestRenderAll();
+                engineSave();
+            }
+            return Coach.reduceToLargestOutline(h) || sibs.length > 0;
         };
 
         /* ── Coach engraving colour ──────────────────────────────────────
@@ -5130,19 +5098,19 @@
                 obj._coachEngrave = !!on;
             }
             obj.dirty = true;
-            if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
-            if (typeof saveState === 'function') saveState();
+            if (cv()) canvas.requestRenderAll();
+            engineSave();
             // If the engraved object is selected, refresh the right panel so the
             // "Colour" control reflects its new (engrave) fill straight away.
             if (typeof updatePropertiesPanel === 'function' &&
-                typeof canvas !== 'undefined' && canvas && canvas.getActiveObject() === obj) {
+                cv() && canvas.getActiveObject() === obj) {
                 updatePropertiesPanel();
             }
         };
 
         // After a material change (brown↔grey) re-tint everything already engraved.
         Coach.refreshEngraveColors = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             canvas.getObjects().forEach(function(o) {
                 if (Coach.isEngraved(o)) Coach.applyEngrave(o, true);
             });
@@ -5202,18 +5170,18 @@
             if (!obj) return;
             obj.coachAspectLocked = !!locked;
             Coach.applyAspectToObject(obj);
-            if (typeof canvas !== 'undefined' && canvas) {
+            if (cv()) {
                 // Corner-drag proportionality follows the active object's lock.
                 if (canvas.getActiveObject() === obj) canvas.uniformScaling = !!locked;
                 canvas.requestRenderAll();
             }
             Coach._syncAspectButtons();
-            if (typeof saveState === 'function') saveState();
+            engineSave();
         };
 
         // Toggle the lock on the currently-selected object (right-panel button).
         Coach.toggleSelectedAspectLock = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             const obj = canvas.getActiveObject();
             if (!obj || !Coach.aspectEligible(obj)) return;
             Coach.setObjectAspectLock(obj, !Coach.isAspectLocked(obj));
@@ -5237,7 +5205,7 @@
         // Sync selection → uniformScaling + controls + buttons. Called on every
         // selection change so the right-panel button matches the chosen object.
         Coach.onAspectSelect = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             const obj = canvas.getActiveObject();
             if (obj && obj.type !== 'activeSelection') {
                 canvas.uniformScaling = Coach._effectiveLock(obj);
@@ -5250,7 +5218,7 @@
 
         // Re-apply every object's controls (after a resume).
         Coach.reapplyAspectLock = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             canvas.getObjects().forEach(function(o) { Coach.applyAspectToObject(o); });
             canvas.uniformScaling = true;
             Coach._syncAspectButtons();
@@ -5261,7 +5229,7 @@
             // isn't eligible — coins/fixtures/multi-select).
             const right = document.getElementById('coach-aspect-right');
             if (right) {
-                const obj = (typeof canvas !== 'undefined' && canvas) ? canvas.getActiveObject() : null;
+                const obj = cv() ? canvas.getActiveObject() : null;
                 if (obj && Coach.aspectEligible(obj)) {
                     const locked = Coach.isAspectLocked(obj);
                     right.style.display = '';
@@ -5285,7 +5253,7 @@
            meaningful once the canvas has something on it — disable them while it's
            empty. Called on add/remove and after boot/resume. */
         Coach.updateActionButtons = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             const has = canvas.getObjects().length > 0;
             ['clearBtn', 'downloadBtn', 'saveProjectBtn', 'coachQuoteBtn'].forEach(function(id) {
                 const b = document.getElementById(id);
@@ -5299,7 +5267,7 @@
            object's screen-space bounding rect so the test respects the
            current zoom/pan. */
         Coach.fitIfNeeded = function() {
-            if (typeof canvas === 'undefined' || !canvas || typeof resetZoom !== 'function') return;
+            if (!cv() || typeof resetZoom !== 'function') return;
             const objs = canvas.getObjects();
             if (!objs.length) return;
             const vw = canvas.getWidth();
@@ -5338,7 +5306,7 @@
 
         /* ── Coach.resolveHolder ─────────────────────────────────────── */
         Coach.resolveHolder = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             const objs = canvas.getObjects();
 
             // Primary: look for the stamped coachHolderId
@@ -5362,7 +5330,7 @@
            to match the holder's size, preserving aspect ratio (contain), and
            centre it on the holder. */
         Coach.sizeToHolder = function(obj, mode) {
-            if (!obj || typeof canvas === 'undefined' || !canvas) return;
+            if (!obj || !cv()) return;
             // Make sure we have a current holder reference (and that it isn't the
             // object we're sizing — e.g. a freshly-added full-size image).
             if (!Coach.state.holderObj
@@ -5395,7 +5363,7 @@
             obj.setPositionByOrigin(new fabric.Point(c.x, c.y), 'center', 'center');
             obj.setCoords();
             canvas.requestRenderAll();
-            if (typeof saveState === 'function') saveState();
+            engineSave();
         };
 
         /* ── Coach.raiseCoinsToFront ─────────────────────────────────────
@@ -5404,7 +5372,7 @@
            every currency object to the front, preserving their order amongst
            themselves. Cheap to call after any decorative object is added. */
         Coach.raiseCoinsToFront = function() {
-            if (typeof canvas === 'undefined' || !canvas) return;
+            if (!cv()) return;
             canvas.getObjects()
                 .filter(function(o) { return o.shapeType === 'currency'; })
                 .forEach(function(o) { canvas.bringToFront(o); });
@@ -5418,7 +5386,7 @@
         Coach.resetSelf = function() {
             Coach.persist.clear();
             // Cancel any pending one-shot capture handlers / timeouts
-            if (typeof canvas !== 'undefined' && canvas) {
+            if (cv()) {
                 ['_pendingHolderHandler', '_pendingImportHandler', '_pendingSizeHandler'].forEach(h => {
                     if (Coach[h]) { canvas.off('object:added', Coach[h]); Coach[h] = null; }
                 });
@@ -5442,7 +5410,7 @@
             try {
                 if (typeof clearCanvas === 'function') {
                     clearCanvas();
-                } else if (typeof canvas !== 'undefined' && canvas) {
+                } else if (cv()) {
                     canvas.clear();
                     canvas.backgroundColor = '#ffffff';
                     canvas.requestRenderAll();
@@ -5460,7 +5428,7 @@
            inside irregular shapes, whose bounding box is much larger than the
            silhouette. Returns null if the mask can't be read. */
         Coach._holderDistanceField = function(holder) {
-            if (typeof canvas === 'undefined' || !canvas || !holder) return null;
+            if (!cv() || !holder) return null;
             let maskCanvas = null;
             const saved = [];
             const solidify = (o) => {
@@ -5536,8 +5504,7 @@
            gone. Returns null if there's no holder. */
         Coach.currentHolder = function() {
             let holder = Coach.state.holderObj;
-            if (!holder || (typeof canvas !== 'undefined' && canvas &&
-                canvas.getObjects().indexOf(holder) === -1)) {
+            if (!holder || (cv() && canvas.getObjects().indexOf(holder) === -1)) {
                 if (typeof Coach.resolveHolder === 'function') Coach.resolveHolder();
                 holder = Coach.state.holderObj;
             }
@@ -5567,7 +5534,7 @@
            Pass a precomputed `field` to avoid rebuilding it per object. Returns
            false once the object has already been trimmed (`_coachClipped`). */
         Coach.hasExcessOutside = function(obj, field) {
-            if (!obj || typeof canvas === 'undefined' || !canvas) return false;
+            if (!obj || !cv()) return false;
             if (obj._coachClipped) return false;
             if (!Coach.holderClipCandidate(obj)) return false;
             const holder = Coach.currentHolder();
@@ -5622,7 +5589,7 @@
            too (we solidify the clip so its transparent interior still clips).
            Reversible via Undo. */
         Coach.removeExcess = function(obj) {
-            if (!obj || typeof canvas === 'undefined' || !canvas) return;
+            if (!obj || !cv()) return;
             const holder = Coach.currentHolder();
             if (!holder || holder === obj) return;
             holder.clone(function(clip) {
@@ -5641,7 +5608,7 @@
                 obj.dirty = true;
                 if (typeof obj.setCoords === 'function') obj.setCoords();
                 canvas.requestRenderAll();
-                if (typeof saveState === 'function') saveState();
+                engineSave();
             }, Coach.EXTRA_PROPS);
         };
 
@@ -5653,7 +5620,7 @@
            geometric layouts inside the real silhouette via a distance field. */
         Coach.arrange = function(pattern) {
             // Guard: canvas must exist
-            if (typeof canvas === 'undefined' || !canvas) return false;
+            if (!cv()) return false;
 
             // Holder types recognised by the Coach
             const HOLDER_TYPES = new Set([
@@ -6202,7 +6169,7 @@
             });
 
             canvas.requestRenderAll();
-            if (typeof saveState === 'function') saveState();
+            engineSave();
             return true;
         };
 
@@ -6227,10 +6194,10 @@
         Coach.applyFixtureColor = function(which) {
             if (which && Coach.FIXTURE_COLORS[which]) Coach.state.fixtureColor = which;
             const fill = Coach.fixtureFill();
-            if (typeof canvas !== 'undefined' && canvas) {
+            if (cv()) {
                 canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => o.set('fill', fill));
                 canvas.requestRenderAll();
-                if (typeof saveState === 'function') saveState();
+                engineSave();
             }
         };
 
@@ -6267,7 +6234,7 @@
            • Irregular → as many as fit, ~100 mm apart along the offset contour
            Returns the number of fixtures placed, or false if there's no holder. */
         Coach.addFixtures = function() {
-            if (typeof canvas === 'undefined' || !canvas) return false;
+            if (!cv()) return false;
 
             let holder = Coach.state.holderObj;
             if (!holder || canvas.getObjects().indexOf(holder) === -1) {
@@ -6473,12 +6440,9 @@
             });
 
             canvas.requestRenderAll();
-            if (typeof saveState === 'function') saveState();
+            engineSave();
             return placed.length;
         };
-
-        /* ── Shared DOM helper (used across multiple steps) ─────────── */
-        const mkEl = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
         /* ── Populate steps (after Coach.SELECTORS is defined) ────── */
         Coach.steps = [
@@ -6491,38 +6455,22 @@
                 renderAction(el) {
                     el.innerHTML = '';
 
-                    // Intro paragraph
-                    const intro = document.createElement('p');
-                    intro.className = 'mb-3';
-                    intro.textContent = this.intro;
-                    el.appendChild(intro);
+                    el.appendChild(mkEl('p', { className: 'mb-3', textContent: this.intro }));
 
-                    // Occasion buttons
+                    // Occasion buttons (selected look comes from the .btn.active CSS)
                     const occasions = ['Gift', 'Travel memento', 'Collection display', 'Milestone'];
-                    const btnGroup = document.createElement('div');
-                    btnGroup.className = 'coach-row coach-row-2 mb-3';
+                    const btnGroup = mkEl('div', { className: 'coach-row coach-row-2 mb-3' });
 
                     const makeBtn = (label) => {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'btn btn-sm btn-outline-light';
-                        btn.textContent = label;
-                        if (Coach.state.occasion === label) {
-                            btn.classList.add('active');
-                            btn.style.backgroundColor = '#cfe3cf';
-                            btn.style.color = '#344734';
-                            btn.style.borderColor = '#cfe3cf';
-                        }
+                        const btn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-light' + (Coach.state.occasion === label ? ' active' : ''),
+                            textContent: label
+                        });
                         btn.addEventListener('click', () => {
                             Coach.state.occasion = label;
-                            // Update all buttons in this group
-                            btnGroup.querySelectorAll('button').forEach(b => {
-                                const selected = b.textContent === label;
-                                b.classList.toggle('active', selected);
-                                b.style.backgroundColor = selected ? '#cfe3cf' : '';
-                                b.style.color = selected ? '#344734' : '';
-                                b.style.borderColor = selected ? '#cfe3cf' : '';
-                            });
+                            btnGroup.querySelectorAll('button').forEach(b =>
+                                b.classList.toggle('active', b.textContent === label));
                             // Update placeholder on project name input
                             const nameInput = el.querySelector('#coach-project-name');
                             if (nameInput && !nameInput.value) {
@@ -6536,50 +6484,42 @@
                     el.appendChild(btnGroup);
 
                     // Project name input
-                    const nameLabel = document.createElement('label');
-                    nameLabel.htmlFor = 'coach-project-name';
-                    nameLabel.className = 'form-label small mb-1';
-                    nameLabel.textContent = 'Coin holders name (optional)';
-                    el.appendChild(nameLabel);
+                    el.appendChild(mkEl('label', {
+                        htmlFor: 'coach-project-name', className: 'form-label small mb-1',
+                        textContent: 'Coin holders name (optional)'
+                    }));
 
-                    const nameInput = document.createElement('input');
-                    nameInput.type = 'text';
-                    nameInput.id = 'coach-project-name';
-                    nameInput.className = 'form-control form-control-sm';
-                    nameInput.value = Coach.state.projectName || '';
-                    nameInput.placeholder = Coach.state.occasion
-                        ? Coach.state.occasion + ' coin holder'
-                        : 'e.g. Birthday coin holder';
+                    const nameInput = mkEl('input', {
+                        type: 'text', id: 'coach-project-name', className: 'form-control form-control-sm',
+                        value: Coach.state.projectName || '',
+                        placeholder: Coach.state.occasion
+                            ? Coach.state.occasion + ' coin holder'
+                            : 'e.g. Birthday coin holder'
+                    });
                     nameInput.addEventListener('input', () => {
                         Coach.state.projectName = nameInput.value;
                     });
                     el.appendChild(nameInput);
 
                     // ── Resume from a previously saved project file ──────────
-                    const loadWrap = document.createElement('div');
-                    loadWrap.className = 'mt-4 pt-3';
-                    loadWrap.style.borderTop = '1px solid rgba(255,255,255,0.2)';
+                    const loadWrap = mkEl('div', { className: 'mt-4 pt-3', style: 'border-top:1px solid rgba(255,255,255,0.2)' });
 
-                    const loadHint = document.createElement('p');
-                    loadHint.className = 'small mb-2';
-                    loadHint.style.opacity = '0.85';
-                    loadHint.textContent = 'Already started one? Open a project file you saved earlier.';
-                    loadWrap.appendChild(loadHint);
+                    loadWrap.appendChild(mkEl('p', {
+                        className: 'small mb-2', style: 'opacity:0.85',
+                        textContent: 'Already started one? Open a project file you saved earlier.'
+                    }));
 
-                    const loadInput = document.createElement('input');
-                    loadInput.type = 'file';
-                    loadInput.accept = '.json,.hsc';
-                    loadInput.style.display = 'none';
+                    const loadInput = mkEl('input', { type: 'file', accept: '.json,.hsc', style: 'display:none' });
                     loadInput.addEventListener('change', (e) => {
                         const file = e.target.files && e.target.files[0];
                         if (file) Coach.persist.importFromFile(file);
                         loadInput.value = '';   // allow re-picking the same file
                     });
 
-                    const loadBtn = document.createElement('button');
-                    loadBtn.type = 'button';
-                    loadBtn.className = 'btn btn-sm btn-outline-light w-100';
-                    loadBtn.innerHTML = '<i class="fas fa-file-import"></i> Load a saved project';
+                    const loadBtn = mkEl('button', {
+                        type: 'button', className: 'btn btn-sm btn-outline-light w-100',
+                        innerHTML: '<i class="fas fa-file-import"></i> Load a saved project'
+                    });
                     loadBtn.addEventListener('click', () => loadInput.click());
 
                     loadWrap.appendChild(loadBtn);
@@ -6605,31 +6545,20 @@
                     if (Coach.state.holderW == null) Coach.state.holderW = 200;
                     if (Coach.state.holderH == null) Coach.state.holderH = 100;
 
-                    // ── helpers ───────────────────────────────────────────
-                    const makeBtn = (label, icon, active) => {
-                        const btn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light' });
-                        btn.innerHTML = icon ? `<i class="${icon}"></i> ${label}` : label;
-                        if (active) {
-                            btn.classList.add('active');
-                            btn.style.backgroundColor = '#cfe3cf';
-                            btn.style.color = '#344734';
-                            btn.style.borderColor = '#cfe3cf';
-                        }
-                        return btn;
-                    };
+                    // ── helpers (selected look comes from the .btn.active CSS) ──
+                    const makeBtn = (label, icon, active) => mkEl('button', {
+                        type: 'button',
+                        className: 'btn btn-sm btn-outline-light' + (active ? ' active' : ''),
+                        innerHTML: icon ? `<i class="${icon}"></i> ${label}` : label
+                    });
 
                     const markSelected = (group, chosen) => {
-                        group.querySelectorAll('button[data-shape]').forEach(b => {
-                            const sel = b.dataset.shape === chosen;
-                            b.classList.toggle('active', sel);
-                            b.style.backgroundColor = sel ? '#cfe3cf' : '';
-                            b.style.color = sel ? '#344734' : '';
-                            b.style.borderColor = sel ? '#cfe3cf' : '';
-                        });
+                        group.querySelectorAll('button[data-shape]').forEach(b =>
+                            b.classList.toggle('active', b.dataset.shape === chosen));
                     };
 
                     const captureHolder = (type) => {
-                        if (typeof canvas !== 'undefined' && canvas) {
+                        if (cv()) {
                             const obj = canvas.getActiveObject();
                             Coach.state.holderObj = obj;
                             Coach.state.holderType = type;
@@ -6653,7 +6582,7 @@
                     // ── FIX G: resize the holder object itself (in mm) ────
                     const resizeHolder = (wMm, hMm, lockAspect) => {
                         const obj = Coach.state.holderObj;
-                        if (!obj || typeof canvas === 'undefined' || !canvas) return;
+                        if (!obj || !cv()) return;
                         const scale = canvas.scale || 1;
                         const curW = obj.getScaledWidth();
                         const curH = obj.getScaledHeight();
@@ -6672,7 +6601,7 @@
                         }
                         obj.setCoords();
                         canvas.requestRenderAll();
-                        if (typeof saveState === 'function') saveState();
+                        engineSave();
                     };
 
                     // Apply any size the customer entered *before* picking a shape.
@@ -6688,25 +6617,24 @@
                     const intro = mkEl('p', { className: 'mb-3', textContent: this.intro });
                     el.appendChild(intro);
 
-                    // Show "Reduce objects" only when the loaded SVG packs more than one
-                    // outline into a single object — lets the customer drop the smaller
-                    // outlines, keeping just the main one, in one click.
+                    // Show "Clean up outline" when the loaded shape needs reducing:
+                    // either the holder packs several outlines into one object
+                    // (compound path / group), or a multi-element SVG import left
+                    // sibling objects on the canvas (the engine adds each SVG element
+                    // as its own object; only the first was captured as the holder).
                     (function maybeReduce() {
                         const h = Coach.state.holderObj;
-                        if (!h || Coach.countOutlines(h) <= 1) return;
+                        if (!h) return;
+                        if (Coach.countOutlines(h) <= 1 && !Coach.importedSiblings(h).length) return;
                         const row = mkEl('div', { className: 'coach-row mb-2' });
                         const btn = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm',
-                            textContent: 'Clean up outline'
+                            className: 'btn btn-sm coach-btn-yellow',
+                            textContent: 'Clean up outline',
+                            title: 'Keep only the largest outline in the loaded shape, removing the smaller ones'
                         });
-                        btn.title = 'Keep only the largest outline in the loaded shape, removing the smaller ones';
-                        // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
-                        btn.style.setProperty('background', '#ffc107', 'important');
-                        btn.style.setProperty('color', '#333', 'important');
-                        btn.style.setProperty('border-color', '#e0a800', 'important');
                         btn.addEventListener('click', function() {
-                            Coach.reduceToLargestOutline(Coach.state.holderObj);
+                            Coach.reduceHolderOutlines();
                             Coach.render();
                         });
                         row.appendChild(btn);
@@ -6780,16 +6708,13 @@
                     const countries = Coach.COUNTRY_OPTIONS;
 
                     countries.forEach(({ key, label }) => {
+                        // Country shapes get their own accent so they read as a distinct
+                        // group from the Rectangle/Circular base shapes.
                         const cb = makeBtn(label, null, false);
                         cb.dataset.country = key;
-                        // Country shapes get their own accent so they read as a distinct
-                        // group from the Rectangle/Circular base shapes. !important beats
-                        // the coach's ".btn{background:#344734!important}" rule.
-                        cb.style.setProperty('background', '#5e7a8c', 'important');
-                        cb.style.setProperty('border-color', '#4d6675', 'important');
-                        cb.style.setProperty('color', '#fff', 'important');
+                        cb.classList.add('coach-btn-country');
                         cb.addEventListener('click', () => {
-                            if (typeof canvas !== 'undefined' && canvas) {
+                            if (cv()) {
                                 if (Coach._pendingHolderHandler) {
                                     canvas.off('object:added', Coach._pendingHolderHandler);
                                     clearTimeout(Coach._pendingHolderTimeout);
@@ -6821,21 +6746,10 @@
                             // Holder = country OUTLINE (transparent fill) so coins show through
                             if (typeof addCountryOutline === 'function') addCountryOutline(key);
                             else if (typeof addCountry === 'function') addCountry(key);
-                            // Highlight chosen country button (re-applying the accent to
-                            // the rest — plain styles can't beat the !important accent).
-                            countryPanel.querySelectorAll('button[data-country]').forEach(b => {
-                                const sel = b.dataset.country === key;
-                                b.classList.toggle('active', sel);
-                                if (sel) {
-                                    b.style.setProperty('background', '#cfe3cf', 'important');
-                                    b.style.setProperty('color', '#344734', 'important');
-                                    b.style.setProperty('border-color', '#cfe3cf', 'important');
-                                } else {
-                                    b.style.setProperty('background', '#5e7a8c', 'important');
-                                    b.style.setProperty('color', '#fff', 'important');
-                                    b.style.setProperty('border-color', '#4d6675', 'important');
-                                }
-                            });
+                            // Highlight the chosen country button (the .btn.active CSS
+                            // rule outranks the .coach-btn-country accent).
+                            countryPanel.querySelectorAll('button[data-country]').forEach(b =>
+                                b.classList.toggle('active', b.dataset.country === key));
                         });
                         countryPanel.appendChild(cb);
                     });
@@ -6845,11 +6759,9 @@
                     svgBtn.dataset.shape = 'imported';
                     // Distinct accent (purple) so "Upload your own shape" reads apart
                     // from both the base shapes and the slate-blue country buttons.
-                    svgBtn.style.setProperty('background', '#6f5b8e', 'important');
-                    svgBtn.style.setProperty('border-color', '#5b4a75', 'important');
-                    svgBtn.style.setProperty('color', '#fff', 'important');
+                    svgBtn.classList.add('coach-btn-upload');
                     svgBtn.addEventListener('click', () => {
-                        if (typeof canvas !== 'undefined' && canvas) {
+                        if (cv()) {
                             // Remove any previously-registered pending import handler to prevent stacking
                             if (Coach._pendingImportHandler) {
                                 canvas.off('object:added', Coach._pendingImportHandler);
@@ -6877,7 +6789,10 @@
                                 applyStoredSize();
                                 Coach.setHolderAspectLock(true); // imported shapes lock aspect by default
                                 markSelected(shapeGroup, 'country'); // keep country toggle highlighted
-                                Coach.render();
+                                // Defer the re-render one tick: a multi-element SVG adds its
+                                // remaining objects synchronously right after this first one,
+                                // and the "Clean up outline" offer must see the whole batch.
+                                setTimeout(() => Coach.render(), 0);
                             };
 
                             Coach._pendingImportHandler = handler;
@@ -6903,7 +6818,7 @@
                     const hasHolder  = !!Coach.state.holderObj;
                     const holderType = Coach.state.holderType;
                     const lockAspect = Coach.isAspectLocked(Coach.state.holderObj);
-                    const scaleNow   = (typeof canvas !== 'undefined' && canvas && canvas.scale) ? canvas.scale : 1;
+                    const scaleNow   = (cv() && canvas.scale) ? canvas.scale : 1;
 
                     const sizeSection = mkEl('div', { className: 'mb-3' });
                     sizeSection.appendChild(mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Coin holder size (mm)' }));
@@ -7026,15 +6941,11 @@
                 renderAction(el) {
                     el.innerHTML = '';
 
-                    // ── Intro ─────────────────────────────────────────────
-                    const intro = document.createElement('p');
-                    intro.className = 'mb-3';
-                    intro.textContent = this.intro;
-                    el.appendChild(intro);
+                    el.appendChild(mkEl('p', { className: 'mb-3', textContent: this.intro }));
 
                     // ── Resolve the holder object ─────────────────────────
                     const obj = (function resolveTarget(){
-                        if (typeof canvas === 'undefined' || !canvas) return null;
+                        if (!cv()) return null;
                         // prefer the tracked holder if it's still on the canvas
                         if (Coach.state.holderObj && canvas.getObjects().indexOf(Coach.state.holderObj) !== -1) return Coach.state.holderObj;
                         // else the largest non-coin object (the board, incl. template boards)
@@ -7048,15 +6959,11 @@
                     if (obj) Coach.state.holderObj = obj;
 
                     if (!obj) {
-                        const nudge = document.createElement('p');
-                        nudge.className = 'text-warning mb-3';
-                        nudge.textContent = 'Add a holder first — go back to step 2.';
-                        el.appendChild(nudge);
-
-                        const backBtn = document.createElement('button');
-                        backBtn.type = 'button';
-                        backBtn.className = 'btn btn-sm btn-outline-light';
-                        backBtn.textContent = '← Back to Choose Holder';
+                        el.appendChild(mkEl('p', { className: 'text-warning mb-3', textContent: 'Add a holder first — go back to step 2.' }));
+                        const backBtn = mkEl('button', {
+                            type: 'button', className: 'btn btn-sm btn-outline-light',
+                            textContent: '← Back to Choose Holder'
+                        });
                         backBtn.addEventListener('click', () => Coach.go(1));
                         el.appendChild(backBtn);
                         return;
@@ -7077,7 +6984,7 @@
                         // integrated outlines. MUST run AFTER cascadeColorToContained, which
                         // would otherwise recolour the other imported paths flat brown and
                         // stomp the texture we just applied.
-                        if (fillType !== 'color' && typeof canvas !== 'undefined' && canvas) {
+                        if (fillType !== 'color' && cv()) {
                             canvas.getObjects()
                                 .filter(o => o.shapeType === 'imported')
                                 .forEach(o => Coach.applyWoodToImported(o, fillType));
@@ -7103,8 +7010,8 @@
                         // Keep engine's properties panel consistent
                         const sel = document.getElementById('materialPreset');
                         if (sel) sel.value = fillType;
-                        if (typeof canvas !== 'undefined' && canvas) canvas.requestRenderAll();
-                        if (typeof saveState === 'function') saveState();
+                        if (cv()) canvas.requestRenderAll();
+                        engineSave();
                         Coach.state.material = fillType;
                         // Recolour any existing fixtures to match the new material
                         // (no-arg re-derives the default; an explicit finish still wins).
@@ -7117,51 +7024,26 @@
 
                     const currentMaterial = Coach.state.material || null;
 
-                    const makeSelected = (isActive) => {
-                        if (isActive) {
-                            return { backgroundColor: '#cfe3cf', color: '#344734', borderColor: '#cfe3cf' };
-                        }
-                        return {};
-                    };
+                    // ── Wood finishes (selected look = .btn.active CSS) ───
+                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Wood finishes' }));
 
-                    // ── Wood finishes ─────────────────────────────────────
-                    const woodLabel = document.createElement('p');
-                    woodLabel.className = 'small fw-semibold mb-2';
-                    woodLabel.textContent = 'Wood finishes';
-                    el.appendChild(woodLabel);
-
-                    const woodRow = document.createElement('div');
-                    woodRow.className = 'coach-row mb-3';
+                    const woodRow = mkEl('div', { className: 'coach-row mb-3' });
                     el.appendChild(woodRow);
 
-                    const woodOptions = [
-                        { label: 'Birch', value: 'birch' },
-                        { label: 'Oak',   value: 'oak'   },
-                        { label: 'Walnut', value: 'walnut' },
-                    ];
-
-                    woodOptions.forEach(({ label, value }) => {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'btn btn-sm btn-outline-light';
-                        btn.textContent = label;
-                        const isActive = currentMaterial === value;
-                        if (isActive) {
-                            btn.classList.add('active');
-                            Object.assign(btn.style, makeSelected(true));
-                        }
+                    [['Birch', 'birch'], ['Oak', 'oak'], ['Walnut', 'walnut']].forEach(([label, value]) => {
+                        const btn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-light' + (currentMaterial === value ? ' active' : ''),
+                            textContent: label
+                        });
                         btn.addEventListener('click', () => applyMaterial(value));
                         woodRow.appendChild(btn);
                     });
 
                     // ── Plastic colour ────────────────────────────────────
-                    const plasticLabel = document.createElement('p');
-                    plasticLabel.className = 'small fw-semibold mb-2';
-                    plasticLabel.textContent = 'Plastic colour';
-                    el.appendChild(plasticLabel);
+                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Plastic colour' }));
 
-                    const plasticRow = document.createElement('div');
-                    plasticRow.className = 'd-flex align-items-center flex-wrap gap-2 mb-2';
+                    const plasticRow = mkEl('div', { className: 'd-flex align-items-center flex-wrap gap-2 mb-2' });
                     el.appendChild(plasticRow);
 
                     // Use the SAME predefined palette as the main editor's #fillColor dropdown.
@@ -7194,10 +7076,10 @@
                     PRESET_COLORS.forEach(({ value, label }) => {
                         // Plain <button> WITHOUT the .btn class — the coach CSS forces
                         // ".btn { background:#344734 !important }", which would mask the swatch colour.
-                        const sw = document.createElement('button');
-                        sw.type = 'button';
-                        sw.title = label;
-                        sw.style.cssText = 'width:30px;height:30px;border-radius:6px;border:2px solid #888;cursor:pointer;padding:0;';
+                        const sw = mkEl('button', {
+                            type: 'button', title: label,
+                            style: 'width:30px;height:30px;border-radius:6px;border:2px solid #888;cursor:pointer;padding:0;'
+                        });
                         if (value === 'transparent') {
                             sw.style.background = 'repeating-linear-gradient(45deg,#ccc,#ccc 4px,#fff 4px,#fff 8px)';
                         } else {
@@ -7225,7 +7107,7 @@
                 optional: false,
                 highlight: [Coach.SELECTORS.coins],
                 isComplete() {
-                    return typeof canvas !== 'undefined' && canvas && canvas.getObjects().some(o => o.shapeType === 'currency');
+                    return !!cv() && canvas.getObjects().some(o => o.shapeType === 'currency');
                 },
                 renderAction(el) {
                     el.innerHTML = '';
@@ -7234,124 +7116,49 @@
                     const introP = mkEl('p', { className: 'mb-3', textContent: this.intro });
                     el.appendChild(introP);
 
-                    /* ── Denomination data ─────────────────────────────── */
+                    /* ── Denomination data ─────────────────────────────────
+                       Circular coins are compact [value, diameter-mm] tuples —
+                       the label equals the value unless a third element
+                       overrides it. Non-euro/pound/dollar diameters = official
+                       mint spec + 0.15 mm production clearance. Elliptic coins
+                       (pressed pennies) stay full objects with x/y sizes. */
                     const CURRENCIES = {
-                        euro: {
-                            label: '€ Euro',
-                            icon: '€',
-                            coins: [
-                                { label: '2 €',    value: '2 €',    diameter: 25.75 },
-                                { label: '1 €',    value: '1 €',    diameter: 23.4  },
-                                { label: '0.50 €', value: '0.50 €', diameter: 24.4  },
-                                { label: '0.20 €', value: '0.20 €', diameter: 22.4  },
-                                { label: '0.10 €', value: '0.10 €', diameter: 19.9  },
-                                { label: '0.05 €', value: '0.05 €', diameter: 21.4  },
-                                { label: '0.02 €', value: '0.02 €', diameter: 18.9  },
-                                { label: '0.01 €', value: '0.01 €', diameter: 16.4  },
-                            ]
-                        },
-                        dollar: {
-                            label: '$ Dollar',
-                            icon: '$',
-                            coins: [
-                                { label: '50 ¢',  value: '50 ¢',  diameter: 30.76 },
-                                { label: '25 ¢',  value: '25 ¢',  diameter: 24.41 },
-                                { label: '10 ¢',  value: '10 ¢',  diameter: 18.06 },
-                                { label: '5 ¢',   value: '5 ¢',   diameter: 21.36 },
-                                { label: '1 ¢',   value: '1 ¢',   diameter: 19.25 },
-                                { label: '$ 1',   value: '$ 1',   diameter: 26.65 },
-                            ]
-                        },
-                        pound: {
-                            label: '£ Pound',
-                            icon: '£',
-                            coins: [
-                                { label: '2£',   value: '2£',   diameter: 28.55 },
-                                { label: '1£',   value: '1£',   diameter: 23.18 },
-                                { label: '50p',  value: '50p',  diameter: 27.45 },
-                                { label: '20p',  value: '20p',  diameter: 21.55 },
-                                { label: '10p',  value: '10p',  diameter: 24.65 },
-                                { label: '5p',   value: '5p',   diameter: 18.15 },
-                                { label: '2p',   value: '2p',   diameter: 26.06 },
-                                { label: '1p',   value: '1p',   diameter: 20.47 },
-                            ]
-                        },
-                        australian: {
-                            label: 'A$ Australian',
-                            icon: 'A$',
-                            // Diameters = Royal Australian Mint spec + 0.15 mm production clearance.
-                            coins: [
-                                { label: 'A$2', value: 'A$2', diameter: 20.65 },
-                                { label: 'A$1', value: 'A$1', diameter: 25.15 },
-                                { label: '50c', value: '50c', diameter: 31.80 },
-                                { label: '20c', value: '20c', diameter: 28.80 },
-                                { label: '10c', value: '10c', diameter: 23.75 },
-                                { label: '5c',  value: '5c',  diameter: 19.56 },
-                                { label: '2c',  value: '2c',  diameter: 21.74 },
-                                { label: '1c',  value: '1c',  diameter: 17.80 },
-                            ]
-                        },
-                        canada: {
-                            label: 'C$ Canada',
-                            icon: 'C$',
-                            // Diameters = Royal Canadian Mint spec + 0.15 mm production clearance.
-                            coins: [
-                                { label: 'C$2',  value: 'C$2',  diameter: 28.15 },
-                                { label: 'C$1',  value: 'C$1',  diameter: 26.65 },
-                                { label: '50¢',  value: '50¢',  diameter: 27.28 },
-                                { label: '25¢',  value: '25¢',  diameter: 24.03 },
-                                { label: '10¢',  value: '10¢',  diameter: 18.18 },
-                                { label: '5¢',   value: '5¢',   diameter: 21.35 },
-                            ]
-                        },
-                        yen: {
-                            label: '¥ Yen',
-                            icon: '¥',
-                            // Diameters = Japan Mint spec + 0.15 mm production clearance.
-                            coins: [
-                                { label: '¥500', value: '¥500', diameter: 26.65 },
-                                { label: '¥100', value: '¥100', diameter: 22.75 },
-                                { label: '¥50',  value: '¥50',  diameter: 21.15 },
-                                { label: '¥10',  value: '¥10',  diameter: 23.65 },
-                                { label: '¥5',   value: '¥5',   diameter: 22.15 },
-                                { label: '¥1',   value: '¥1',   diameter: 20.15 },
-                            ]
-                        },
-                        swiss: {
-                            label: 'CHF Swiss',
-                            icon: 'CHF',
-                            // Diameters = Swissmint spec + 0.15 mm production clearance.
-                            coins: [
-                                { label: '5 Fr',   value: '5 Fr',  diameter: 31.60 },
-                                { label: '2 Fr',   value: '2 Fr',  diameter: 27.55 },
-                                { label: '1 Fr',   value: '1 Fr',  diameter: 23.35 },
-                                { label: '½ Fr',   value: '½ Fr',  diameter: 18.35 },
-                                { label: '20 rp',  value: '20 rp', diameter: 21.20 },
-                                { label: '10 rp',  value: '10 rp', diameter: 19.30 },
-                                { label: '5 rp',   value: '5 rp',  diameter: 17.30 },
-                            ]
-                        },
-                        bullion: {
-                            label: 'Exonumia',
-                            icon: '🥇',
-                            // Diameters = published spec + 0.15 mm production clearance.
-                            coins: [
-                                { label: 'Silver Eagle', value: 'Silver Eagle', diameter: 40.75 },
-                                { label: 'Britannia',    value: 'Britannia',    diameter: 38.75 },
-                                { label: 'Maple Leaf',   value: 'Maple Leaf',   diameter: 38.15 },
-                                { label: 'National Tokens', value: 'National token',   diameter: 34.15 },
-                                { label: 'Krugerrand',   value: 'Krugerrand',   diameter: 32.92 },
-                            ]
-                        },
-                        pressed: {
-                            label: 'Pressed Pennies',
-                            icon: '🪙',
-                            elliptic: true,
-                            coins: [
-                                { label: 'Vertical', value: 'Penny 23×38', x: 23, y: 38 },
-                                { label: 'Horizontal', value: 'Penny 38×23', x: 38, y: 23 },
-                            ]
-                        }
+                        euro: { label: '€ Euro', coins: [
+                            ['2 €', 25.75], ['1 €', 23.4], ['0.50 €', 24.4], ['0.20 €', 22.4],
+                            ['0.10 €', 19.9], ['0.05 €', 21.4], ['0.02 €', 18.9], ['0.01 €', 16.4]
+                        ]},
+                        dollar: { label: '$ Dollar', coins: [
+                            ['50 ¢', 30.76], ['25 ¢', 24.41], ['10 ¢', 18.06],
+                            ['5 ¢', 21.36], ['1 ¢', 19.25], ['$ 1', 26.65]
+                        ]},
+                        pound: { label: '£ Pound', coins: [
+                            ['2£', 28.55], ['1£', 23.18], ['50p', 27.45], ['20p', 21.55],
+                            ['10p', 24.65], ['5p', 18.15], ['2p', 26.06], ['1p', 20.47]
+                        ]},
+                        australian: { label: 'A$ Australian', coins: [
+                            ['A$2', 20.65], ['A$1', 25.15], ['50c', 31.80], ['20c', 28.80],
+                            ['10c', 23.75], ['5c', 19.56], ['2c', 21.74], ['1c', 17.80]
+                        ]},
+                        canada: { label: 'C$ Canada', coins: [
+                            ['C$2', 28.15], ['C$1', 26.65], ['50¢', 27.28],
+                            ['25¢', 24.03], ['10¢', 18.18], ['5¢', 21.35]
+                        ]},
+                        yen: { label: '¥ Yen', coins: [
+                            ['¥500', 26.65], ['¥100', 22.75], ['¥50', 21.15],
+                            ['¥10', 23.65], ['¥5', 22.15], ['¥1', 20.15]
+                        ]},
+                        swiss: { label: 'CHF Swiss', coins: [
+                            ['5 Fr', 31.60], ['2 Fr', 27.55], ['1 Fr', 23.35], ['½ Fr', 18.35],
+                            ['20 rp', 21.20], ['10 rp', 19.30], ['5 rp', 17.30]
+                        ]},
+                        bullion: { label: 'Exonumia', coins: [
+                            ['Silver Eagle', 40.75], ['Britannia', 38.75], ['Maple Leaf', 38.15],
+                            ['National token', 34.15, 'National Tokens'], ['Krugerrand', 32.92]
+                        ]},
+                        pressed: { label: 'Pressed Pennies', elliptic: true, coins: [
+                            { label: 'Vertical', value: 'Penny 23×38', x: 23, y: 38 },
+                            { label: 'Horizontal', value: 'Penny 38×23', x: 38, y: 23 }
+                        ]}
                     };
 
                     /* ── Local state ───────────────────────────────────── */
@@ -7361,17 +7168,11 @@
                     /* ── Currency tab buttons ──────────────────────────── */
                     const tabRow = mkEl('div', { className: 'coach-row mb-3' });
                     Object.entries(CURRENCIES).forEach(([key, cur]) => {
-                        const isActive = key === activeCurrency;
                         const tab = mkEl('button', {
                             type: 'button',
-                            className: 'btn btn-sm coach-tab' + (isActive ? ' active' : ''),
+                            className: 'btn btn-sm coach-tab' + (key === activeCurrency ? ' active' : ''),
                             textContent: cur.label
                         });
-                        if (isActive) {
-                            tab.style.backgroundColor = '#cfe3cf';
-                            tab.style.color = '#344734';
-                            tab.style.borderColor = '#cfe3cf';
-                        }
                         tab.addEventListener('click', () => {
                             Coach.state.coinCurrency = key;
                             Coach.render();
@@ -7387,7 +7188,7 @@
                        stroke, centred label) and is tagged shapeType 'currency' so
                        it counts, arranges, persists and recolours like any coin. */
                     function addEllipseCoin(value, xMm, yMm) {
-                        if (typeof canvas === 'undefined' || !canvas || typeof fabric === 'undefined') return;
+                        if (!cv() || typeof fabric === 'undefined') return;
                         const scale = canvas.scale || 1;
                         const ellipse = new fabric.Ellipse({
                             rx: (xMm / 2) * scale,
@@ -7423,17 +7224,21 @@
                         canvas.add(group);
                         canvas.setActiveObject(group);
                         canvas.requestRenderAll();
-                        if (typeof saveState === 'function') saveState();
+                        engineSave();
                     }
 
                     /* ── Denomination rows ─────────────────────────────── */
                     const currency = CURRENCIES[activeCurrency];
+                    // Expand the compact [value, diameter, label?] tuples.
+                    const coinList = currency.coins.map(c => Array.isArray(c)
+                        ? { label: c[2] || c[0], value: c[0], diameter: c[1] }
+                        : c);
                     const denom = mkEl('div', { className: 'd-flex flex-column gap-2 mb-3' });
 
                     // rowControls keeps references so "Add all" can iterate them
                     const rowControls = [];
 
-                    currency.coins.forEach(coin => {
+                    coinList.forEach(coin => {
                         const qty = { value: 1 };
                         const row = mkEl('div', { className: 'd-flex align-items-center justify-content-center gap-2' });
 
@@ -7584,7 +7389,7 @@
 
                     /* ── Auto-arrange helper: tidy coins into rows inside the holder ── */
                     function autoArrangeRows() {
-                        if (typeof canvas === 'undefined' || !canvas) return;
+                        if (!cv()) return;
                         const coinCount = canvas.getObjects().filter(o => o.shapeType === 'currency').length;
                         if (coinCount > 1 && typeof Coach.arrange === 'function') {
                             Coach.arrange('rows');
@@ -7594,13 +7399,9 @@
                     /* ── Add all (non-zero) button — yellow + centered ─────── */
                     const addAllBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm',
+                        className: 'btn btn-sm coach-btn-yellow',
                         textContent: 'Add all selected above'
                     });
-                    // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
-                    addAllBtn.style.setProperty('background', '#ffc107', 'important');
-                    addAllBtn.style.setProperty('color', '#333', 'important');
-                    addAllBtn.style.setProperty('border-color', '#e0a800', 'important');
                     addAllBtn.addEventListener('click', () => {
                         Coach.state.coins = Coach.state.coins || {};
                         rowControls.forEach(({ coin, qtyInput }) => {
@@ -7620,15 +7421,11 @@
                     /* ── Delete all coins ─────────────────────────────────── */
                     const delAllBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm',
+                        className: 'btn btn-sm coach-btn-red',
                         textContent: 'Delete all coins'
                     });
-                    // Red needs !important to beat the coach's ".btn{background!important}" rule.
-                    delAllBtn.style.setProperty('background', '#dc3545', 'important');
-                    delAllBtn.style.setProperty('color', '#fff', 'important');
-                    delAllBtn.style.setProperty('border-color', '#b02a37', 'important');
                     delAllBtn.addEventListener('click', () => {
-                        if (typeof canvas === 'undefined' || !canvas) return;
+                        if (!cv()) return;
                         canvas.getObjects()
                             .filter(o => o.shapeType === 'currency')
                             .forEach(o => canvas.remove(o));
@@ -7636,7 +7433,7 @@
                         canvas.requestRenderAll();
                         Coach.state.coins = {};
                         updateTally();
-                        if (typeof saveState === 'function') saveState();
+                        engineSave();
                     });
 
                     const addAllWrap = mkEl('div', { className: 'coach-row coach-row-2 mb-3' });
@@ -7668,35 +7465,27 @@
                 renderAction(el) {
                     el.innerHTML = '';
 
-                    // Intro paragraph
-                    const intro = document.createElement('p');
-                    intro.className = 'mb-3';
-                    intro.textContent = this.intro;
-                    el.appendChild(intro);
+                    el.appendChild(mkEl('p', { className: 'mb-3', textContent: this.intro }));
 
                     // Nudge element (hidden until a button returns false)
-                    const nudge = document.createElement('p');
-                    nudge.className = 'small text-warning mb-2';
-                    nudge.textContent = 'Add a holder and some coins first.';
-                    nudge.style.display = 'none';
+                    const nudge = mkEl('p', {
+                        className: 'small text-warning mb-2',
+                        textContent: 'Add a holder and some coins first.',
+                        style: 'display:none'
+                    });
                     el.appendChild(nudge);
 
-                    const showNudge = (ok) => {
-                        nudge.style.display = ok ? 'none' : '';
-                    };
-
                     // Layout buttons — max two per row
-                    const btnRow = document.createElement('div');
-                    btnRow.className = 'coach-row coach-row-2 mb-3';
+                    const btnRow = mkEl('div', { className: 'coach-row coach-row-2 mb-3' });
 
                     const makeArrangeBtn = (label, iconClass, patternKey) => {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'btn btn-sm btn-outline-light';
-                        btn.innerHTML = `<i class="${iconClass} me-1"></i>${label}`;
+                        const btn = mkEl('button', {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-light',
+                            innerHTML: `<i class="${iconClass} me-1"></i>${label}`
+                        });
                         btn.addEventListener('click', () => {
-                            const ok = Coach.arrange(patternKey);
-                            showNudge(ok);
+                            nudge.style.display = Coach.arrange(patternKey) ? 'none' : '';
                         });
                         return btn;
                     };
@@ -7708,26 +7497,17 @@
 
                     // Yellow accent button — moves all coins into tidy rows above the holder.
                     const outsideBtn = makeArrangeBtn('Move coins above the holder', 'fas fa-arrow-up', 'outside');
-                    // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
-                    outsideBtn.style.setProperty('background', '#ffc107', 'important');
-                    outsideBtn.style.setProperty('color', '#333', 'important');
-                    outsideBtn.style.setProperty('border-color', '#e0a800', 'important');
+                    outsideBtn.classList.add('coach-btn-yellow');
                     // Moving coins above the holder can push them out of view — fit then.
                     outsideBtn.addEventListener('click', () => Coach.fitIfNeeded());
                     btnRow.appendChild(outsideBtn);
                     el.appendChild(btnRow);
 
                     // Hint for the shape-conforming layout
-                    const shapeHint = document.createElement('p');
-                    shapeHint.className = 'small text-muted mb-2';
-                    shapeHint.textContent = "Arrange your coins to follow the holder's shape, then drag any coin to fine-tune.";
-                    el.appendChild(shapeHint);
-
-                    // Muted note
-                    // const note = document.createElement('p');
-                    // note.className = 'small text-muted mb-0';
-                    // note.textContent = 'Or just drag the coins around the canvas yourself.';
-                    // el.appendChild(note);
+                    el.appendChild(mkEl('p', {
+                        className: 'small text-muted mb-2',
+                        textContent: "Arrange your coins to follow the holder's shape, then drag any coin to fine-tune."
+                    }));
                 }
             },
             {
@@ -7743,28 +7523,15 @@
                 renderAction(el) {
                     el.innerHTML = '';
 
-                    /* ── Intro ───────────────────────────────────────── */
-                    const intro = document.createElement('p');
-                    intro.className = 'mb-1';
-                    intro.textContent = this.intro;
-                    el.appendChild(intro);
-
-                    const muted = document.createElement('p');
-                    muted.className = 'text-muted small mb-3';
-                    muted.textContent = 'All optional — add what you like, or move on.';
-                    el.appendChild(muted);
+                    el.appendChild(mkEl('p', { className: 'mb-1', textContent: this.intro }));
+                    el.appendChild(mkEl('p', { className: 'text-muted small mb-3', textContent: 'All optional — add what you like, or move on.' }));
 
                     /* ── Helper: section label ───────────────────────── */
-                    function sectionLabel(text) {
-                        const lbl = document.createElement('div');
-                        lbl.className = 'fw-semibold small mb-1 mt-2';
-                        lbl.textContent = text;
-                        return lbl;
-                    }
+                    const sectionLabel = (text) => mkEl('div', { className: 'fw-semibold small mb-1 mt-2', textContent: text });
 
                     /* Capture the next non-coin object added and size it to the holder. */
                     function captureAndSize(mode, engraveFill) {
-                        if (typeof canvas === 'undefined' || !canvas) return;
+                        if (!cv()) return;
                         if (Coach._pendingSizeHandler) {
                             canvas.off('object:added', Coach._pendingSizeHandler);
                             clearTimeout(Coach._pendingSizeTimeout);
@@ -7801,17 +7568,9 @@
                     /* ── 1. Engraving text ───────────────────────────── */
                     el.appendChild(sectionLabel('Add a name or message'));
 
-                    const textRow = document.createElement('div');
-                    textRow.className = 'd-flex gap-2 mb-2';
-
-                    const textInput = document.createElement('input');
-                    textInput.type = 'text';
-                    textInput.className = 'form-control form-control-sm';
-                    textInput.placeholder = 'Your text…';
-
-                    const addTextBtn = document.createElement('button');
-                    addTextBtn.className = 'btn btn-sm btn-outline-light text-nowrap';
-                    addTextBtn.textContent = 'Add text';
+                    const textRow = mkEl('div', { className: 'd-flex gap-2 mb-2' });
+                    const textInput = mkEl('input', { type: 'text', className: 'form-control form-control-sm', placeholder: 'Your text…' });
+                    const addTextBtn = mkEl('button', { className: 'btn btn-sm btn-outline-light text-nowrap', textContent: 'Add text' });
                     addTextBtn.addEventListener('click', () => {
                         if (typeof addText === 'function') {
                             addText();
@@ -7827,7 +7586,7 @@
                                     // (brown on wood, grey on plastic) and stays in sync on changes.
                                     if (typeof Coach.applyEngrave === 'function') Coach.applyEngrave(obj, true);
                                     if (canvas.requestRenderAll) canvas.requestRenderAll();
-                                    if (typeof saveState === 'function') saveState();
+                                    engineSave();
                                 }
                             }
                             // Coins stay on top of any newly-added text too.
@@ -7845,32 +7604,19 @@
                     /* ── 2. Country outline ──────────────────────────── */
                     el.appendChild(sectionLabel('Add a country shape'));
 
-                    const countryToggleBtn = document.createElement('button');
-                    countryToggleBtn.className = 'btn btn-sm btn-outline-light mb-2';
-                    countryToggleBtn.textContent = 'Choose country…';
+                    const countryToggleBtn = mkEl('button', { className: 'btn btn-sm btn-outline-light mb-2', textContent: 'Choose country…' });
 
-                    const countryPanel = document.createElement('div');
-                    countryPanel.className = 'mb-2';
-                    countryPanel.style.display = 'none';
+                    const countryPanel = mkEl('div', { className: 'mb-2', style: 'display:none' });
 
                     /* Filled / Outline mode toggle */
-                    const modeRow = document.createElement('div');
-                    modeRow.className = 'd-flex gap-2 mb-2 align-items-center';
-
-                    const modeLabel = document.createElement('span');
-                    modeLabel.className = 'small text-muted';
-                    modeLabel.textContent = 'Style:';
+                    const modeRow = mkEl('div', { className: 'd-flex gap-2 mb-2 align-items-center' });
+                    const modeLabel = mkEl('span', { className: 'small text-muted', textContent: 'Style:' });
 
                     let countryMode = 'filled';   // default: filled
 
                     // Both green buttons; the selected one gets the light-green ".active" look.
-                    const filledBtn = document.createElement('button');
-                    filledBtn.className = 'btn btn-sm';
-                    filledBtn.innerHTML = '<i class="fas fa-square"></i> Filled';
-
-                    const outlineBtn = document.createElement('button');
-                    outlineBtn.className = 'btn btn-sm';
-                    outlineBtn.innerHTML = '<i class="far fa-square"></i> Outline';
+                    const filledBtn = mkEl('button', { className: 'btn btn-sm', innerHTML: '<i class="fas fa-square"></i> Filled' });
+                    const outlineBtn = mkEl('button', { className: 'btn btn-sm', innerHTML: '<i class="far fa-square"></i> Outline' });
 
                     function updateModeButtons() {
                         filledBtn.classList.toggle('active', countryMode === 'filled');
@@ -7886,27 +7632,23 @@
                     modeRow.appendChild(outlineBtn);
                     countryPanel.appendChild(modeRow);
 
-                    const modeHint = document.createElement('p');
-                    modeHint.className = 'small text-muted mb-2';
-                    modeHint.textContent = 'Filled = a solid shape · Outline = just the border.';
-                    countryPanel.appendChild(modeHint);
+                    countryPanel.appendChild(mkEl('p', {
+                        className: 'small text-muted mb-2',
+                        textContent: 'Filled = a solid shape · Outline = just the border.'
+                    }));
 
                     /* Country buttons (step 7 adds Europe + World over the base list) */
                     const countries = Coach.COUNTRY_OPTIONS_STEP7;
 
-                    const countryGrid = document.createElement('div');
-                    countryGrid.className = 'd-flex flex-wrap gap-1 coach-btns';
+                    const countryGrid = mkEl('div', { className: 'd-flex flex-wrap gap-1 coach-btns' });
 
                     countries.forEach(({ key, label }) => {
-                        const btn = document.createElement('button');
-                        btn.className = 'btn btn-sm btn-outline-light';
-                        btn.textContent = label;
-                        btn.dataset.country = key;
                         // Same slate-blue accent as the step-2 country buttons.
-                        // !important beats the coach's ".btn{background:#344734!important}" rule.
-                        btn.style.setProperty('background', '#5e7a8c', 'important');
-                        btn.style.setProperty('border-color', '#4d6675', 'important');
-                        btn.style.setProperty('color', '#fff', 'important');
+                        const btn = mkEl('button', {
+                            className: 'btn btn-sm btn-outline-light coach-btn-country',
+                            textContent: label
+                        });
+                        btn.dataset.country = key;
                         btn.addEventListener('click', () => {
                             if (countryMode === 'filled') {
                                 captureAndSize(null, true); // size + tint the fill to the material's engrave colour
@@ -7927,8 +7669,7 @@
                         countryToggleBtn.textContent = hidden ? 'Hide countries' : 'Choose country…';
                     });
 
-                    const countryToggleRow = document.createElement('div');
-                    countryToggleRow.className = 'coach-row mb-2';
+                    const countryToggleRow = mkEl('div', { className: 'coach-row mb-2' });
                     countryToggleRow.appendChild(countryToggleBtn);
                     el.appendChild(countryToggleRow);
                     el.appendChild(countryPanel);
@@ -7936,16 +7677,13 @@
                     /* ── 3. Upload a logo / image ────────────────────── */
                     el.appendChild(sectionLabel('Add a logo or image'));
 
-                    const uploadBtn = document.createElement('button');
-                    uploadBtn.className = 'btn btn-sm btn-outline-light mb-1';
-                    uploadBtn.textContent = 'Upload image…';
+                    const uploadBtn = mkEl('button', { className: 'btn btn-sm btn-outline-light mb-1', textContent: 'Upload image…' });
                     uploadBtn.addEventListener('click', () => {
                         captureAndSize('height'); // load image at the holder's height (aspect preserved)
                         document.getElementById('imageUpload')?.click();
                     });
 
-                    const uploadRow = document.createElement('div');
-                    uploadRow.className = 'coach-row';
+                    const uploadRow = mkEl('div', { className: 'coach-row' });
                     uploadRow.appendChild(uploadBtn);
                     el.appendChild(uploadRow);
 
@@ -7959,15 +7697,11 @@
                     const tintRow = mkEl('div', { className: 'coach-row mt-1' });
                     const tintBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm',
+                        className: 'btn btn-sm coach-btn-yellow',
                         textContent: 'Preview engraved look'
                     });
-                    // Yellow needs !important to beat the coach's ".btn{background!important}" rule.
-                    tintBtn.style.setProperty('background', '#ffc107', 'important');
-                    tintBtn.style.setProperty('color', '#333', 'important');
-                    tintBtn.style.setProperty('border-color', '#e0a800', 'important');
                     const pickEngraveTarget = function() {
-                        if (typeof canvas === 'undefined' || !canvas) return null;
+                        if (!cv()) return null;
                         const active = canvas.getActiveObject();
                         if (active && (active.type === 'image' || active.type === 'text' || active.type === 'i-text')) return active;
                         const imgs = canvas.getObjects().filter(function(o) { return o.type === 'image'; });
@@ -8004,13 +7738,9 @@
                     const trimRow = mkEl('div', { className: 'coach-row mt-1' });
                     const trimBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm',
+                        className: 'btn btn-sm coach-btn-yellow',
                         textContent: 'Remove excess'
                     });
-                    // Yellow accent (beats the coach's ".btn{background!important}" rule).
-                    trimBtn.style.setProperty('background', '#ffc107', 'important');
-                    trimBtn.style.setProperty('color', '#333', 'important');
-                    trimBtn.style.setProperty('border-color', '#e0a800', 'important');
                     trimRow.appendChild(trimBtn);
                     el.appendChild(trimRow);
                     // NOTE: `.coach-row` is `display:flex !important`, so a plain
@@ -8026,7 +7756,7 @@
                     // overflows, else the topmost overflowing candidate. Builds
                     // the holder silhouette once and reuses it across candidates.
                     const pickExcessTarget = function() {
-                        if (typeof canvas === 'undefined' || !canvas) return null;
+                        if (!cv()) return null;
                         const holder = Coach.currentHolder();
                         if (!holder) return null;
                         const field = Coach._holderDistanceField(holder);
@@ -8056,7 +7786,7 @@
 
                     // Keep the label correct as the customer selects different objects.
                     // Drop the previous step-render's listeners first so they don't stack.
-                    if (typeof canvas !== 'undefined' && canvas) {
+                    if (cv()) {
                         const SEL_EVENTS = ['selection:created', 'selection:updated', 'selection:cleared'];
                         if (Coach._tintSyncHandler) {
                             SEL_EVENTS.forEach(function(ev) { canvas.off(ev, Coach._tintSyncHandler); });
@@ -8114,22 +7844,22 @@
                     // Add one free-floating hole to position by hand.
                     const singleBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add one fixture' });
                     singleBtn.addEventListener('click', () => {
-                        if (typeof canvas === 'undefined' || !canvas) return;
+                        if (!cv()) return;
                         const scale = canvas.scale || 1;
                         const fx = Coach.makeFixtureCircle(canvas.width / 2, canvas.height / 2, scale);
                         canvas.add(fx);
                         canvas.setActiveObject(fx); // selected → ready to drag into place
                         canvas.requestRenderAll();
-                        if (typeof saveState === 'function') saveState();
+                        engineSave();
                         nudge.style.display = 'none';
                     });
 
                     const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove all fixtures' });
                     clearBtn.addEventListener('click', () => {
-                        if (typeof canvas === 'undefined' || !canvas) return;
+                        if (!cv()) return;
                         canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
                         canvas.requestRenderAll();
-                        if (typeof saveState === 'function') saveState();
+                        engineSave();
                         nudge.style.display = 'none';
                     });
 
@@ -8183,11 +7913,7 @@
                 renderAction(el) {
                     el.innerHTML = '';
 
-                    /* ── Intro ──────────────────────────────────────────── */
-                    const introP = document.createElement('p');
-                    introP.className = 'mb-3';
-                    introP.textContent = this.intro;
-                    el.appendChild(introP);
+                    el.appendChild(mkEl('p', { className: 'mb-3', textContent: this.intro }));
 
                     /* ── Helper: safe size string ──────────────────────────
                        Reports the actual HOLDER size (the largest shape on the
@@ -8195,7 +7921,7 @@
                        holder's current scaled pixel size to mm via canvas.scale,
                        the same conversion the step-2 size inputs use. ── */
                     function sizeString() {
-                        if (typeof canvas === 'undefined' || !canvas || typeof canvas.getObjects !== 'function') return '—';
+                        if (!cv()) return '—';
                         const scale = canvas.scale ? canvas.scale : 1;
 
                         // Prefer the resolved holder; fall back to the largest non-coin shape.
@@ -8234,18 +7960,10 @@
                     }
 
                     /* ── Summary ────────────────────────────────────────── */
-                    const summaryDiv = document.createElement('div');
-                    summaryDiv.className = 'mb-3 p-2 rounded';
-                    summaryDiv.style.cssText = 'background:#f5f5f5; font-size:0.85rem;';
-
-                    const ul = document.createElement('ul');
-                    ul.className = 'mb-0 ps-3';
-
-                    function addItem(label, value) {
-                        const li = document.createElement('li');
-                        li.innerHTML = '<strong>' + label + ':</strong> ' + value;
-                        ul.appendChild(li);
-                    }
+                    const summaryDiv = mkEl('div', { className: 'mb-3 p-2 rounded', style: 'background:#f5f5f5; font-size:0.85rem;' });
+                    const ul = mkEl('ul', { className: 'mb-0 ps-3' });
+                    const addItem = (label, value) =>
+                        ul.appendChild(mkEl('li', { innerHTML: '<strong>' + label + ':</strong> ' + value }));
 
                     /* Holder type & size */
                     addItem('Holder', (Coach.state.holderType || '—') + ', ' + sizeString());
@@ -8255,7 +7973,7 @@
 
                     /* Coins */
                     const coinItems = [];
-                    if (typeof canvas !== 'undefined' && canvas && typeof canvas.getObjects === 'function') {
+                    if (cv()) {
                         const coinTally = {};
                         canvas.getObjects().forEach(function(o) {
                             if (o.shapeType === 'currency') {
@@ -8273,7 +7991,7 @@
                     addItem('Coins', coinItems.length ? coinItems[0] : 'No coins yet');
 
                     /* Extras */
-                    if (typeof canvas !== 'undefined' && canvas && typeof canvas.getObjects === 'function') {
+                    if (cv()) {
                         const allObjs = canvas.getObjects();
                         const textCount = allObjs.filter(function(o) { return o.shapeType === 'text'; }).length;
                         const countryCount = allObjs.filter(function(o) { return o.shapeType === 'country'; }).length;
@@ -8303,14 +8021,13 @@
                        "Finish up" actions. The coach forces
                        ".btn{background:#344734!important}", so each colour is set
                        with !important to match the right-panel Bootstrap colours. */
-                    const btnRow = document.createElement('div');
-                    btnRow.className = 'd-flex flex-column gap-2';
+                    const btnRow = mkEl('div', { className: 'd-flex flex-column gap-2' });
 
                     const mkActionBtn = function(label, iconClass, bg, fg, border, onClick) {
-                        const b = document.createElement('button');
-                        b.type = 'button';
-                        b.className = 'btn btn-sm';
-                        b.innerHTML = '<i class="' + iconClass + '"></i> ' + label;
+                        const b = mkEl('button', {
+                            type: 'button', className: 'btn btn-sm',
+                            innerHTML: '<i class="' + iconClass + '"></i> ' + label
+                        });
                         b.style.setProperty('background', bg, 'important');
                         b.style.setProperty('color', fg, 'important');
                         b.style.setProperty('border-color', border, 'important');
@@ -8329,11 +8046,10 @@
                     btnRow.appendChild(mkActionBtn('Save project to a file', 'fas fa-floppy-disk',
                         '#6c757d', '#fff', '#6c757d', function() { Coach.persist.exportToFile(); }));
 
-                    const saveNote = document.createElement('p');
-                    saveNote.className = 'small mb-0';
-                    saveNote.style.opacity = '0.8';
-                    saveNote.textContent = 'Saves an editable copy you can re-open later with “Load a saved project”.';
-                    btnRow.appendChild(saveNote);
+                    btnRow.appendChild(mkEl('p', {
+                        className: 'small mb-0', style: 'opacity:0.8',
+                        textContent: 'Saves an editable copy you can re-open later with “Load a saved project”.'
+                    }));
 
                     btnRow.appendChild(mkActionBtn('Start over', 'fas fa-sync-alt',
                         '#ffc107', '#333', '#e0a800', function() { Coach.startOver(); }));
