@@ -7833,7 +7833,7 @@
                     bendSlider.type = 'range';
                     bendSlider.min = '-100';
                     bendSlider.max = '100';
-                    bendSlider.step = '5';
+                    bendSlider.step = '1';
                     const bendTarget0 = bendPick();
                     bendSlider.value = String((bendTarget0 && bendTarget0.bendAmount) || 0);
                     const syncBendLabel = function() { bendLabel.textContent = 'Bend: ' + bendSlider.value; };
