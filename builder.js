@@ -3562,6 +3562,9 @@
                             if (obj.currencyType) cloned.currencyType = obj.currencyType;
                             if (obj.coinValue) cloned.coinValue = obj.coinValue;
                             if (obj.realDiameter) cloned.realDiameter = obj.realDiameter;
+                            if (obj.bendSourceText) cloned.bendSourceText = obj.bendSourceText;
+                            if (obj.bendAmount) cloned.bendAmount = obj.bendAmount;
+                            if (obj.bendFontFamily) cloned.bendFontFamily = obj.bendFontFamily;
                             
                             cloned.setCoords();
                             canvas.add(cloned);
@@ -3601,6 +3604,9 @@
                         if (activeObject.currencyType) cloned.currencyType = activeObject.currencyType;
                         if (activeObject.coinValue) cloned.coinValue = activeObject.coinValue;
                         if (activeObject.realDiameter) cloned.realDiameter = activeObject.realDiameter;
+                        if (activeObject.bendSourceText) cloned.bendSourceText = activeObject.bendSourceText;
+                        if (activeObject.bendAmount) cloned.bendAmount = activeObject.bendAmount;
+                        if (activeObject.bendFontFamily) cloned.bendFontFamily = activeObject.bendFontFamily;
                         
                         cloned.setCoords();
                         canvas.add(cloned);
@@ -3673,7 +3679,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);
@@ -4695,7 +4701,8 @@
             'shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius',
             'realRx', 'realRy', 'realFontSize', 'realCornerRadius',
             'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
-            '_coachEngrave', '_coachOrigFill', 'coachAspectLocked', '_coachClipped'
+            '_coachEngrave', '_coachOrigFill', 'coachAspectLocked', '_coachClipped',
+            'bendSourceText', 'bendAmount', 'bendFontFamily'
         ];
 
         /* ── Coach.COUNTRY_OPTIONS ─────────────────────────────────────
@@ -5355,6 +5362,122 @@
             canvas.getObjects().forEach(function(o) {
                 if (Coach.isEngraved(o)) Coach.applyEngrave(o, true);
             });
+        };
+
+        /* ── Coach.bendText ──────────────────────────────
+           Bend single-line text into an arc, baked to a vector path with
+           opentype (the same engine the SVG export uses, so the canvas and
+           the exported file match exactly). amount −100…100 maps to an arc
+           of up to ±180°; the radius follows from text length and angle;
+           amount 0 restores an editable text object. The path carries
+           bendSourceText / bendFontFamily / bendAmount / realFontSize so the
+           bend stays adjustable after duplicate, save and resume. Engrave
+           state carries over (a bent path recolours via applyEngrave's
+           shape branch). Returns the replacement object, or null. */
+        Coach.BEND_MAX_RAD = Math.PI; // |amount| = 100 → a 180° arc
+        Coach.bendText = async function(obj, amount) {
+            if (!obj || !cv() || typeof loadFont !== 'function' || typeof fabric === 'undefined') return null;
+            const isText = obj.type === 'text' || obj.type === 'i-text';
+            const isBent = obj.shapeType === 'bentText';
+            if (!isText && !isBent) return null;
+            const srcText = isText ? (obj.text || '') : (obj.bendSourceText || '');
+            if (!srcText.trim() || srcText.indexOf('\n') !== -1) return null; // single-line only
+            amount = Math.max(-100, Math.min(100, Math.round(amount || 0)));
+            if (amount === (isBent ? (obj.bendAmount || 0) : 0)) return obj; // no change
+            const fontFamily = isText ? (obj.fontFamily || 'Roboto') : (obj.bendFontFamily || 'Roboto');
+            const realFontSize = obj.realFontSize || 24;
+            const scale = canvas.scale || 1;
+            const centre = obj.getCenterPoint();
+            const keep = {
+                angle: obj.angle || 0,
+                fill: obj.fill,
+                materialType: obj.materialType || 'color',
+                engraved: obj._coachEngrave,
+                origFill: obj._coachOrigFill
+            };
+
+            let next;
+            if (amount === 0) {
+                // Straighten: back to an ordinary editable text object.
+                next = new fabric.IText(srcText, {
+                    fontSize: realFontSize * scale,
+                    fill: keep.fill,
+                    fontFamily: fontFamily,
+                    originX: 'center',
+                    originY: 'center'
+                });
+                next.shapeType = 'text';
+            } else {
+                const font = await loadFont(fontFamily);
+                const sizePx = realFontSize * scale;
+                const theta = (amount / 100) * Coach.BEND_MAX_RAD; // signed arc angle
+                const chars = srcText.split('');
+                const adv = chars.map(function(ch) { return font.getAdvanceWidth(ch, sizePx); });
+                const total = adv.reduce(function(a, b) { return a + b; }, 0);
+                if (!total) return null;
+                const R = total / Math.abs(theta); // radius from text length + angle
+                const s = theta > 0 ? 1 : -1;      // +: arch up (∩), −: curve down (∪)
+                // Each character's baseline midpoint sits on the arc, rotated to
+                // the local tangent; glyph outlines are transformed point-by-point
+                // into one combined path (canvas y grows downward).
+                const parts = [];
+                let run = 0;
+                for (let i = 0; i < chars.length; i++) {
+                    const half = adv[i] / 2;
+                    const mid = run + half;
+                    run += adv[i];
+                    if (!chars[i].trim()) continue; // spaces contribute advance only
+                    const phi = (mid / total - 0.5) * Math.abs(theta);
+                    const rot = s * phi;
+                    const cosr = Math.cos(rot), sinr = Math.sin(rot);
+                    const px = R * Math.sin(phi);
+                    const py = s * R * (1 - Math.cos(phi));
+                    font.getPath(chars[i], 0, 0, sizePx).commands.forEach(function(c) {
+                        const t = { type: c.type };
+                        ['', '1', '2'].forEach(function(suf) {
+                            const xk = 'x' + suf, yk = 'y' + suf;
+                            if (c[xk] === undefined) return;
+                            const dx = c[xk] - half, dy = c[yk];
+                            t[xk] = px + dx * cosr - dy * sinr;
+                            t[yk] = py + dx * sinr + dy * cosr;
+                        });
+                        parts.push(t);
+                    });
+                }
+                const d = parts.map(function(c) {
+                    const f = function(n) { return n.toFixed(2); };
+                    switch (c.type) {
+                        case 'M': return 'M' + f(c.x) + ' ' + f(c.y);
+                        case 'L': return 'L' + f(c.x) + ' ' + f(c.y);
+                        case 'C': return 'C' + f(c.x1) + ' ' + f(c.y1) + ' ' + f(c.x2) + ' ' + f(c.y2) + ' ' + f(c.x) + ' ' + f(c.y);
+                        case 'Q': return 'Q' + f(c.x1) + ' ' + f(c.y1) + ' ' + f(c.x) + ' ' + f(c.y);
+                        default: return 'Z';
+                    }
+                }).join(' ');
+                if (!d) return null;
+                next = new fabric.Path(d, {
+                    fill: keep.fill,
+                    originX: 'center',
+                    originY: 'center'
+                });
+                next.shapeType = 'bentText';
+                next.bendSourceText = srcText;
+                next.bendFontFamily = fontFamily;
+                next.bendAmount = amount;
+            }
+            next.set({ left: centre.x, top: centre.y, angle: keep.angle });
+            next.realFontSize = realFontSize;
+            next.materialType = keep.materialType;
+            if (keep.engraved !== undefined) next._coachEngrave = keep.engraved;
+            if (keep.origFill !== undefined) next._coachOrigFill = keep.origFill;
+            next.setCoords();
+            canvas.remove(obj);
+            canvas.add(next);
+            canvas.setActiveObject(next);
+            if (typeof Coach.raiseCoinsToFront === 'function') Coach.raiseCoinsToFront();
+            canvas.requestRenderAll();
+            engineSave();
+            return next;
         };
 
 
@@ -7690,6 +7813,71 @@
                     textRow.appendChild(addTextBtn);
                     el.appendChild(textRow);
 
+                    /* ── Bend the text (slider → arc, baked to a vector path) ──
+                       Acts on the selected text / bent text, or the most recent
+                       one. 0 = straight (editable text); ± bends up/down. The
+                       opentype bake is async, so slider input is debounced and
+                       serialised — the newest value always wins. */
+                    const bendRow = mkEl('div', { className: 'd-flex gap-2 align-items-center mb-1' });
+                    const bendPick = function() {
+                        if (!cv()) return null;
+                        const a = canvas.getActiveObject();
+                        if (a && (a.type === 'text' || a.type === 'i-text' || a.shapeType === 'bentText')) return a;
+                        const cands = canvas.getObjects().filter(function(o) {
+                            return o.type === 'text' || o.type === 'i-text' || o.shapeType === 'bentText';
+                        });
+                        return cands.length ? cands[cands.length - 1] : null;
+                    };
+                    const bendLabel = mkEl('span', { className: 'small text-nowrap' });
+                    const bendSlider = mkEl('input', { className: 'form-range' });
+                    bendSlider.type = 'range';
+                    bendSlider.min = '-100';
+                    bendSlider.max = '100';
+                    bendSlider.step = '5';
+                    const bendTarget0 = bendPick();
+                    bendSlider.value = String((bendTarget0 && bendTarget0.bendAmount) || 0);
+                    const syncBendLabel = function() { bendLabel.textContent = 'Bend: ' + bendSlider.value; };
+                    syncBendLabel();
+                    const bendNudge = mkEl('p', { className: 'small text-warning mb-1' });
+                    bendNudge.style.display = 'none';
+                    let bendTimer = null, bendBusy = false, bendAgain = null;
+                    const applyBend = function(v) {
+                        const t = bendPick();
+                        if (!t) {
+                            bendNudge.textContent = 'Add or select a text first, then bend it.';
+                            bendNudge.style.display = '';
+                            return;
+                        }
+                        if ((t.type === 'text' || t.type === 'i-text') && (t.text || '').indexOf('\n') !== -1) {
+                            bendNudge.textContent = 'Bending works on single-line text.';
+                            bendNudge.style.display = '';
+                            return;
+                        }
+                        bendNudge.style.display = 'none';
+                        if (bendBusy) { bendAgain = v; return; }
+                        bendBusy = true;
+                        Coach.bendText(t, v).then(function() {
+                            bendBusy = false;
+                            if (bendAgain !== null) {
+                                const nv = bendAgain;
+                                bendAgain = null;
+                                applyBend(nv);
+                            }
+                        }).catch(function(err) {
+                            bendBusy = false;
+                            console.warn('bendText failed', err);
+                        });
+                    };
+                    bendSlider.addEventListener('input', function() {
+                        syncBendLabel();
+                        if (bendTimer) clearTimeout(bendTimer);
+                        bendTimer = setTimeout(function() { applyBend(parseInt(bendSlider.value, 10) || 0); }, 180);
+                    });
+                    bendRow.appendChild(bendLabel);
+                    bendRow.appendChild(bendSlider);
+                    el.appendChild(bendRow);
+                    el.appendChild(bendNudge);
+
                     /* ── 2. Country outline ──────────────────────────── */
                     el.appendChild(sectionLabel('Add a country shape'));
 
@@ -7801,7 +7989,7 @@
                     const pickEngraveTarget = function() {
                         if (!cv()) return null;
                         const active = canvas.getActiveObject();
-                        if (active && (active.type === 'image' || active.type === 'text' || active.type === 'i-text')) return active;
+                        if (active && (active.type === 'image' || active.type === 'text' || active.type === 'i-text' || active.shapeType === 'bentText')) return active;
                         const imgs = canvas.getObjects().filter(function(o) { return o.type === 'image'; });
                         return imgs.length ? imgs[imgs.length - 1] : null;
                     };

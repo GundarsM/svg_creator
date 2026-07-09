@@ -3281,6 +3281,9 @@
                             if (obj.currencyType) cloned.currencyType = obj.currencyType;
                             if (obj.coinValue) cloned.coinValue = obj.coinValue;
                             if (obj.realDiameter) cloned.realDiameter = obj.realDiameter;
+                            if (obj.bendSourceText) cloned.bendSourceText = obj.bendSourceText;
+                            if (obj.bendAmount) cloned.bendAmount = obj.bendAmount;
+                            if (obj.bendFontFamily) cloned.bendFontFamily = obj.bendFontFamily;
                             
                             cloned.setCoords();
                             canvas.add(cloned);
@@ -3320,6 +3323,9 @@
                         if (activeObject.currencyType) cloned.currencyType = activeObject.currencyType;
                         if (activeObject.coinValue) cloned.coinValue = activeObject.coinValue;
                         if (activeObject.realDiameter) cloned.realDiameter = activeObject.realDiameter;
+                        if (activeObject.bendSourceText) cloned.bendSourceText = activeObject.bendSourceText;
+                        if (activeObject.bendAmount) cloned.bendAmount = activeObject.bendAmount;
+                        if (activeObject.bendFontFamily) cloned.bendFontFamily = activeObject.bendFontFamily;
                         
                         cloned.setCoords();
                         canvas.add(cloned);
@@ -3392,7 +3398,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);
