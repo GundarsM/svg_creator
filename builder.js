@@ -7834,13 +7834,31 @@
                     bendSlider.min = '-100';
                     bendSlider.max = '100';
                     bendSlider.step = '1';
-                    const bendTarget0 = bendPick();
-                    bendSlider.value = String((bendTarget0 && bendTarget0.bendAmount) || 0);
                     const syncBendLabel = function() { bendLabel.textContent = 'Bend: ' + bendSlider.value; };
-                    syncBendLabel();
                     const bendNudge = mkEl('p', { className: 'small text-warning mb-1' });
                     bendNudge.style.display = 'none';
                     let bendTimer = null, bendBusy = false, bendAgain = null;
+                    // The slider must track whatever text is (or becomes) the bend
+                    // target — selection changes AND project loads/resumes that swap
+                    // the canvas content under an already-rendered panel.
+                    const syncBendUI = function() {
+                        if (bendTimer || bendBusy) return; // don't fight a drag/bake in flight
+                        const t = bendPick();
+                        bendSlider.value = String((t && t.bendAmount) || 0);
+                        syncBendLabel();
+                    };
+                    syncBendUI();
+                    // Handlers self-detach once this panel is replaced by a re-render
+                    // (same isConnected pattern as the trim watcher).
+                    const bendSyncEvents = ['selection:created', 'selection:updated', 'selection:cleared', 'object:added', 'object:removed'];
+                    const onBendSync = function() {
+                        if (!bendRow.isConnected) {
+                            bendSyncEvents.forEach(function(ev) { canvas.off(ev, onBendSync); });
+                            return;
+                        }
+                        syncBendUI();
+                    };
+                    if (cv()) bendSyncEvents.forEach(function(ev) { canvas.on(ev, onBendSync); });
                     const applyBend = function(v) {
                         const t = bendPick();
                         if (!t) {
@@ -7871,7 +7889,10 @@
                     bendSlider.addEventListener('input', function() {
                         syncBendLabel();
                         if (bendTimer) clearTimeout(bendTimer);
-                        bendTimer = setTimeout(function() { applyBend(parseInt(bendSlider.value, 10) || 0); }, 180);
+                        bendTimer = setTimeout(function() {
+                            bendTimer = null; // clear BEFORE the bake so syncBendUI isn't gated forever
+                            applyBend(parseInt(bendSlider.value, 10) || 0);
+                        }, 180);
                     });
                     bendRow.appendChild(bendLabel);
                     bendRow.appendChild(bendSlider);
