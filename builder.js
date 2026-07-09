@@ -4522,6 +4522,24 @@
                             const t = opt && opt.target;
                             if (t && t.shapeType === 'bentText') Coach.editBentText(t);
                         });
+                        // Text measured before the web fonts land (typically a
+                        // project resumed at page load) caches fallback-font
+                        // character widths — bounding boxes come out shorter than
+                        // the glyphs. Once fonts are ready, drop the cache and
+                        // re-measure whatever text is already on the canvas.
+                        if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+                            document.fonts.ready.then(function() {
+                                if (!cv() || !fabric.util || typeof fabric.util.clearFabricFontCache !== 'function') return;
+                                fabric.util.clearFabricFontCache();
+                                canvas.getObjects().forEach(function(o) {
+                                    if (o.type === 'i-text' || o.type === 'text') {
+                                        o.initDimensions();
+                                        o.setCoords();
+                                    }
+                                });
+                                canvas.requestRenderAll();
+                            });
+                        }
                         // (The "Start over" ↺ control lives on the step-chip row; see renderTabs.)
                         // Make the engine's main "Start Over" button confirm AND reset the Coach.
                         // (Coach.startOver sets _suppressClearReset, having already confirmed itself.)
@@ -5405,6 +5423,18 @@
             let next;
             if (amount === 0) {
                 // Straighten: back to an ordinary editable text object.
+                // Fabric caches character widths per font family; if the family
+                // was ever measured before the web font finished loading (e.g.
+                // during a project resume), the cached widths are the fallback
+                // font's — the bounding box comes out shorter than the glyphs
+                // and the editing cursor lands in the wrong place. Load the
+                // font, drop the stale cache, THEN measure.
+                if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+                    try { await document.fonts.load('16px "' + fontFamily + '"'); } catch (e) { /* best effort */ }
+                }
+                if (fabric.util && typeof fabric.util.clearFabricFontCache === 'function') {
+                    fabric.util.clearFabricFontCache(fontFamily);
+                }
                 next = new fabric.IText(srcText, {
                     fontSize: realFontSize * scale,
                     fill: keep.fill,
