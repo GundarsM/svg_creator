@@ -7878,7 +7878,13 @@
                        one. 0 = straight (editable text); ± bends up/down. The
                        opentype bake is async, so slider input is debounced and
                        serialised — the newest value always wins. */
-                    const bendRow = mkEl('div', { className: 'd-flex gap-2 align-items-center mb-1' });
+                    // NOTE: no Bootstrap "d-flex" here — its display:flex !important
+                    // would override the inline display:none used to hide the row
+                    // while no text is selected. Flex comes via inline style instead.
+                    const bendRow = mkEl('div', { className: 'gap-2 align-items-center mb-1' });
+                    bendRow.style.display = 'none'; // shown only while a text is selected
+                    bendRow.style.gap = '8px';
+                    bendRow.style.alignItems = 'center';
                     const bendPick = function() {
                         if (!cv()) return null;
                         const a = canvas.getActiveObject();
@@ -7903,8 +7909,15 @@
                     // the canvas content under an already-rendered panel.
                     const syncBendUI = function() {
                         if (bendTimer || bendBusy) return; // don't fight a drag/bake in flight
-                        const t = bendPick();
-                        bendSlider.value = String((t && t.bendAmount) || 0);
+                        // Only visible while a text / bent text is actually selected.
+                        const a = cv() ? canvas.getActiveObject() : null;
+                        const isTextish = !!(a && (a.type === 'text' || a.type === 'i-text' || a.shapeType === 'bentText'));
+                        bendRow.style.display = isTextish ? 'flex' : 'none';
+                        if (!isTextish) {
+                            bendNudge.style.display = 'none';
+                            return;
+                        }
+                        bendSlider.value = String(a.bendAmount || 0);
                         syncBendLabel();
                     };
                     syncBendUI();
