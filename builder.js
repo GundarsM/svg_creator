@@ -7638,9 +7638,15 @@
                             o => o.shapeType !== 'currency' && o.type !== 'i-text' && o.type !== 'text',
                             (obj) => {
                                 Coach.sizeToHolder(obj, mode);
-                                // Filled country outlines take the engraving colour of the holder
-                                // material (brown on wood, grey on plastic) and stay in sync on changes.
-                                if (engraveFill && typeof Coach.applyEngrave === 'function') Coach.applyEngrave(obj, true);
+                                // Filled country outlines and uploaded images take the engraving
+                                // colour of the holder material (brown on wood, grey on plastic)
+                                // and stay in sync on changes.
+                                if (engraveFill && typeof Coach.applyEngrave === 'function') {
+                                    Coach.applyEngrave(obj, true);
+                                    // The preview button must reflect the auto-applied state
+                                    // ('Show original colour'), same as auto-engraved text does.
+                                    syncTintLabel();
+                                }
                                 // Keep the coin slots on top — the shape we just added must
                                 // never cover a coin.
                                 if (typeof Coach.raiseCoinsToFront === 'function') Coach.raiseCoinsToFront();
@@ -7768,7 +7774,10 @@
 
                     const uploadBtn = mkEl('button', { className: 'btn btn-sm btn-outline-light mb-1', textContent: 'Upload image…' });
                     uploadBtn.addEventListener('click', () => {
-                        captureAndSize('height'); // load image at the holder's height (aspect preserved)
+                        // Load at the holder's height (aspect preserved) and show the
+                        // engraved look right away — the preview button offers the
+                        // original colours instead.
+                        captureAndSize('height', true);
                         document.getElementById('imageUpload')?.click();
                     });
 
