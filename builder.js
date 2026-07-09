@@ -4516,6 +4516,12 @@
                         ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
                             canvas.on(ev, function() { Coach.onAspectSelect(); });
                         });
+                        // Double-click on bent text edits it like normal text:
+                        // straighten → edit inline → re-bend with the new content.
+                        canvas.on('mouse:dblclick', function(opt) {
+                            const t = opt && opt.target;
+                            if (t && t.shapeType === 'bentText') Coach.editBentText(t);
+                        });
                         // (The "Start over" ↺ control lives on the step-chip row; see renderTabs.)
                         // Make the engine's main "Start Over" button confirm AND reset the Coach.
                         // (Coach.startOver sets _suppressClearReset, having already confirmed itself.)
@@ -5478,6 +5484,30 @@
             canvas.requestRenderAll();
             engineSave();
             return next;
+        };
+
+        /* ── Coach.editBentText ──────────────────────────
+           Double-clicking bent text edits it like normal text: straighten it
+           to an editable object (remembering the bend), enter inline editing,
+           and re-bake with the new content once editing ends. Emptied text
+           stays straight (bendText refuses an empty bake). */
+        Coach.editBentText = function(obj) {
+            if (!obj || obj.shapeType !== 'bentText' || !cv()) return;
+            const rebendTo = obj.bendAmount || 0;
+            Coach.bendText(obj, 0).then(function(text) {
+                if (!text || typeof text.enterEditing !== 'function') return;
+                canvas.setActiveObject(text);
+                text.enterEditing();
+                text.selectAll();
+                canvas.requestRenderAll();
+                const onExit = function() {
+                    text.off('editing:exited', onExit);
+                    Coach.bendText(text, rebendTo);
+                };
+                text.on('editing:exited', onExit);
+            }).catch(function(err) {
+                console.warn('editBentText failed', err);
+            });
         };
 
 
