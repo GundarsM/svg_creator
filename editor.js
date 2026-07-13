@@ -1307,6 +1307,11 @@
             // when a small country needs it; 1:50m geometry is too coarse once a
             // Latvia-sized (or smaller) shape is blown up to the 120 mm fit box.
             const WORLD_ATLAS_URL_HI = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json';
+            // US state outlines (~112 KB, already 1:10m detail) from the same
+            // TopoJSON family. States appear in search as "Texas (US state)" —
+            // the suffix disambiguates the four state names that are also
+            // countries (Georgia, Guam, Puerto Rico, American Samoa).
+            const US_STATES_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
             const HI_RES_MAX_DEG = 8; // bbox span (degrees) below which the 10m data is used
             const COUNTRY_FIT_MM = 120; // every generated shape fits a 120×120 mm box
 
@@ -1399,6 +1404,22 @@
                 return worldTopoPromises[slot];
             }
 
+            let usStatesPromise = null;
+            function loadUsStates() {
+                if (!usStatesPromise) {
+                    usStatesPromise = fetch(US_STATES_URL)
+                        .then(r => {
+                            if (!r.ok) throw new Error('us-atlas fetch failed: HTTP ' + r.status);
+                            return r.json();
+                        })
+                        .catch(err => {
+                            usStatesPromise = null; // clear the cache so the next call retries
+                            throw err;
+                        });
+                }
+                return usStatesPromise;
+            }
+
             // Planar bbox area of a polygon's exterior ring — a robust proxy for
             // "largest polygon" that sidesteps spherical winding pitfalls.
             // Assumes no single ring crosses the ±180° antimeridian (true for the
@@ -1434,12 +1455,21 @@
                 return { type: 'MultiPolygon', coordinates: kept };
             }
 
-            // All dataset country names, sorted — feeds the search datalists.
+            // All dataset names, sorted — feeds the search datalists. Countries
+            // use their plain names; US states carry a "(US state)" suffix. A
+            // failed states fetch degrades to countries-only (warn, no error).
             async function getCountryNames() {
                 const world = await loadWorldTopo();
-                return topojson.feature(world, world.objects.countries).features
-                    .map(f => f.properties.name)
-                    .sort((a, b) => a.localeCompare(b));
+                const names = topojson.feature(world, world.objects.countries).features
+                    .map(f => f.properties.name);
+                const states = await loadUsStates()
+                    .then(us => topojson.feature(us, us.objects.states).features
+                        .map(f => f.properties.name + ' (US state)'))
+                    .catch(err => {
+                        console.warn('US states dataset unavailable', err);
+                        return [];
+                    });
+                return names.concat(states).sort((a, b) => a.localeCompare(b));
             }
 
             // key → SVG path string (or null for an unknown key). Accepts legacy
@@ -1468,6 +1498,24 @@
                     const wanted = countrySlug(entry ? entry.name : key);
                     feature = topojson.feature(world, world.objects.countries).features
                         .find(f => countrySlug(f.properties.name) === wanted);
+                    let fromStates = false;
+                    if (!feature) {
+                        // US states: the datalist's "Texas (US state)" form slugs to
+                        // 'texasusstate'; bare state names ('texas') work too, but
+                        // countries win name collisions (Georgia, Guam, …) — the
+                        // suffixed form is the way to reach those four states.
+                        try {
+                            const us = await loadUsStates();
+                            feature = topojson.feature(us, us.objects.states).features
+                                .find(f => {
+                                    const s = countrySlug(f.properties.name);
+                                    return wanted === s + 'usstate' || wanted === s;
+                                });
+                            if (feature) fromStates = true;
+                        } catch (err) {
+                            console.warn('US states dataset unavailable', err);
+                        }
+                    }
                     if (!feature) {
                         console.warn('Unknown country key: "' + key + '"');
                         return null;
@@ -1475,10 +1523,11 @@
                     // Small countries look blocky when 1:50m geometry is blown up to
                     // the fit box — swap in the 1:10m feature for them. geoBounds
                     // handles antimeridian wrap (lon span may come back negative).
+                    // States are already 1:10m — no upgrade needed (or possible).
                     const b = d3.geoBounds(feature);
                     const lonSpan = (b[1][0] - b[0][0] + 360) % 360;
                     const latSpan = b[1][1] - b[0][1];
-                    if (Math.max(lonSpan, latSpan) < HI_RES_MAX_DEG) {
+                    if (!fromStates && Math.max(lonSpan, latSpan) < HI_RES_MAX_DEG) {
                         try {
                             const worldHi = await loadWorldTopo(true);
                             const hiFeature = topojson.feature(worldHi, worldHi.objects.countries).features
