@@ -886,6 +886,24 @@
                         <div id="propertiesPanel">
                             <p class="text-muted">Click an item on the canvas to edit it</p>
                         </div>
+
+                        <div class="property-panel" id="alignSection" style="display:none;">
+                            <h4 style="font-size: 0.95em; margin-bottom: 6px;">Alignment</h4>
+                            <div class="control-group" style="display: flex; gap: 6px;">
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('left')" title="Align left edges"><i class="fas fa-align-left"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('centerh')" title="Align horizontal centres"><i class="fas fa-align-center"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('right')" title="Align right edges"><i class="fas fa-align-right"></i></button>
+                            </div>
+                            <div class="control-group" style="display: flex; gap: 6px;">
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('top')" title="Align top edges"><i class="fas fa-align-left fa-rotate-90"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('middle')" title="Align vertical centres"><i class="fas fa-align-center fa-rotate-90"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('bottom')" title="Align bottom edges"><i class="fas fa-align-right fa-rotate-90"></i></button>
+                            </div>
+                            <div class="control-group" style="display: flex; gap: 6px;">
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeHBtn" onclick="distributeSelected('h')" title="Distribute horizontally — equal centre spacing between first and last"><i class="fas fa-arrows-left-right"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeVBtn" onclick="distributeSelected('v')" title="Distribute vertically — equal centre spacing between first and last"><i class="fas fa-arrows-up-down"></i></button>
+                            </div>
+                        </div>
                         
                         <div class="property-panel" id="objectProperties" style="display:none;">
                             <div class="control-group" style="display: flex; gap: 8px;">
@@ -1917,6 +1935,10 @@
                     updatePropertiesPanel();
                 });
                 canvas.on('selection:cleared', clearPropertiesPanel);
+                // Alignment section: shown only while 2+ objects are selected.
+                ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
+                    canvas.on(ev, updateAlignPanel);
+                });
                 canvas.on('object:modified', function(e) {
                     updatePropertiesPanel();
                     saveState();
@@ -3611,6 +3633,72 @@
             }
             
             // Delete selected object(s)
+            // ── Align & distribute (multi-selection only) ────────────────
+            // Operates on the children of the active selection via absolute
+            // bounding rects. Child left/top deltas equal canvas-space deltas
+            // only while the selection frame is untransformed — true for a
+            // fresh drag-selection, which is when this panel is visible.
+            function updateAlignPanel() {
+                const el = document.getElementById('alignSection');
+                if (!el || !canvas) return;
+                const a = canvas.getActiveObject();
+                const n = (a && a.type === 'activeSelection') ? a.getObjects().length : 0;
+                el.style.display = n >= 2 ? 'block' : 'none';
+                const distH = document.getElementById('distributeHBtn');
+                const distV = document.getElementById('distributeVBtn');
+                if (distH) distH.disabled = n < 3; // nothing between first and last
+                if (distV) distV.disabled = n < 3;
+            }
+
+            function alignSelected(mode) {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const items = sel.getObjects().map(o => ({ o, r: o.getBoundingRect(true, true) }));
+                if (items.length < 2) return;
+                const minL = Math.min(...items.map(i => i.r.left));
+                const maxR = Math.max(...items.map(i => i.r.left + i.r.width));
+                const minT = Math.min(...items.map(i => i.r.top));
+                const maxB = Math.max(...items.map(i => i.r.top + i.r.height));
+                items.forEach(({ o, r }) => {
+                    let dx = 0, dy = 0;
+                    if (mode === 'left')    dx = minL - r.left;
+                    if (mode === 'centerh') dx = (minL + maxR) / 2 - (r.left + r.width / 2);
+                    if (mode === 'right')   dx = maxR - (r.left + r.width);
+                    if (mode === 'top')     dy = minT - r.top;
+                    if (mode === 'middle')  dy = (minT + maxB) / 2 - (r.top + r.height / 2);
+                    if (mode === 'bottom')  dy = maxB - (r.top + r.height);
+                    if (dx || dy) {
+                        o.set({ left: o.left + dx, top: o.top + dy });
+                        o.setCoords();
+                    }
+                });
+                canvas.requestRenderAll();
+                saveState();
+            }
+
+            function distributeSelected(axis) {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const items = sel.getObjects().map(o => ({ o, r: o.getBoundingRect(true, true) }));
+                if (items.length < 3) return;
+                const centre = axis === 'h'
+                    ? (i) => i.r.left + i.r.width / 2
+                    : (i) => i.r.top + i.r.height / 2;
+                items.sort((a, b) => centre(a) - centre(b));
+                // First and last stay put; the rest get equal centre spacing.
+                const first = centre(items[0]);
+                const stepGap = (centre(items[items.length - 1]) - first) / (items.length - 1);
+                items.forEach((it, idx) => {
+                    const d = first + stepGap * idx - centre(it);
+                    if (!d) return;
+                    if (axis === 'h') it.o.set('left', it.o.left + d);
+                    else it.o.set('top', it.o.top + d);
+                    it.o.setCoords();
+                });
+                canvas.requestRenderAll();
+                saveState();
+            }
+
             function deleteSelected() {
                 const activeObjects = canvas.getActiveObjects();
                 if (activeObjects.length > 0) {
