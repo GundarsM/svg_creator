@@ -3369,6 +3369,18 @@
                 if (distV) distV.disabled = n < 3;
             }
 
+            // Rebuild the selection frame after programmatically moving its
+            // children — fabric never recomputes activeSelection bounds, so the
+            // old box would hang around the pre-alignment area.
+            function refreshSelectionFrame() {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const objs = sel.getObjects();
+                canvas.discardActiveObject();
+                const ns = new fabric.ActiveSelection(objs, { canvas: canvas });
+                canvas.setActiveObject(ns);
+            }
+
             function alignSelected(mode) {
                 const sel = canvas.getActiveObject();
                 if (!sel || sel.type !== 'activeSelection') return;
@@ -3391,6 +3403,7 @@
                         o.setCoords();
                     }
                 });
+                refreshSelectionFrame();
                 canvas.requestRenderAll();
                 saveState();
             }
@@ -3414,6 +3427,7 @@
                     else it.o.set('top', it.o.top + d);
                     it.o.setCoords();
                 });
+                refreshSelectionFrame();
                 canvas.requestRenderAll();
                 saveState();
             }
