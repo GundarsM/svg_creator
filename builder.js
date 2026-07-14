@@ -1579,12 +1579,71 @@
             // excludes Russia and Turkey (a country polygon can't be clipped at the
             // Urals/Bosporus). `window` = [lonMin, latMin, lonMax, latMax]: merged
             // polygons whose centroid falls outside are dropped, which removes member
-            // overseas territories (French Guiana, Svalbard, Azores, Canaries…).
+            // overseas territories (French Guiana, Svalbard, Azores, Canaries…) — and
+            // conversely lets a member contribute ONLY its territories in the window
+            // (France's Guiana/Caribbean islands in the Americas shapes).
+            // `label` is the search-datalist entry; a composite label supersedes a
+            // same-slug dataset country (ukraine below replaces dataset Ukraine).
             // Member strings are matched slug-insensitively against dataset names;
             // unresolved members produce a console.warn, not an error.
             const COMPOSITE_SHAPES = {
-                world: { members: 'ALL', window: null },
+                world: { label: 'World', members: 'ALL', window: null },
+                // The dataset follows de-facto control and puts Crimea inside the
+                // Russia feature. `memberWindows` pre-filters Russia's polygons at
+                // topology level to just the Crimea one BEFORE merging (a wholesale
+                // merge would dissolve the shared land border and fuse Ukraine into
+                // Russia's mainland polygon); the merge then dissolves only the
+                // Perekop border — Ukraine renders whole, Crimea attached.
+                ukraine: {
+                    label: 'Ukraine',
+                    window: [21, 43, 41, 53.5],
+                    members: ['Ukraine', 'Russia'],
+                    memberWindows: { russia: [32, 44, 37, 46.5] }
+                },
+                southamerica: {
+                    label: 'South America',
+                    window: [-95, -60, -25, 15],
+                    // France contributes French Guiana (mainland France's centroid
+                    // is outside the window).
+                    members: ['Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia',
+                        'Ecuador', 'Falkland Is.', 'Guyana', 'Paraguay', 'Peru',
+                        'Suriname', 'Uruguay', 'Venezuela', 'France']
+                },
+                northamerica: {
+                    label: 'North America',
+                    window: [-179, 5, -12, 84],
+                    // Continent sense: Central America + Caribbean + Greenland.
+                    // France/Netherlands contribute only their Caribbean islands.
+                    // Hawaii rides along inside the USA feature — accepted.
+                    members: ['Canada', 'United States of America', 'Mexico', 'Greenland',
+                        'Guatemala', 'Belize', 'Honduras', 'El Salvador', 'Nicaragua',
+                        'Costa Rica', 'Panama', 'Cuba', 'Haiti', 'Dominican Rep.',
+                        'Jamaica', 'Bahamas', 'Trinidad and Tobago', 'Puerto Rico',
+                        'Bermuda', 'Antigua and Barb.', 'Barbados', 'Dominica', 'Grenada',
+                        'Saint Lucia', 'St. Vin. and Gren.', 'St. Kitts and Nevis',
+                        'Cayman Is.', 'Turks and Caicos Is.', 'Curaçao', 'Aruba',
+                        'St-Martin', 'Sint Maarten', 'St. Pierre and Miquelon', 'Anguilla',
+                        'Montserrat', 'British Virgin Is.', 'U.S. Virgin Is.',
+                        'France', 'Netherlands']
+                },
+                americas: {
+                    label: 'Americas',
+                    window: [-179, -60, -12, 84],
+                    members: ['Canada', 'United States of America', 'Mexico', 'Greenland',
+                        'Guatemala', 'Belize', 'Honduras', 'El Salvador', 'Nicaragua',
+                        'Costa Rica', 'Panama', 'Cuba', 'Haiti', 'Dominican Rep.',
+                        'Jamaica', 'Bahamas', 'Trinidad and Tobago', 'Puerto Rico',
+                        'Bermuda', 'Antigua and Barb.', 'Barbados', 'Dominica', 'Grenada',
+                        'Saint Lucia', 'St. Vin. and Gren.', 'St. Kitts and Nevis',
+                        'Cayman Is.', 'Turks and Caicos Is.', 'Curaçao', 'Aruba',
+                        'St-Martin', 'Sint Maarten', 'St. Pierre and Miquelon', 'Anguilla',
+                        'Montserrat', 'British Virgin Is.', 'U.S. Virgin Is.', 'Netherlands',
+                        'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador',
+                        'Falkland Is.', 'Guyana', 'Paraguay', 'Peru', 'Suriname',
+                        'Uruguay', 'Venezuela', 'France']
+                },
                 europe: {
+                    label: 'Europe',
                     window: [-25, 34, 45, 72],
                     members: ['Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium',
                         'Bosnia and Herz.', 'Bulgaria', 'Croatia', 'Czechia', 'Denmark',
@@ -1597,6 +1656,7 @@
                         'United Kingdom', 'Vatican']
                 },
                 africa: {
+                    label: 'Africa',
                     window: [-20, -36, 55, 38],
                     // Deliberately NOT members: Lesotho — topojson.merge would
                     // dissolve its border arcs into South Africa's and destroy the
@@ -1693,12 +1753,17 @@
             }
 
             // All dataset names, sorted — feeds the search datalists. Countries
-            // use their plain names; US states carry a "(US state)" suffix. A
-            // failed states fetch degrades to countries-only (warn, no error).
+            // use their plain names; composites contribute their labels (and
+            // replace a same-slug dataset country — Ukraine resolves to the
+            // Crimea-attached composite); US states carry a "(US state)" suffix.
+            // A failed states fetch degrades to countries-only (warn, no error).
             async function getCountryNames() {
                 const world = await loadWorldTopo();
+                const compositeLabels = Object.keys(COMPOSITE_SHAPES)
+                    .map(k => COMPOSITE_SHAPES[k].label || k);
                 const names = topojson.feature(world, world.objects.countries).features
-                    .map(f => f.properties.name);
+                    .map(f => f.properties.name)
+                    .filter(n => !COMPOSITE_SHAPES[countrySlug(n)]);
                 const states = await loadUsStates()
                     .then(us => topojson.feature(us, us.objects.states).features
                         .map(f => f.properties.name + ' (US state)'))
@@ -1706,7 +1771,7 @@
                         console.warn('US states dataset unavailable', err);
                         return [];
                     });
-                return names.concat(states).sort((a, b) => a.localeCompare(b));
+                return compositeLabels.concat(names, states).sort((a, b) => a.localeCompare(b));
             }
 
             // key → SVG path string (or null for an unknown key). Accepts legacy
@@ -1714,7 +1779,8 @@
             async function getCountryPathData(key) {
                 const world = await loadWorldTopo();
                 let feature, projection;
-                const composite = COMPOSITE_SHAPES[key];
+                const slugKey = countrySlug(key); // 'World' and 'world' both hit the composite
+                const composite = COMPOSITE_SHAPES[slugKey];
                 if (composite) {
                     let geoms = world.objects.countries.geometries;
                     if (composite.members !== 'ALL') {
@@ -1723,13 +1789,30 @@
                         const foundSet = new Set(geoms.map(g => countrySlug(g.properties.name)));
                         const missing = composite.members.filter(m => !foundSet.has(countrySlug(m)));
                         if (missing.length) console.warn('Composite "' + key + '": unresolved members', missing);
+                        // memberWindows: keep only a member's polygons whose centroid
+                        // falls inside its window, filtered at TOPOLOGY level BEFORE the
+                        // merge. Needed when a member shares a land border with the
+                        // shape (ukraine + Russia's Crimea polygon): merging the whole
+                        // member first would dissolve the shared border and fuse the
+                        // shape into the member's mainland.
+                        if (composite.memberWindows) {
+                            geoms = geoms.map(g => {
+                                const win = composite.memberWindows[countrySlug(g.properties.name)];
+                                if (!win || g.type !== 'MultiPolygon') return g;
+                                const arcsKept = g.arcs.filter(polyArcs => {
+                                    const c = d3.geoCentroid(topojson.feature(world, { type: 'Polygon', arcs: polyArcs }));
+                                    return c[0] >= win[0] && c[0] <= win[2] && c[1] >= win[1] && c[1] <= win[3];
+                                });
+                                return { type: 'MultiPolygon', arcs: arcsKept, properties: g.properties };
+                            });
+                        }
                     }
                     let merged = topojson.merge(world, geoms);
                     merged = filterByWindow(merged, composite.window);
                     feature = { type: 'Feature', properties: { name: key }, geometry: merged };
                     // An azimuthal projection centered on a whole-world feature is
                     // degenerate at the antipode — world uses NaturalEarth instead.
-                    projection = key === 'world' ? d3.geoNaturalEarth1() : d3.geoAzimuthalEqualArea();
+                    projection = slugKey === 'world' ? d3.geoNaturalEarth1() : d3.geoAzimuthalEqualArea();
                 } else {
                     const entry = COUNTRY_KEY_MAP[key];
                     const wanted = countrySlug(entry ? entry.name : key);
@@ -1781,7 +1864,7 @@
                     }
                     projection = d3.geoAzimuthalEqualArea();
                 }
-                if (key !== 'world') {
+                if (slugKey !== 'world') {
                     // Center the azimuthal projection on the feature BEFORE fitSize
                     // (fitSize only adjusts scale/translate, not rotation).
                     const c = d3.geoCentroid(feature);
@@ -4793,24 +4876,18 @@
             { key: 'australia', label: 'Australia' },
             { key: 'canada',    label: 'Canada' },
             { key: 'germany',   label: 'Germany' },
-            { key: 'italy',      label: 'Italy' },
-            { key: 'france',     label: 'France' },
-            { key: 'greece',     label: 'Greece' },
-            { key: 'japan',      label: 'Japan' },
-            { key: 'africa',     label: 'Africa' },
-            { key: 'brazil',     label: 'Brazil' },
-            { key: 'egypt',      label: 'Egypt' },
-            { key: 'india',      label: 'India' },
-            { key: 'southkorea', label: 'South Korea' },
-            { key: 'morocco',    label: 'Morocco' },
-            { key: 'tunisia',    label: 'Tunisia' },
-            { key: 'mexico',     label: 'Mexico' }
+            { key: 'italy',     label: 'Italy' },
+            { key: 'france',    label: 'France' },
+            { key: 'japan',     label: 'Japan' }
         ];
 
         /* Shapes offered ONLY in step 7 (personalise), not as a base holder. */
         Coach.COUNTRY_OPTIONS_EXTRA = [
-            { key: 'europe',    label: 'Europe' },
-            { key: 'world',     label: 'World' }
+            { key: 'world',        label: 'World map' },
+            { key: 'europe',       label: 'Europe' },
+            { key: 'southamerica', label: 'South America' },
+            { key: 'northamerica', label: 'North America' },
+            { key: 'americas',     label: 'Americas' }
         ];
 
         /* The full step-7 list: the base countries plus the step-7-only extras. */
