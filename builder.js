@@ -891,7 +891,7 @@
                             <!-- Same structure as the X/Y rows: a white control-group card
                                  with a bold label and the button rows as its content. -->
                             <div class="control-group">
-                                <label style="font-family: 'IvyMode', 'Times New Roman', serif;">Alignment:</label>
+                                <label style="white-space: nowrap; font-size: 0.85em; font-family: 'IvyMode', 'Times New Roman', serif;">Alignment:</label>
                                 <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('left')" title="Align left edges"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="9" height="4"/><rect x="3" y="9.5" width="6" height="4"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('centerh')" title="Align horizontal centres"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="7" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="10" height="4"/><rect x="5" y="9.5" width="6" height="4"/></svg></button>
