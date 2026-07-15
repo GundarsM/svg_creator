@@ -1669,7 +1669,7 @@
                     !fabric.Object.prototype.controls || !fabric.Object.prototype.controls.mtr) return;
                 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">'
                     + '<path d="M12 4a8 8 0 1 0 7.7 5.9" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"/>'
-                    + '<path d="M12 0.5 7 4 12 7.5z" fill="black"/>'
+                    + '<path d="M12 0.5 17 4 12 7.5z" fill="black"/>'
                     + '</svg>';
                 fabric.Object.prototype.controls.mtr.cursorStyle =
                     'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '") 11 11, crosshair';
