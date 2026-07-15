@@ -887,8 +887,11 @@
                             <p class="text-muted">Click an item on the canvas to edit it</p>
                         </div>
 
-                        <div class="property-panel" id="alignSection" style="display:none;">
-                            <h4 style="font-size: 0.95em; margin-bottom: 6px; margin-left: 5px;">Alignment</h4><!-- +5px matches the control-group row padding, so the title shares the exact left line of the X:/Y: labels and the buttons -->
+                        <div id="alignSection" style="display:none;">
+                            <!-- Heading OUTSIDE the padded card (like "Finish up") so the
+                                 word starts flush at the sidebar line — no offset at all. -->
+                            <h3 style="font-size: 0.95em; margin: 10px 0 4px 0;">Alignment</h3>
+                            <div class="property-panel" style="margin-top: 0;">
                             <div class="control-group" style="display: flex; gap: 6px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('left')" title="Align left edges"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="9" height="4"/><rect x="3" y="9.5" width="6" height="4"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('centerh')" title="Align horizontal centres"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="7" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="10" height="4"/><rect x="5" y="9.5" width="6" height="4"/></svg></button>
@@ -902,6 +905,7 @@
                             <div class="control-group" style="display: flex; gap: 6px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeHBtn" onclick="distributeSelected('h')" title="Distribute horizontally — equal centre spacing between first and last"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="13" y="0.5" width="2" height="15"/><rect x="6" y="3" width="4" height="10"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeVBtn" onclick="distributeSelected('v')" title="Distribute vertically — equal centre spacing between first and last"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="0.5" y="1" width="15" height="2"/><rect x="0.5" y="13" width="15" height="2"/><rect x="3" y="6" width="10" height="4"/></svg></button>
+                            </div>
                             </div>
                         </div>
                         
