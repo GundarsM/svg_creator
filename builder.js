@@ -888,7 +888,7 @@
                         </div>
 
                         <div class="property-panel" id="alignSection" style="display:none;">
-                            <h4 style="font-size: 0.95em; margin-bottom: 6px;">Alignment</h4>
+                            <h4 style="font-size: 0.95em; margin-bottom: 6px; margin-left: -6px;">Alignment</h4><!-- -6px cancels the panel padding so the title sits flush with the other headings -->
                             <div class="control-group" style="display: flex; gap: 6px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('left')" title="Align left edges"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="9" height="4"/><rect x="3" y="9.5" width="6" height="4"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('centerh')" title="Align horizontal centres"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="7" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="10" height="4"/><rect x="5" y="9.5" width="6" height="4"/></svg></button>
