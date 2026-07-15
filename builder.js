@@ -3732,21 +3732,36 @@
                 }
             }
 
-            // Mirror selected object(s) horizontally (flip on vertical axis)
+            // Mirror selected object(s) horizontally (true screen-space mirror
+            // about the vertical axis through the object's centre). Negating
+            // scaleX alone flips along the object's LOCAL axis — for a rotated
+            // object the rotation must mirror too (θ → −θ), and the centre is
+            // pinned so non-centre-origin objects (images) don't shift.
             function mirrorHorizontal() {
                 const obj = canvas.getActiveObject();
                 if (!obj) return;
-                obj.set('scaleX', obj.scaleX * -1);
+                const center = obj.getCenterPoint();
+                obj.set({
+                    scaleX: obj.scaleX * -1,
+                    angle: (360 - obj.angle) % 360
+                });
+                obj.setPositionByOrigin(center, 'center', 'center');
                 obj.setCoords();
                 canvas.requestRenderAll();
                 saveState();
             }
 
-            // Mirror selected object(s) vertically (flip on horizontal axis)
+            // Mirror selected object(s) vertically (true screen-space mirror
+            // about the horizontal axis through the object's centre).
             function mirrorVertical() {
                 const obj = canvas.getActiveObject();
                 if (!obj) return;
-                obj.set('scaleY', obj.scaleY * -1);
+                const center = obj.getCenterPoint();
+                obj.set({
+                    scaleY: obj.scaleY * -1,
+                    angle: (360 - obj.angle) % 360
+                });
+                obj.setPositionByOrigin(center, 'center', 'center');
                 obj.setCoords();
                 canvas.requestRenderAll();
                 saveState();
