@@ -845,6 +845,8 @@
                             <table style="font-size: 0.85em;">
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected objects</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>E</kbd></td><td>Align horizontal centres (multiple objects selected)</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>C</kbd></td><td>Align vertical centres (multiple objects selected)</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Z</kbd></td><td>Undo</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Y</kbd></td><td>Redo</td></tr>
                             </table>
@@ -4305,6 +4307,19 @@
                         if (isTyping) return; // Allow normal behavior in input fields
                         e.preventDefault();
                         duplicateSelected();
+                    }
+
+                    // Align shortcuts, multi-selection only (plain keys, so the
+                    // isTyping guard matters — fabric text editing uses a hidden
+                    // textarea, which the guard already covers):
+                    // E = align horizontal centres, C = align vertical centres.
+                    if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'e' || e.key === 'E' || e.key === 'c' || e.key === 'C')) {
+                        if (isTyping) return;
+                        const active = canvas.getActiveObject();
+                        if (active && active.type === 'activeSelection') {
+                            e.preventDefault();
+                            alignSelected((e.key === 'e' || e.key === 'E') ? 'centerh' : 'middle');
+                        }
                     }
                 });
                 
