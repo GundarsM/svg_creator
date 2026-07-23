@@ -6186,31 +6186,38 @@
             if (!md || br.width <= 0 || br.height <= 0 || W <= 1 || H <= 1) return null;
 
             const pxPerCanvas = W / br.width;
-            const SQRT2 = Math.SQRT2, INF = 1e9, N = W * H;
+            // The mask is cropped exactly to the holder's bounding box, so where
+            // the shape touches the box edge (an ellipse's four extremes, a
+            // rectangle everywhere) the crop holds no outside pixels to seed
+            // distances from. Work on a grid padded by one virtual transparent
+            // pixel on every side so the bbox edge itself counts as outside.
+            const SQRT2 = Math.SQRT2, INF = 1e9;
+            const PW = W + 2, PH = H + 2, N = PW * PH;
             const dist = new Float32Array(N);
             let sx = 0, sy = 0, c = 0;
-            for (let i = 0; i < N; i++) {
-                const inside = md[i * 4 + 3] > 40;
-                dist[i] = inside ? INF : 0;
-                if (inside) { sx += i % W; sy += (i / W) | 0; c++; }
+            for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+                const inside = x > 0 && y > 0 && x <= W && y <= H
+                    && md[((y - 1) * W + (x - 1)) * 4 + 3] > 40;
+                dist[y * PW + x] = inside ? INF : 0;
+                if (inside) { sx += x - 1; sy += y - 1; c++; }
             }
             if (!c) return null;
-            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-                const i = y * W + x; if (dist[i] === 0) continue;
+            for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+                const i = y * PW + x; if (dist[i] === 0) continue;
                 let m = dist[i];
-                if (x > 0)             m = Math.min(m, dist[i - 1] + 1);
-                if (y > 0)             m = Math.min(m, dist[i - W] + 1);
-                if (x > 0 && y > 0)    m = Math.min(m, dist[i - W - 1] + SQRT2);
-                if (x < W - 1 && y > 0) m = Math.min(m, dist[i - W + 1] + SQRT2);
+                if (x > 0)              m = Math.min(m, dist[i - 1] + 1);
+                if (y > 0)              m = Math.min(m, dist[i - PW] + 1);
+                if (x > 0 && y > 0)     m = Math.min(m, dist[i - PW - 1] + SQRT2);
+                if (x < PW - 1 && y > 0) m = Math.min(m, dist[i - PW + 1] + SQRT2);
                 dist[i] = m;
             }
-            for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
-                const i = y * W + x; if (dist[i] === 0) continue;
+            for (let y = PH - 1; y >= 0; y--) for (let x = PW - 1; x >= 0; x--) {
+                const i = y * PW + x; if (dist[i] === 0) continue;
                 let m = dist[i];
-                if (x < W - 1)             m = Math.min(m, dist[i + 1] + 1);
-                if (y < H - 1)             m = Math.min(m, dist[i + W] + 1);
-                if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + SQRT2);
-                if (x > 0 && y < H - 1)     m = Math.min(m, dist[i + W - 1] + SQRT2);
+                if (x < PW - 1)              m = Math.min(m, dist[i + 1] + 1);
+                if (y < PH - 1)              m = Math.min(m, dist[i + PW] + 1);
+                if (x < PW - 1 && y < PH - 1) m = Math.min(m, dist[i + PW + 1] + SQRT2);
+                if (x > 0 && y < PH - 1)      m = Math.min(m, dist[i + PW - 1] + SQRT2);
                 dist[i] = m;
             }
             return {
@@ -6218,18 +6225,10 @@
                 pxPerCanvas: pxPerCanvas,  // mask px per canvas px (sampling resolution)
                 centroid: { x: br.left + (sx / c) / pxPerCanvas, y: br.top + (sy / c) / pxPerCanvas },
                 distAt(px, py) {
-                    const mx = Math.round((px - br.left) * pxPerCanvas);
-                    const my = Math.round((py - br.top) * pxPerCanvas);
-                    if (mx < 0 || my < 0 || mx >= W || my >= H) return 0;
-                    const idx = my * W + mx;
-                    const d = dist[idx];
-                    // A still-INF pixel was never reached by the transform because
-                    // the holder fills its entire bounding box here (e.g. a plain
-                    // rectangle has no transparent border to seed distances from).
-                    // If that pixel is itself opaque it's genuinely interior, so
-                    // report it as inside rather than mistaking it for outside.
-                    if (d >= INF) return md[idx * 4 + 3] > 40 ? (W / pxPerCanvas) : 0;
-                    return d / pxPerCanvas;
+                    const mx = Math.round((px - br.left) * pxPerCanvas) + 1;
+                    const my = Math.round((py - br.top) * pxPerCanvas) + 1;
+                    if (mx < 0 || my < 0 || mx >= PW || my >= PH) return 0;
+                    return dist[my * PW + mx] / pxPerCanvas;
                 }
             };
         };
@@ -6479,19 +6478,14 @@
                 outline = new fabric.Rect(Object.assign({}, common, {
                     left: hc.x, top: hc.y, width: w, height: h, rx: rx, ry: rx, angle: holder.angle || 0
                 }));
-            } else if (holder.type === 'circle') {
+            } else if (holder.type === 'circle' && Math.abs((holder.scaleX || 1) - (holder.scaleY || 1)) < 1e-3) {
                 const r = (holder.radius || 0) * (holder.scaleX || 1) - off;
                 if (r <= 1) return false;
                 outline = new fabric.Circle(Object.assign({}, common, { left: hc.x, top: hc.y, radius: r }));
-            } else if (holder.type === 'ellipse') {
-                const erx = (holder.rx || 0) * (holder.scaleX || 1) - off;
-                const ery = (holder.ry || 0) * (holder.scaleY || 1) - off;
-                if (erx <= 1 || ery <= 1) return false;
-                outline = new fabric.Ellipse(Object.assign({}, common, {
-                    left: hc.x, top: hc.y, rx: erx, ry: ery, angle: holder.angle || 0
-                }));
             } else {
-                // Irregular holder — trace the true inset contour(s).
+                // Ellipses, non-uniformly scaled circles and irregular holders all
+                // trace the true inset contour — an ellipse's parallel curve is NOT
+                // an ellipse, so the analytic shortcut would draw an uneven gap.
                 const field = Coach._holderDistanceField(holder);
                 if (!field) return false;
                 const loops = Coach._traceInsetContours(field, off);
@@ -7390,6 +7384,10 @@
                         }
                         obj.setCoords();
                         canvas.requestRenderAll();
+                        // The engine's properties panel reads sizes on selection
+                        // events; without this it keeps showing the pre-resize
+                        // dimensions of a freshly added holder.
+                        if (canvas.getActiveObject() === obj) canvas.fire('selection:updated');
                         engineSave();
                     };
 
@@ -7398,7 +7396,9 @@
                         const w = Coach.state.holderW;
                         const h = Coach.state.holderH;
                         if (!w || w <= 0) return;
-                        const lock = (Coach.state.holderType === 'country' || Coach.state.holderType === 'imported');
+                        // Circles lock too: width acts as the diameter — applying the
+                        // rectangle W×H defaults non-uniformly squashed them into ellipses.
+                        const lock = (Coach.state.holderType === 'country' || Coach.state.holderType === 'imported' || Coach.state.holderType === 'circle');
                         resizeHolder(w, lock ? null : h, lock);
                     };
 
@@ -7463,6 +7463,12 @@
                             if (typeof addShape === 'function') {
                                 addShape(shape);
                                 captureHolder(shape);
+                                if (shape === 'circle' && !Coach.state.holderSizeTouched) {
+                                    // Circles default to a 120 mm diameter — the stored
+                                    // 200×100 rectangle defaults must not stretch them.
+                                    Coach.state.holderW = 120;
+                                    resizeHolder(120, null, true);
+                                }
                             }
                             markSelected(shapeGroup, shape);
                             countryPanel.style.display = 'none';
@@ -7606,6 +7612,7 @@
                     wInput.addEventListener('input', () => {
                         const v = parseFloat(wInput.value);
                         Coach.state.holderW = (!isNaN(v) && v > 0) ? v : null;
+                        Coach.state.holderSizeTouched = true;
                     });
                     wWrap.appendChild(wInput);
                     sizeRow.appendChild(wWrap);
@@ -7627,6 +7634,7 @@
                         hInput.addEventListener('input', () => {
                             const v = parseFloat(hInput.value);
                             Coach.state.holderH = (!isNaN(v) && v > 0) ? v : null;
+                            Coach.state.holderSizeTouched = true;
                         });
                         hWrap.appendChild(hInput);
                         sizeRow.appendChild(hWrap);
