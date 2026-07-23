@@ -6509,9 +6509,9 @@
                 // Irregular holder (country / imported SVG): trace the true inset
                 // contour. A jagged marching-squares polyline is acceptable here —
                 // the silhouette is irregular anyway.
-                const field = Coach._holderDistanceField(holder, 3);
+                const field = Coach._holderDistanceField(holder, 6);
                 if (!field) return false;
-                const loops = Coach._traceInsetContours(field, off, { step: 0.6, rdp: 0.35 });
+                const loops = Coach._traceInsetContours(field, off, { step: 0.25, rdp: 0.12 });
                 if (!loops.length) return false;
                 const d = loops.map(loop =>
                     'M ' + loop.map(p => p.x.toFixed(2) + ' ' + p.y.toFixed(2)).join(' L ') + ' Z'
