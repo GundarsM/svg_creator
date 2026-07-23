@@ -5008,7 +5008,7 @@
             'realRx', 'realRy', 'realFontSize', 'realCornerRadius',
             'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
             '_coachEngrave', '_coachOrigFill', 'coachAspectLocked', '_coachClipped',
-            'bendSourceText', 'bendAmount', 'bendFontFamily'
+            'bendSourceText', 'bendAmount', 'bendFontFamily', '_coachOrigStroke'
         ];
 
         /* ── Coach.COUNTRY_OPTIONS ─────────────────────────────────────
@@ -5626,6 +5626,17 @@
                     obj._coachEngrave = true;
                 } else {
                     obj.set('fill', (obj._coachOrigFill !== undefined ? obj._coachOrigFill : '#000000'));
+                    obj._coachEngrave = false;
+                }
+            } else if (obj.shapeType === 'holderOutline') {
+                // The outline's ink is its STROKE (fill is transparent) —
+                // recolour that, mirroring how text fills track the material.
+                if (on) {
+                    if (obj._coachOrigStroke === undefined) obj._coachOrigStroke = obj.stroke;
+                    obj.set('stroke', color);
+                    obj._coachEngrave = true;
+                } else {
+                    obj.set('stroke', (obj._coachOrigStroke !== undefined ? obj._coachOrigStroke : obj.stroke));
                     obj._coachEngrave = false;
                 }
             } else {
@@ -6334,6 +6345,179 @@
                 canvas.requestRenderAll();
                 engineSave();
             }, Coach.EXTRA_PROPS);
+        };
+
+        /* ── Inward holder outline ─────────────────────────────────
+           A decorative contour inset INTO the holder, drawn as a stroked
+           shape with no fill. Rect/circle/ellipse holders get exact analytic
+           insets; irregular holders (countries, imported SVGs, grouped
+           template boards) trace the inset contour from the holder distance
+           field (marching squares over "distance >= offset", RDP-simplified).
+           The outline is born engraved: its STROKE follows the holder
+           material's engrave colour exactly like text fills do (applyEngrave
+           has a holderOutline branch that recolours stroke instead of fill),
+           so brown on wood / grey on plastic, re-tinted on material change. */
+        Coach.OUTLINE_DEFAULT_OFFSET = 3;    // mm
+        Coach.OUTLINE_DEFAULT_THICKNESS = 1; // mm
+
+        Coach._rdp = function(pts, eps) {
+            if (pts.length < 3) return pts;
+            const keep = new Array(pts.length).fill(false);
+            keep[0] = keep[pts.length - 1] = true;
+            const stack = [[0, pts.length - 1]];
+            while (stack.length) {
+                const seg = stack.pop();
+                const a = seg[0], b = seg[1];
+                const A = pts[a], B = pts[b];
+                const dx = B.x - A.x, dy = B.y - A.y;
+                const len = Math.hypot(dx, dy) || 1e-9;
+                let maxD = -1, maxI = -1;
+                for (let i = a + 1; i < b; i++) {
+                    const d = Math.abs((pts[i].x - A.x) * dy - (pts[i].y - A.y) * dx) / len;
+                    if (d > maxD) { maxD = d; maxI = i; }
+                }
+                if (maxD > eps) { keep[maxI] = true; stack.push([a, maxI], [maxI, b]); }
+            }
+            return pts.filter((_, i) => keep[i]);
+        };
+
+        /* Marching squares over the "distance >= insetPx" region of the
+           holder's distance field. Emits edge-midpoint segments per cell,
+           chains them (undirected) into closed loops, simplifies each. */
+        Coach._traceInsetContours = function(field, insetPx) {
+            const br = field.bounds;
+            const step = 1.5;
+            const cols = Math.max(3, Math.ceil(br.width / step) + 3);
+            const rows = Math.max(3, Math.ceil(br.height / step) + 3);
+            const x0 = br.left - step, y0 = br.top - step;
+            const S = new Uint8Array(cols * rows);
+            for (let iy = 0; iy < rows; iy++) {
+                for (let ix = 0; ix < cols; ix++) {
+                    S[iy * cols + ix] = field.distAt(x0 + ix * step, y0 + iy * step) >= insetPx ? 1 : 0;
+                }
+            }
+            const segs = [];
+            for (let iy = 0; iy < rows - 1; iy++) {
+                for (let ix = 0; ix < cols - 1; ix++) {
+                    const c = S[iy * cols + ix] | (S[iy * cols + ix + 1] << 1)
+                        | (S[(iy + 1) * cols + ix + 1] << 2) | (S[(iy + 1) * cols + ix] << 3);
+                    if (c === 0 || c === 15) continue;
+                    const T = [ix + 0.5, iy], R = [ix + 1, iy + 0.5], B = [ix + 0.5, iy + 1], L = [ix, iy + 0.5];
+                    const EM = { 1: [[T, L]], 2: [[T, R]], 3: [[L, R]], 4: [[R, B]], 5: [[T, L], [R, B]],
+                                 6: [[T, B]], 7: [[L, B]], 8: [[B, L]], 9: [[T, B]], 10: [[T, R], [B, L]],
+                                 11: [[R, B]], 12: [[R, L]], 13: [[T, R]], 14: [[T, L]] };
+                    EM[c].forEach(p => segs.push([p[0][0], p[0][1], p[1][0], p[1][1]]));
+                }
+            }
+            const pk = (x, y) => (x * 2) + '_' + (y * 2); // midpoints are halves -> exact int keys
+            const at = new Map();
+            segs.forEach((s, i) => {
+                [pk(s[0], s[1]), pk(s[2], s[3])].forEach(k => {
+                    if (!at.has(k)) at.set(k, []);
+                    at.get(k).push(i);
+                });
+            });
+            const used = new Uint8Array(segs.length);
+            const loops = [];
+            for (let i = 0; i < segs.length; i++) {
+                if (used[i]) continue;
+                used[i] = 1;
+                const loop = [[segs[i][0], segs[i][1]], [segs[i][2], segs[i][3]]];
+                for (;;) {
+                    const tail = loop[loop.length - 1];
+                    const cand = (at.get(pk(tail[0], tail[1])) || []).find(j => !used[j]);
+                    if (cand === undefined) break;
+                    used[cand] = 1;
+                    const s = segs[cand];
+                    const nxt = (s[0] === tail[0] && s[1] === tail[1]) ? [s[2], s[3]] : [s[0], s[1]];
+                    if (nxt[0] === loop[0][0] && nxt[1] === loop[0][1]) break; // closed
+                    loop.push(nxt);
+                }
+                if (loop.length >= 8) loops.push(loop);
+            }
+            return loops
+                .map(loop => Coach._rdp(loop.map(g => ({ x: x0 + g[0] * step, y: y0 + g[1] * step })), 1.0))
+                .filter(l => l.length >= 4);
+        };
+
+        Coach.removeHolderOutlines = function() {
+            if (!cv()) return;
+            canvas.getObjects().filter(o => o.shapeType === 'holderOutline')
+                .forEach(o => canvas.remove(o));
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+            engineSave();
+        };
+
+        Coach.addHolderOutline = function(offsetMm, thicknessMm) {
+            if (!cv()) return false;
+            const holder = Coach.currentHolder();
+            if (!holder) return false;
+            const scale = canvas.scale || 1;
+            const off = (offsetMm > 0 ? offsetMm : Coach.OUTLINE_DEFAULT_OFFSET) * scale;
+            const thick = (thicknessMm > 0 ? thicknessMm : Coach.OUTLINE_DEFAULT_THICKNESS) * scale;
+            // Replace mode: one live outline at a time — duplicate it (Ctrl+D /
+            // Make a copy) for concentric rings before changing the settings.
+            canvas.getObjects().filter(o => o.shapeType === 'holderOutline')
+                .forEach(o => canvas.remove(o));
+
+            const common = {
+                fill: 'transparent',
+                stroke: '#000000',       // base colour; applyEngrave() tints it below
+                strokeWidth: thick,
+                strokeUniform: true,
+                originX: 'center',
+                originY: 'center'
+            };
+            const hc = holder.getCenterPoint();
+            let outline = null;
+            if (holder.type === 'rect') {
+                const w = holder.getScaledWidth() - 2 * off;
+                const h = holder.getScaledHeight() - 2 * off;
+                if (w <= 2 || h <= 2) return false;
+                const rx = Math.max(0, (holder.rx || 0) * (holder.scaleX || 1) - off);
+                outline = new fabric.Rect(Object.assign({}, common, {
+                    left: hc.x, top: hc.y, width: w, height: h, rx: rx, ry: rx, angle: holder.angle || 0
+                }));
+            } else if (holder.type === 'circle') {
+                const r = (holder.radius || 0) * (holder.scaleX || 1) - off;
+                if (r <= 1) return false;
+                outline = new fabric.Circle(Object.assign({}, common, { left: hc.x, top: hc.y, radius: r }));
+            } else if (holder.type === 'ellipse') {
+                const erx = (holder.rx || 0) * (holder.scaleX || 1) - off;
+                const ery = (holder.ry || 0) * (holder.scaleY || 1) - off;
+                if (erx <= 1 || ery <= 1) return false;
+                outline = new fabric.Ellipse(Object.assign({}, common, {
+                    left: hc.x, top: hc.y, rx: erx, ry: ery, angle: holder.angle || 0
+                }));
+            } else {
+                // Irregular holder — trace the true inset contour(s).
+                const field = Coach._holderDistanceField(holder);
+                if (!field) return false;
+                const loops = Coach._traceInsetContours(field, off);
+                if (!loops.length) return false;
+                const d = loops.map(loop =>
+                    'M ' + loop.map(p => p.x.toFixed(2) + ' ' + p.y.toFixed(2)).join(' L ') + ' Z'
+                ).join(' ');
+                outline = new fabric.Path(d, {
+                    fill: 'transparent',
+                    stroke: '#000000',
+                    strokeWidth: thick,
+                    strokeUniform: true
+                });
+            }
+            if (!outline) return false;
+            outline.shapeType = 'holderOutline';
+            outline.materialType = 'color';
+            outline.setCoords();
+            canvas.add(outline);
+            // Born engraved: the stroke follows the material's engrave colour
+            // (brown on wood, grey on plastic), like step-7 text.
+            Coach.applyEngrave(outline, true);
+            if (typeof Coach.raiseCoinsToFront === 'function') Coach.raiseCoinsToFront();
+            canvas.requestRenderAll();
+            engineSave();
+            return true;
         };
 
         /* ── Coach.arrange ────────────────────────────────────────────
@@ -8359,7 +8543,7 @@
                     const pickEngraveTarget = function() {
                         if (!cv()) return null;
                         const active = canvas.getActiveObject();
-                        if (active && (active.type === 'image' || active.type === 'text' || active.type === 'i-text' || active.shapeType === 'bentText')) return active;
+                        if (active && (active.type === 'image' || active.type === 'text' || active.type === 'i-text' || active.shapeType === 'bentText' || active.shapeType === 'holderOutline')) return active;
                         const imgs = canvas.getObjects().filter(function(o) { return o.type === 'image'; });
                         return imgs.length ? imgs[imgs.length - 1] : null;
                     };
@@ -8382,6 +8566,51 @@
                     tintRow.appendChild(tintBtn);
                     el.appendChild(tintRow);
                     el.appendChild(tintNudge);
+
+                    /* ── Outline the holder inwards ───────────────── */
+                    el.appendChild(sectionLabel('Outline the holder'));
+                    el.appendChild(mkEl('p', {
+                        className: 'small text-muted mb-1',
+                        textContent: 'Draws the holder\u2019s shape again, inset inwards \u2014 a decorative engraved border.'
+                    }));
+                    const outRow = mkEl('div', { className: 'd-flex align-items-end justify-content-center gap-2 mb-1' });
+                    const outNum = (labelText, val, minV, stepV) => {
+                        const wrap = mkEl('div');
+                        wrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: labelText }));
+                        const inp = mkEl('input', { type: 'number', className: 'form-control form-control-sm' });
+                        inp.min = String(minV);
+                        inp.step = String(stepV);
+                        inp.value = String(val);
+                        inp.style.width = '70px';
+                        wrap.appendChild(inp);
+                        outRow.appendChild(wrap);
+                        return inp;
+                    };
+                    const outOffInp = outNum('Offset (mm)', Coach.state.outlineOffset || Coach.OUTLINE_DEFAULT_OFFSET, 0.5, 0.5);
+                    const outThickInp = outNum('Line (mm)', Coach.state.outlineThickness || Coach.OUTLINE_DEFAULT_THICKNESS, 0.1, 0.1);
+                    el.appendChild(outRow);
+                    const outNudge = mkEl('p', { className: 'small text-warning mb-1' });
+                    outNudge.style.display = 'none';
+                    const outBtns = mkEl('div', { className: 'coach-row coach-row-2 mb-2' });
+                    const addOutBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Add outline' });
+                    addOutBtn.addEventListener('click', () => {
+                        const o = parseFloat(outOffInp.value);
+                        const t = parseFloat(outThickInp.value);
+                        Coach.state.outlineOffset = o;
+                        Coach.state.outlineThickness = t;
+                        const ok = Coach.addHolderOutline(o, t);
+                        outNudge.textContent = 'Could not build the outline \u2014 is the offset too large for the holder?';
+                        outNudge.style.display = ok ? 'none' : '';
+                    });
+                    const remOutBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove outline' });
+                    remOutBtn.addEventListener('click', () => {
+                        Coach.removeHolderOutlines();
+                        outNudge.style.display = 'none';
+                    });
+                    outBtns.appendChild(addOutBtn);
+                    outBtns.appendChild(remOutBtn);
+                    el.appendChild(outBtns);
+                    el.appendChild(outNudge);
 
                     /* ── Trim an overflowing outline to the holder ─────────
                        When a country outline / image / shape extends past the
