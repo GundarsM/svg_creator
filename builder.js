@@ -6160,8 +6160,12 @@
            0 = outside). Used to clamp the geometric layouts (grid/rows/circle)
            inside irregular shapes, whose bounding box is much larger than the
            silhouette. Returns null if the mask can't be read. */
-        Coach._holderDistanceField = function(holder) {
+        Coach._holderDistanceField = function(holder, mult) {
             if (!cv() || !holder) return null;
+            // Rasterise the mask at `mult`× the on-screen resolution. Coin
+            // layout is happy at 1×; the traced holder outline asks for a finer
+            // field (see addHolderOutline) so its contour hugs the true edge.
+            const M = (mult && mult > 0) ? mult : 1;
             let maskCanvas = null;
             const saved = [];
             const solidify = (o) => {
@@ -6172,7 +6176,7 @@
                 if (holder.type === 'group') holder.forEachObject(solidify);
                 else solidify(holder);
                 if (typeof holder.toCanvasElement === 'function') {
-                    maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false });
+                    maskCanvas = holder.toCanvasElement({ enableRetinaScaling: false, multiplier: M });
                 }
             } catch (e) { maskCanvas = null; }
             saved.forEach(([o, f, op, s, sw]) => o.set({ fill: f, opacity: op, stroke: s, strokeWidth: sw }));
@@ -6383,9 +6387,13 @@
         /* Marching squares over the "distance >= insetPx" region of the
            holder's distance field. Emits edge-midpoint segments per cell,
            chains them (undirected) into closed loops, simplifies each. */
-        Coach._traceInsetContours = function(field, insetPx) {
+        Coach._traceInsetContours = function(field, insetPx, opts) {
             const br = field.bounds;
-            const step = 1.5;
+            // Grid spacing (canvas px) for marching squares and RDP tolerance for
+            // the final simplify. Finer values → a contour closer to the true
+            // silhouette at the cost of more points; the outline asks for these.
+            const step = (opts && opts.step > 0) ? opts.step : 1.5;
+            const rdpTol = (opts && opts.rdp > 0) ? opts.rdp : 1.0;
             const cols = Math.max(3, Math.ceil(br.width / step) + 3);
             const rows = Math.max(3, Math.ceil(br.height / step) + 3);
             const x0 = br.left - step, y0 = br.top - step;
@@ -6435,7 +6443,7 @@
                 if (loop.length >= 8) loops.push(loop);
             }
             return loops
-                .map(loop => Coach._rdp(loop.map(g => ({ x: x0 + g[0] * step, y: y0 + g[1] * step })), 1.0))
+                .map(loop => Coach._rdp(loop.map(g => ({ x: x0 + g[0] * step, y: y0 + g[1] * step })), rdpTol))
                 .filter(l => l.length >= 4);
         };
 
@@ -6501,9 +6509,9 @@
                 // Irregular holder (country / imported SVG): trace the true inset
                 // contour. A jagged marching-squares polyline is acceptable here —
                 // the silhouette is irregular anyway.
-                const field = Coach._holderDistanceField(holder);
+                const field = Coach._holderDistanceField(holder, 3);
                 if (!field) return false;
-                const loops = Coach._traceInsetContours(field, off);
+                const loops = Coach._traceInsetContours(field, off, { step: 0.6, rdp: 0.35 });
                 if (!loops.length) return false;
                 const d = loops.map(loop =>
                     'M ' + loop.map(p => p.x.toFixed(2) + ' ' + p.y.toFixed(2)).join(' L ') + ' Z'
