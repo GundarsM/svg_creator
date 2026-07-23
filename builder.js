@@ -6482,10 +6482,25 @@
                 const r = (holder.radius || 0) * (holder.scaleX || 1) - off;
                 if (r <= 1) return false;
                 outline = new fabric.Circle(Object.assign({}, common, { left: hc.x, top: hc.y, radius: r }));
+            } else if (holder.type === 'ellipse' || holder.type === 'circle') {
+                // Ellipse or non-uniformly scaled circle (the uniform circle was
+                // handled above). An ellipse's true parallel curve isn't itself an
+                // ellipse, but shrinking each semi-axis by the offset keeps the line
+                // perfectly smooth with a near-uniform gap — far better here than the
+                // marching-squares trace, which looks jagged on a curve that should
+                // read as clean. Rotation is carried by the holder's angle.
+                const brx = holder.type === 'ellipse' ? (holder.rx || 0) : (holder.radius || 0);
+                const bry = holder.type === 'ellipse' ? (holder.ry || 0) : (holder.radius || 0);
+                const erx = brx * (holder.scaleX || 1) - off;
+                const ery = bry * (holder.scaleY || 1) - off;
+                if (erx <= 1 || ery <= 1) return false;
+                outline = new fabric.Ellipse(Object.assign({}, common, {
+                    left: hc.x, top: hc.y, rx: erx, ry: ery, angle: holder.angle || 0
+                }));
             } else {
-                // Ellipses, non-uniformly scaled circles and irregular holders all
-                // trace the true inset contour — an ellipse's parallel curve is NOT
-                // an ellipse, so the analytic shortcut would draw an uneven gap.
+                // Irregular holder (country / imported SVG): trace the true inset
+                // contour. A jagged marching-squares polyline is acceptable here —
+                // the silhouette is irregular anyway.
                 const field = Coach._holderDistanceField(holder);
                 if (!field) return false;
                 const loops = Coach._traceInsetContours(field, off);
