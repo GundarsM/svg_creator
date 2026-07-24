@@ -6384,6 +6384,46 @@
             return pts.filter((_, i) => keep[i]);
         };
 
+        /* ── Coach._chaikinClosed ────────────────────────────────────────
+           Chaikin corner-cutting on a CLOSED loop of {x,y}. Each pass replaces
+           every vertex with two points 1/4 and 3/4 along its outgoing edge,
+           rounding the raster staircase off into a smooth curve. The new points
+           sit on the original segments, so the inset gap stays ~uniform. */
+        Coach._chaikinClosed = function(pts, iters) {
+            let p = pts;
+            for (let k = 0; k < (iters || 1); k++) {
+                const out = [], n = p.length;
+                for (let i = 0; i < n; i++) {
+                    const a = p[i], b = p[(i + 1) % n];
+                    out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+                    out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+                }
+                p = out;
+            }
+            return p;
+        };
+
+        /* ── Coach._closedSplinePath ─────────────────────────────────────
+           A closed uniform Catmull-Rom spline through pts, emitted as cubic
+           bezier commands so fabric renders genuinely smooth curvature (not a
+           polyline) at any zoom. Chaikin first tames sharp turns, so the
+           spline barely overshoots. */
+        Coach._closedSplinePath = function(pts) {
+            const n = pts.length;
+            if (n < 3) return '';
+            const P = (i) => pts[((i % n) + n) % n];
+            let d = 'M ' + P(0).x.toFixed(2) + ' ' + P(0).y.toFixed(2) + ' ';
+            for (let i = 0; i < n; i++) {
+                const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+                const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+                const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+                d += 'C ' + c1x.toFixed(2) + ' ' + c1y.toFixed(2) + ' '
+                          + c2x.toFixed(2) + ' ' + c2y.toFixed(2) + ' '
+                          + p2.x.toFixed(2) + ' ' + p2.y.toFixed(2) + ' ';
+            }
+            return d + 'Z';
+        };
+
         /* Marching squares over the "distance >= insetPx" region of the
            holder's distance field. Emits edge-midpoint segments per cell,
            chains them (undirected) into closed loops, simplifies each. */
@@ -6511,11 +6551,17 @@
                 // the silhouette is irregular anyway.
                 const field = Coach._holderDistanceField(holder, 6);
                 if (!field) return false;
-                const loops = Coach._traceInsetContours(field, off, { step: 0.25, rdp: 0.12 });
+                // Trace with light simplification to keep the true detail, then
+                // Chaikin-smooth away the marching-squares staircase and fit a
+                // closed spline so the stroke reads as a clean flowing curve
+                // rather than a jagged polyline.
+                const loops = Coach._traceInsetContours(field, off, { step: 0.25, rdp: 0.15 });
                 if (!loops.length) return false;
-                const d = loops.map(loop =>
-                    'M ' + loop.map(p => p.x.toFixed(2) + ' ' + p.y.toFixed(2)).join(' L ') + ' Z'
-                ).join(' ');
+                const d = loops.map(loop => {
+                    const smooth = Coach._rdp(Coach._chaikinClosed(loop, 2), 0.5);
+                    return Coach._closedSplinePath(smooth);
+                }).filter(Boolean).join(' ');
+                if (!d) return false;
                 outline = new fabric.Path(d, {
                     fill: 'transparent',
                     stroke: '#000000',
