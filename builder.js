@@ -2824,10 +2824,10 @@
                                 fill: '#5c3316',
                                 stroke: '#5c3316',
                                 strokeWidth: 0.1,
-                                scaleX: scale * 0.525, // 63mm target / 120-unit fit box
-                                scaleY: scale * 0.525,
-                                left: baseX - 3 * scale, // UK map centred at X ≈ 192 mm on the default canvas
-                                top: baseY - 4,
+                                scaleX: scale * 0.45, // ~54 mm tall to sit inside the coin ring
+                                scaleY: scale * 0.45,
+                                left: baseX + 2 * scale,  // centred, nudged slightly down-right
+                                top: baseY + 3 * scale,
                                 originX: 'center',
                                 originY: 'center'
                             });
@@ -2845,26 +2845,32 @@
                     });
                     
                     function addUKCoinsToTemplate() {
+                        // Clockwise from the top, matching the reference layout.
                         const ukCoins = [
+                            { value: '50p', diameter: 27.45 },
+                            { value: '1£', diameter: 23.18 },
+                            { value: '2£', diameter: 28.55 },
                             { value: '1p', diameter: 20.47 },
                             { value: '2p', diameter: 26.06 },
                             { value: '5p', diameter: 18.15 },
                             { value: '10p', diameter: 24.65 },
-                            { value: '20p', diameter: 21.55 },
-                            { value: '50p', diameter: 27.45 },
-                            { value: '1£', diameter: 23.18 },
-                            { value: '2£', diameter: 28.55 }
+                            { value: '20p', diameter: 21.55 }
                         ];
-                        
-                        const coinRadius = 45 * scale; // Radius of coin circle placement
+
+                        // Coins are aligned to their OUTER edge: every slot's outer
+                        // rim sits on this ring, so each centre sits one coin-radius
+                        // in — bigger coins reach further toward the centre. Evenly
+                        // spaced 45° apart, the top gap straddled by 50p and 20p.
+                        const outerRing = 54 * scale;
                         const angleStep = (2 * Math.PI) / ukCoins.length;
-                        const rotationOffset = (20 * Math.PI) / 180; // 20 degrees in radians
-                        
+                        const rotationOffset = (22.5 * Math.PI) / 180; // 50p just right of top
+
                         ukCoins.forEach((coin, index) => {
-                            const angle = (index * angleStep) - (Math.PI / 2) + rotationOffset; // Start at top, rotated by 20 degrees
-                            const x = baseX + Math.cos(angle) * coinRadius;
-                            const y = baseY + Math.sin(angle) * coinRadius;
                             const radius = (coin.diameter / 2) * scale;
+                            const placeR = outerRing - radius; // outer-edge alignment
+                            const angle = (index * angleStep) - (Math.PI / 2) + rotationOffset;
+                            const x = baseX + Math.cos(angle) * placeR;
+                            const y = baseY + Math.sin(angle) * placeR;
                             
                             // Check for special coins (20p, 50p)
                             const isSpecialCoin = coin.value === '20p' || coin.value === '50p';
