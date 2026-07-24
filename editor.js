@@ -3729,6 +3729,10 @@
                 const group = sel.toGroup();
                 if (!group.shapeType) group.shapeType = 'group';
                 group.setCoords();
+                // toGroup re-adds objects, which queues the off-view auto-fit —
+                // a structural regroup must never move the view. Drop the queue
+                // before the deferred check runs.
+                if (canvas._autoFitQueue) canvas._autoFitQueue = [];
                 canvas.requestRenderAll();
                 updatePropertiesPanel();
                 updateAlignPanel();
@@ -3741,6 +3745,9 @@
                 if (!canUngroup(obj)) return;
                 const sel = obj.toActiveSelection();
                 if (sel) sel.setCoords();
+                // toActiveSelection re-adds every member, which queues the
+                // off-view auto-fit — ungrouping must never move the view.
+                if (canvas._autoFitQueue) canvas._autoFitQueue = [];
                 canvas.requestRenderAll();
                 updatePropertiesPanel();
                 updateAlignPanel();
