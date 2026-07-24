@@ -485,6 +485,8 @@
         <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+        <!-- clipper-lib: robust vector polygon offsetting for holder outlines -->
+        <script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
 
         <!-- ═══════════════════════════════════════════════════════
              COACH REGION — styles only; JS added in Task 3
@@ -6424,6 +6426,80 @@
             return d + 'Z';
         };
 
+        /* ── Coach._pathRingsWorld ───────────────────────────────────────
+           Extract a fabric.Path's subpaths as arrays of {x,y} points in CANVAS
+           (world) coordinates, flattening any curve commands. Returns null for
+           non-path holders (groups / imported SVGs) — those fall back to the
+           raster trace. Path points live in path-local space offset by
+           pathOffset; the object matrix maps them to canvas. */
+        Coach._pathRingsWorld = function(obj) {
+            if (!obj || obj.type !== 'path' || !Array.isArray(obj.path)) return null;
+            const m = obj.calcTransformMatrix();
+            const ox = obj.pathOffset ? obj.pathOffset.x : 0;
+            const oy = obj.pathOffset ? obj.pathOffset.y : 0;
+            const W = (x, y) => {
+                const p = fabric.util.transformPoint(new fabric.Point(x - ox, y - oy), m);
+                return { x: p.x, y: p.y };
+            };
+            const rings = [];
+            let cur = null, sx = 0, sy = 0, px = 0, py = 0;
+            const bez3 = (x1, y1, x2, y2, x3, y3) => {
+                for (let k = 1; k <= 8; k++) { const t = k / 8, u = 1 - t;
+                    cur.push(W(u*u*u*px + 3*u*u*t*x1 + 3*u*t*t*x2 + t*t*t*x3,
+                               u*u*u*py + 3*u*u*t*y1 + 3*u*t*t*y2 + t*t*t*y3)); }
+                px = x3; py = y3;
+            };
+            const bez2 = (x1, y1, x2, y2) => {
+                for (let k = 1; k <= 8; k++) { const t = k / 8, u = 1 - t;
+                    cur.push(W(u*u*px + 2*u*t*x1 + t*t*x2, u*u*py + 2*u*t*y1 + t*t*y2)); }
+                px = x2; py = y2;
+            };
+            obj.path.forEach(cmd => {
+                const c = cmd[0];
+                if (c === 'M') { if (cur && cur.length > 2) rings.push(cur); cur = [W(cmd[1], cmd[2])]; sx = px = cmd[1]; sy = py = cmd[2]; }
+                else if (c === 'L') { cur.push(W(cmd[1], cmd[2])); px = cmd[1]; py = cmd[2]; }
+                else if (c === 'C') bez3(cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6]);
+                else if (c === 'Q') bez2(cmd[1], cmd[2], cmd[3], cmd[4]);
+                else if (c === 'Z' || c === 'z') { px = sx; py = sy; }
+            });
+            if (cur && cur.length > 2) rings.push(cur);
+            return rings.length ? rings : null;
+        };
+
+        /* ── Coach._vectorInsetLoops ─────────────────────────────────────
+           True inward polygon offset of the holder's own vector geometry using
+           clipper-lib — no rasterisation, so the outline is exactly parallel to
+           the source edges with zero staircase. Unions the rings (fixing
+           orientation / overlaps), then insets by offCanvasPx with round joins.
+           Returns loops of {x,y} in canvas coords, or null if clipper is
+           unavailable, the holder isn't a path, or the inset vanishes. */
+        Coach._vectorInsetLoops = function(holder, offCanvasPx) {
+            if (typeof ClipperLib === 'undefined') return null;
+            const rings = Coach._pathRingsWorld(holder);
+            if (!rings) return null;
+            const SC = 1000;                       // int precision: 1/1000 canvas px
+            const arcTol = Math.max(0.15, offCanvasPx * 0.04) * SC;
+            try {
+                const subj = rings.map(r => r.map(p => ({ X: Math.round(p.x * SC), Y: Math.round(p.y * SC) })));
+                // Normalise orientation & merge overlaps (outers CCW+, holes CW-).
+                const clip = new ClipperLib.Clipper();
+                clip.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
+                const cleaned = new ClipperLib.Paths();
+                clip.Execute(ClipperLib.ClipType.ctUnion, cleaned,
+                    ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+                if (!cleaned.length) return null;
+                // Inset (negative delta shrinks the filled region inward).
+                const co = new ClipperLib.ClipperOffset(2, arcTol);
+                co.AddPaths(cleaned, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+                const sol = new ClipperLib.Paths();
+                co.Execute(sol, -offCanvasPx * SC);
+                if (!sol.length) return null;
+                return sol
+                    .map(pa => pa.map(pt => ({ x: pt.X / SC, y: pt.Y / SC })))
+                    .filter(l => l.length >= 3);
+            } catch (e) { return null; }
+        };
+
         /* Marching squares over the "distance >= insetPx" region of the
            holder's distance field. Emits edge-midpoint segments per cell,
            chains them (undirected) into closed loops, simplifies each. */
@@ -6549,18 +6625,27 @@
                 // Irregular holder (country / imported SVG): trace the true inset
                 // contour. A jagged marching-squares polyline is acceptable here —
                 // the silhouette is irregular anyway.
-                const field = Coach._holderDistanceField(holder, 6);
-                if (!field) return false;
-                // Trace with light simplification to keep the true detail, then
-                // Chaikin-smooth away the marching-squares staircase and fit a
-                // closed spline so the stroke reads as a clean flowing curve
-                // rather than a jagged polyline.
-                const loops = Coach._traceInsetContours(field, off, { step: 0.25, rdp: 0.15 });
-                if (!loops.length) return false;
-                const d = loops.map(loop => {
-                    const smooth = Coach._rdp(Coach._chaikinClosed(loop, 2), 0.5);
-                    return Coach._closedSplinePath(smooth);
-                }).filter(Boolean).join(' ');
+                // Preferred: a true vector inset of the holder's own polygon via
+                // clipper-lib — exactly parallel to the source edges, no raster,
+                // no staircase. Falls back to the smoothed distance-field trace
+                // for non-path holders (groups) or if clipper is unavailable.
+                let d = '';
+                const vLoops = Coach._vectorInsetLoops(holder, off);
+                if (vLoops && vLoops.length) {
+                    d = vLoops.map(loop =>
+                        'M ' + loop.map(p => p.x.toFixed(2) + ' ' + p.y.toFixed(2)).join(' L ') + ' Z'
+                    ).join(' ');
+                } else {
+                    const field = Coach._holderDistanceField(holder, 6);
+                    if (!field) return false;
+                    // Trace, Chaikin-smooth away the marching-squares staircase,
+                    // and fit a closed spline so the stroke reads as a clean curve.
+                    const loops = Coach._traceInsetContours(field, off, { step: 0.25, rdp: 0.15 });
+                    if (!loops.length) return false;
+                    d = loops.map(loop =>
+                        Coach._closedSplinePath(Coach._rdp(Coach._chaikinClosed(loop, 2), 0.5))
+                    ).filter(Boolean).join(' ');
+                }
                 if (!d) return false;
                 outline = new fabric.Path(d, {
                     fill: 'transparent',

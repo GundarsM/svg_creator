@@ -28,7 +28,7 @@ All three files share the same foundation:
 
 Additional per file:
 - **editor.js**: Fabric.js 5.3.0 (canvas), opentype.js 1.3.4 (text→vector paths on export), Google Fonts (Anton, Cormorant Garamond, EB Garamond, Inconsolata, Josefin Sans, Lora, Nunito, Open Sans, Patrick Hand, PT Sans, Roboto), d3-geo 3.1.1 + d3-array 3.2.4 + topojson-client 3.1.0 (runtime country contours from the world-atlas dataset, fetched lazily from jsDelivr)
-- **builder.js**: same as editor.js (it embeds the editor engine — see maintenance note); the Coach overlay adds no new libraries.
+- **builder.js**: same as editor.js (it embeds the editor engine — see maintenance note); the Coach overlay additionally loads clipper-lib 6.4.2 (global `ClipperLib`, from jsDelivr) for the vector inward-offset used by the step-7 holder outline — with a raster distance-field fallback if it fails to load.
 - **converter.html**: ImageTracer.js 1.2.6 (raster→vector tracing)
 - **bg-remover.html**: OpenCV.js 4.8.0 (background detection)
 
