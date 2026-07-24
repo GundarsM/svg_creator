@@ -2826,8 +2826,8 @@
                                 strokeWidth: 0.1,
                                 scaleX: scale * 0.45, // ~54 mm tall to sit inside the coin ring
                                 scaleY: scale * 0.45,
-                                left: baseX + 2 * scale,  // centred, nudged slightly down-right
-                                top: baseY + 3 * scale,
+                                left: 190 * scale,   // customer-specified position (mm)
+                                top: 143 * scale,
                                 originX: 'center',
                                 originY: 'center'
                             });
