@@ -2575,17 +2575,46 @@
             const baseX = canvas.width / 2; // Center position for template
             const baseY = canvas.height / 2;
 
-            // The board these fixtures attach to, and any non-'currency' slots
-            // (e.g. Pressed-Penny ellipses) fixtures must avoid. Set per template;
-            // consumed by placeTemplateFixtures() once the board is on canvas.
+            // The board these fixtures attach to. Set per template; consumed by
+            // placeTemplateFixtures() once the board is on canvas. Each template
+            // has its own hand-placed fixture layout (positions in canvas px).
             let templateBoard = null;
-            let templateAvoid = [];
+            function templateFixturePositions() {
+                const cx = baseX, cy = baseY;
+                if (templateType === 'germany-euro') {
+                    // Two holes on the bottom edge, nudged down 2 mm and 15 mm
+                    // inward from the generic 1/6-&-5/6 rectangle positions.
+                    const dx = (136 / 3 - 15) * scale;      // ±hw/3, then 15 mm inward
+                    const dy = (74 / 2 - 12 + 2) * scale;   // bottom inset 12 mm, +2 mm down
+                    return [{ x: cx - dx, y: cy + dy }, { x: cx + dx, y: cy + dy }];
+                }
+                if (templateType === 'uk-coins') {
+                    // Six holes like any circular holder, pushed 4 mm outward
+                    // (perimeter inset 12 → 8 mm), starting at top rotated 30°.
+                    const R = (133 / 2 - 8) * scale;
+                    const pts = [];
+                    for (let i = 0; i < 6; i++) {
+                        const a = -Math.PI / 2 + Math.PI / 6 + i * (Math.PI / 3);
+                        pts.push({ x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) });
+                    }
+                    return pts;
+                }
+                if (templateType === 'memories') {
+                    // Four holes at the customer-specified canvas positions (mm).
+                    return [[148, 232], [241, 232], [148, 68], [241, 68]]
+                        .map(([mx, my]) => ({ x: mx * scale, y: my * scale }));
+                }
+                return [];
+            }
             function placeTemplateFixtures() {
                 if (!templateBoard || canvas.getObjects().indexOf(templateBoard) === -1) return;
                 Coach.state.holderObj = templateBoard;
-                if (typeof Coach.addFixtures === 'function') {
-                    Coach.addFixtures({ avoid: templateAvoid });
-                }
+                if (typeof Coach.makeFixtureCircle !== 'function') return;
+                canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
+                canvas.discardActiveObject();
+                templateFixturePositions().forEach(p => canvas.add(Coach.makeFixtureCircle(p.x, p.y, scale)));
+                canvas.requestRenderAll();
+                if (typeof engineSave === 'function') engineSave();
             }
                 
             if (templateType === 'germany-euro') {
@@ -3026,7 +3055,6 @@
                         ellipse.realRx = ellipseWidth / 2;
                         ellipse.realRy = ellipseHeight / 2;
                         elements.push(ellipse);
-                        templateAvoid.push(ellipse); // penny slots — keep fixtures clear
                     }
                 }
                 
@@ -7241,10 +7269,8 @@
            • Rectangle → 2 on the top edge + 2 on the bottom edge (none on sides)
            • Circle    → 6 equally spaced
            • Irregular → as many as fit, ~100 mm apart along the offset contour
-           opts.avoid — extra fabric objects (beyond 'currency' coins) that
-           fixtures must stay clear of, e.g. a template's penny-slot ellipses.
            Returns the number of fixtures placed, or false if there's no holder. */
-        Coach.addFixtures = function(opts) {
+        Coach.addFixtures = function() {
             if (!cv()) return false;
 
             let holder = Coach.state.holderObj;
@@ -7265,12 +7291,6 @@
             canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
 
             const coins = canvas.getObjects().filter(o => o.shapeType === 'currency');
-            // Fixtures also keep clear of any extra obstacles the caller passes
-            // (e.g. template penny-slot ellipses, which aren't 'currency').
-            const avoidExtra = (opts && Array.isArray(opts.avoid))
-                ? opts.avoid.filter(o => o && canvas.getObjects().indexOf(o) !== -1)
-                : [];
-            const obstacles = coins.concat(avoidExtra);
 
             const HOLE_R   = 2.1;                 // mm — drawn hole radius (4.2 mm dia)
             const OFFSET   = 12;                  // mm — inset of the fixture perimeter
@@ -7281,8 +7301,8 @@
             const placed = [];                    // {x,y} in canvas px
 
             function clearOfCoins(x, y) {
-                for (let i = 0; i < obstacles.length; i++) {
-                    const c = obstacles[i];
+                for (let i = 0; i < coins.length; i++) {
+                    const c = coins[i];
                     const cc = c.getCenterPoint();
                     const cr = Math.max(c.getScaledWidth(), c.getScaledHeight()) / 2;
                     const dx = cc.x - x, dy = cc.y - y;
