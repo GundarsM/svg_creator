@@ -2955,20 +2955,58 @@
             });
             
             // Zoom functions
+            /* Toolbar zoom anchors on the coin holder's centre, so zooming in
+               dives into the design and zooming out backs away from it —
+               setZoom alone anchors at the screen origin and walked the design
+               off toward a corner. Holder = the Coach-tracked holder when
+               available, else the largest non-coin/non-fixture/non-text object
+               (template boards included); with no holder at all, the view
+               centre. If the holder's centre is off-screen the zoom recentres
+               it, so zooming always converges on the design. */
+            function zoomAboutHolder(zoom) {
+                let holder = (typeof Coach !== 'undefined' && Coach.state) ? Coach.state.holderObj : null;
+                if (!holder || canvas.getObjects().indexOf(holder) === -1) {
+                    let bestA = -1;
+                    holder = null;
+                    canvas.getObjects().forEach(function(o) {
+                        if (o.shapeType === 'currency' || o.shapeType === 'fixture' ||
+                            o.type === 'text' || o.type === 'i-text') return;
+                        const a = o.getScaledWidth() * o.getScaledHeight();
+                        if (a > bestA) { bestA = a; holder = o; }
+                    });
+                }
+                const vw = canvas.getWidth(), vh = canvas.getHeight();
+                if (!holder) {
+                    canvas.zoomToPoint(new fabric.Point(vw / 2, vh / 2), zoom);
+                    canvas.requestRenderAll();
+                    return;
+                }
+                const hr = holder.getBoundingRect(false, true); // screen coords
+                const hx = hr.left + hr.width / 2, hy = hr.top + hr.height / 2;
+                if (hx >= 0 && hx <= vw && hy >= 0 && hy <= vh) {
+                    // Holder centre visible: keep it pinned while zooming.
+                    canvas.zoomToPoint(new fabric.Point(hx, hy), zoom);
+                } else {
+                    // Holder centre off-screen: zoom AND recentre on it.
+                    const ar = holder.getBoundingRect(true, true); // scene coords
+                    const cx = ar.left + ar.width / 2, cy = ar.top + ar.height / 2;
+                    canvas.setViewportTransform([zoom, 0, 0, zoom, vw / 2 - cx * zoom, vh / 2 - cy * zoom]);
+                }
+                canvas.requestRenderAll();
+            }
+
             function zoomIn() {
                 let zoom = canvas.getZoom();
                 zoom *= 1.2;
                 if (zoom > 5) zoom = 5;
-                canvas.setZoom(zoom);
-                canvas.requestRenderAll();
+                zoomAboutHolder(zoom);
             }
-            
+
             function zoomOut() {
                 let zoom = canvas.getZoom();
                 zoom /= 1.2;
                 if (zoom < 0.2) zoom = 0.2;
-                canvas.setZoom(zoom);
-                canvas.requestRenderAll();
+                zoomAboutHolder(zoom);
             }
             
             function resetZoom() {
