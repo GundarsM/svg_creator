@@ -719,6 +719,15 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="property-panel" id="groupSection" style="display:none;">
+                            <div class="control-group">
+                                <label style="white-space: nowrap; font-size: 0.85em; font-family: 'IvyMode', 'Times New Roman', serif;">Group:</label>
+                                <div style="display: flex; gap: 6px; margin-bottom: 4px;">
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="groupBtn" onclick="groupSelected()" title="Group the selected objects — they move and scale as one (Ctrl+G)"><i class="fas fa-object-group"></i> Group</button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="ungroupBtn" onclick="ungroupSelected()" title="Split the selected group back into separate objects (Ctrl+Shift+G)"><i class="fas fa-object-ungroup"></i> Ungroup</button>
+                                </div>
+                            </div>
+                        </div>
                         
                         <div class="property-panel" id="objectProperties" style="display:none;">
                             <div class="control-group" style="display: flex; gap: 8px;">
@@ -854,6 +863,8 @@
                             <table style="font-size: 0.85em;">
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected objects</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + G</kbd></td><td>Group selected objects</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Shift + G</kbd></td><td>Ungroup the selected group</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>C</kbd></td><td>Align horizontal centres (multiple objects selected)</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>E</kbd></td><td>Align vertical centres (multiple objects selected)</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Z</kbd></td><td>Undo</td></tr>
@@ -1738,6 +1749,7 @@
                 // Alignment section: shown only while 2+ objects are selected.
                 ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
                     canvas.on(ev, updateAlignPanel);
+                    canvas.on(ev, updateGroupPanel);
                 });
                 canvas.on('object:modified', function(e) {
                     updatePropertiesPanel();
@@ -3691,6 +3703,51 @@
                 saveState();
             }
 
+            /* ── Group / Ungroup ──────────────────────────────────────────
+               Coins (shapeType 'currency') are protected: they are groups
+               internally (slot + value label) and must never be split. */
+            function canUngroup(obj) {
+                return !!obj && obj.type === 'group' && obj.shapeType !== 'currency';
+            }
+
+            function updateGroupPanel() {
+                const el = document.getElementById('groupSection');
+                if (!el || !canvas) return;
+                const a = canvas.getActiveObject();
+                const n = (a && a.type === 'activeSelection') ? a.getObjects().length : 0;
+                const ungroupable = canUngroup(a);
+                el.style.display = (n >= 2 || ungroupable) ? 'block' : 'none';
+                const gBtn = document.getElementById('groupBtn');
+                const uBtn = document.getElementById('ungroupBtn');
+                if (gBtn) gBtn.disabled = n < 2;
+                if (uBtn) uBtn.disabled = !ungroupable;
+            }
+
+            function groupSelected() {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const group = sel.toGroup();
+                if (!group.shapeType) group.shapeType = 'group';
+                group.setCoords();
+                canvas.requestRenderAll();
+                updatePropertiesPanel();
+                updateAlignPanel();
+                updateGroupPanel();
+                saveState();
+            }
+
+            function ungroupSelected() {
+                const obj = canvas.getActiveObject();
+                if (!canUngroup(obj)) return;
+                const sel = obj.toActiveSelection();
+                if (sel) sel.setCoords();
+                canvas.requestRenderAll();
+                updatePropertiesPanel();
+                updateAlignPanel();
+                updateGroupPanel();
+                saveState();
+            }
+
             function deleteSelected() {
                 const activeObjects = canvas.getActiveObjects();
                 if (activeObjects.length > 0) {
@@ -4579,6 +4636,14 @@
                         if (isTyping) return; // Allow normal behavior in input fields
                         e.preventDefault();
                         duplicateSelected();
+                    }
+
+                    // Group / Ungroup: Ctrl+G / Ctrl+Shift+G
+                    if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G')) {
+                        if (isTyping) return;
+                        e.preventDefault();
+                        if (e.shiftKey) ungroupSelected();
+                        else groupSelected();
                     }
 
                     // Align shortcuts, multi-selection only (plain keys, so the
