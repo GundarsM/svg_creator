@@ -1987,25 +1987,38 @@
                     saveState();
                     updateCanvasHint();
 
-                    // If the new object lands (even partly) outside the visible
+                    // If the new object ends up (even partly) outside the visible
                     // view, run "Fit to screen" (resetZoom centres the holder)
-                    // instead of panning. Deferred one frame so batch adds
-                    // (templates, arranged coins) trigger a single fit, and
-                    // skipped during undo/redo restores so history navigation
-                    // never yanks the user's viewport around.
+                    // instead of panning. The CHECK itself is deferred one frame:
+                    // several add paths rescale or reposition the object in the
+                    // same tick (step-2 resizeHolder grows a circle from 80 to
+                    // 120 mm AFTER adding it), so testing at add-instant misses
+                    // objects that only grow out of view. Deferring also lets
+                    // batch adds (templates, arranged coins) coalesce into a
+                    // single fit. Only the newly added objects are tested — being
+                    // zoomed into a detail with older objects off-view must not
+                    // trigger fits. Skipped during undo/redo restores so history
+                    // navigation never yanks the user's viewport around.
                     var obj = e.target;
                     if (obj && !isUndoing && !isRedoing) {
-                        var vw = canvas.getWidth();
-                        var vh = canvas.getHeight();
-                        var r = obj.getBoundingRect(false, true); // screen coords
-                        if (r.left < 0 || r.top < 0 || r.left + r.width > vw || r.top + r.height > vh) {
-                            if (!canvas._autoFitPending) {
-                                canvas._autoFitPending = true;
-                                requestAnimationFrame(function() {
-                                    canvas._autoFitPending = false;
-                                    resetZoom();
+                        if (!canvas._autoFitQueue) canvas._autoFitQueue = [];
+                        canvas._autoFitQueue.push(obj);
+                        if (!canvas._autoFitPending) {
+                            canvas._autoFitPending = true;
+                            requestAnimationFrame(function() {
+                                canvas._autoFitPending = false;
+                                var queue = canvas._autoFitQueue || [];
+                                canvas._autoFitQueue = [];
+                                var vw = canvas.getWidth();
+                                var vh = canvas.getHeight();
+                                var drifted = queue.some(function(o) {
+                                    if (!canvas.contains(o)) return false; // removed again (e.g. replace mode)
+                                    var r = o.getBoundingRect(false, true); // screen coords
+                                    return r.left < 0 || r.top < 0 ||
+                                           r.left + r.width > vw || r.top + r.height > vh;
                                 });
-                            }
+                                if (drifted) resetZoom();
+                            });
                         }
                     }
                 });
