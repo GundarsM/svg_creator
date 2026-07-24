@@ -3531,7 +3531,13 @@
                 };
                 
                 document.getElementById('objRotation').onchange = function() {
+                    // Rotate about the bounding-box centre. set('angle') alone
+                    // spins around the transform origin — top-left for a
+                    // multi-selection — which orbited the whole selection
+                    // around its corner instead of turning in place.
+                    const center = obj.getCenterPoint();
                     obj.set('angle', parseFloat(this.value));
+                    obj.setPositionByOrigin(center, 'center', 'center');
                     obj.setCoords();
                     canvas.requestRenderAll();
                 };
