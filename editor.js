@@ -2808,6 +2808,9 @@
                         ellipse.materialType = 'color'; // Set default material type
                         ellipse.realRx = ellipseWidth / 2;
                         ellipse.realRy = ellipseHeight / 2;
+                        // Part of the template, not a user addition — the step-8
+                        // review counts these as penny slots, not generic shapes.
+                        ellipse.isTemplateSlot = true;
                         elements.push(ellipse);
                     }
                 }
@@ -3800,7 +3803,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);

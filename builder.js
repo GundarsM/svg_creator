@@ -3076,6 +3076,9 @@
                         ellipse.materialType = 'color'; // Set default material type
                         ellipse.realRx = ellipseWidth / 2;
                         ellipse.realRy = ellipseHeight / 2;
+                        // Part of the template, not a user addition — the step-8
+                        // review counts these as penny slots, not generic shapes.
+                        ellipse.isTemplateSlot = true;
                         elements.push(ellipse);
                     }
                 }
@@ -4138,7 +4141,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);
@@ -5198,7 +5201,8 @@
             'realRx', 'realRy', 'realFontSize', 'realCornerRadius',
             'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
             '_coachEngrave', '_coachOrigFill', 'coachAspectLocked', '_coachClipped',
-            'bendSourceText', 'bendAmount', 'bendFontFamily', '_coachOrigStroke'
+            'bendSourceText', 'bendAmount', 'bendFontFamily', '_coachOrigStroke',
+            'isTemplateSlot'
         ];
 
         /* ── Coach.COUNTRY_OPTIONS ─────────────────────────────────────
@@ -9225,28 +9229,38 @@
                     }
                     addItem('Coins', coinItems.length ? coinItems[0] : 'No coins yet');
 
-                    /* Extras */
+                    /* Per-category rows — same style as Holder/Material/Coins.
+                       Only genuine additions count: the holder itself and the
+                       template's penny slots are excluded, while bent text and
+                       the step-7 holder outline (missed before) are included. */
                     if (cv()) {
                         const allObjs = canvas.getObjects();
-                        const textCount = allObjs.filter(function(o) { return o.shapeType === 'text'; }).length;
-                        const countryCount = allObjs.filter(function(o) { return o.shapeType === 'country'; }).length;
+                        const holder = Coach.state.holderObj; // resolved by sizeString() above
+                        const textCount = allObjs.filter(function(o) {
+                            return o.shapeType === 'text' || o.shapeType === 'bentText';
+                        }).length;
+                        const countryCount = allObjs.filter(function(o) {
+                            return o.shapeType === 'country' && o !== holder;
+                        }).length;
+                        const slotCount = allObjs.filter(function(o) { return o.isTemplateSlot; }).length;
                         const shapeCount = allObjs.filter(function(o) {
                             return ['rectangle', 'circle', 'ellipse',
-                                    'rectangle-outline', 'circle-outline', 'ellipse-outline'].indexOf(o.shapeType) !== -1;
+                                    'rectangle-outline', 'circle-outline', 'ellipse-outline'].indexOf(o.shapeType) !== -1 &&
+                                   o !== holder && !o.isTemplateSlot;
                         }).length;
-                        let imageCount = allObjs.filter(function(o) {
-                            return o.shapeType === 'image' || o.shapeType === 'imported';
+                        const imageCount = allObjs.filter(function(o) {
+                            return (o.shapeType === 'image' || o.shapeType === 'imported') && o !== holder;
                         }).length;
-                        if (Coach.state.holderType === 'imported') imageCount = Math.max(0, imageCount - 1);
+                        const outlineCount = allObjs.filter(function(o) { return o.shapeType === 'holderOutline'; }).length;
                         const fixtureCount = allObjs.filter(function(o) { return o.shapeType === 'fixture'; }).length;
 
-                        const extras = [];
-                        if (textCount > 0) extras.push(textCount + ' text label' + (textCount > 1 ? 's' : ''));
-                        if (countryCount > 0) extras.push(countryCount + ' country outline' + (countryCount > 1 ? 's' : ''));
-                        if (shapeCount > 0) extras.push(shapeCount + ' shape' + (shapeCount > 1 ? 's' : ''));
-                        if (imageCount > 0) extras.push(imageCount + ' image' + (imageCount > 1 ? 's' : ''));
-                        if (fixtureCount > 0) extras.push(fixtureCount + ' fixture' + (fixtureCount > 1 ? 's' : ''));
-                        if (extras.length > 0) addItem('Extras', extras.join(', '));
+                        if (textCount > 0) addItem('Text', textCount);
+                        if (countryCount > 0) addItem('Country outlines', countryCount);
+                        if (shapeCount > 0) addItem('Shapes', shapeCount);
+                        if (slotCount > 0) addItem('Penny slots', slotCount);
+                        if (imageCount > 0) addItem('Images', imageCount);
+                        if (outlineCount > 0) addItem('Holder outline', outlineCount === 1 ? 'yes' : outlineCount);
+                        if (fixtureCount > 0) addItem('Fixtures', fixtureCount);
                     }
 
                     summaryDiv.appendChild(ul);
