@@ -908,6 +908,10 @@
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeHBtn" onclick="distributeSelected('h')" title="Distribute horizontally — equal centre spacing between first and last"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="13" y="0.5" width="2" height="15"/><rect x="6" y="3" width="4" height="10"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeVBtn" onclick="distributeSelected('v')" title="Distribute vertically — equal centre spacing between first and last"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="0.5" y="1" width="15" height="2"/><rect x="0.5" y="13" width="15" height="2"/><rect x="3" y="6" width="10" height="4"/></svg></button>
                                 </div>
+                                <div style="display: flex; gap: 6px; margin-bottom: 4px;">
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignToCircle()" title="Align to outer circle — snap each outer edge onto the common circle, keeping angles"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2"/><circle cx="12.8" cy="5.3" r="2"/><circle cx="12.8" cy="10.8" r="2"/></svg></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="distributeOnCircle()" title="Space evenly on outer circle — equal angles, outer edges on the circle"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2"/><circle cx="12.8" cy="10.8" r="2"/><circle cx="3.2" cy="10.8" r="2"/></svg></button>
+                                </div>
                             </div>
                         </div>
                         
@@ -3796,6 +3800,123 @@
                     if (axis === 'h') it.o.set('left', it.o.left + d);
                     else it.o.set('top', it.o.top + d);
                     it.o.setCoords();
+                });
+                refreshSelectionFrame();
+                canvas.requestRenderAll();
+                saveState();
+            }
+
+            /* ── Circle alignment ───────────────────────────────────────────
+               Fit a ring to the selected objects: centre from a least-squares
+               (Kåsa) circle fit through the object centres (centroid fallback
+               when the fit is degenerate, e.g. collinear centres), radius set
+               so the ring wraps the objects' OUTER edges — the mean of
+               (centre distance + outer radius) over the selection. */
+            function fitOuterRing(items) {
+                const pts = items.map(i => ({ x: i.r.left + i.r.width / 2, y: i.r.top + i.r.height / 2 }));
+                const n = pts.length;
+                let cx = 0, cy = 0;
+                pts.forEach(p => { cx += p.x / n; cy += p.y / n; });
+                if (n >= 3) {
+                    // Kåsa fit on centroid-shifted coords (numerically stable).
+                    let Suu = 0, Svv = 0, Suv = 0, Suz = 0, Svz = 0;
+                    pts.forEach(p => {
+                        const u = p.x - cx, v = p.y - cy, z = u * u + v * v;
+                        Suu += u * u; Svv += v * v; Suv += u * v;
+                        Suz += u * z; Svz += v * z;
+                    });
+                    const det = Suu * Svv - Suv * Suv;
+                    if (Math.abs(det) > 1e-6) {
+                        cx += (Suz * Svv - Svz * Suv) / (2 * det);
+                        cy += (Svz * Suu - Suz * Suv) / (2 * det);
+                    }
+                }
+                let R = 0;
+                items.forEach((it, k) => {
+                    R += Math.hypot(pts[k].x - cx, pts[k].y - cy) + Math.max(it.r.width, it.r.height) / 2;
+                });
+                R /= n;
+                // Refine with Gauss-Newton on the OUTER-EDGE residual
+                // (‖p−c‖ + r − R): the centre fit above is biased when the coin
+                // radii differ. Zero residual after an align also makes a repeat
+                // click a true no-op instead of drifting a couple of px.
+                const rad = items.map(it => Math.max(it.r.width, it.r.height) / 2);
+                const det3 = m => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                                - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                                + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+                for (let iter = 0; iter < 12; iter++) {
+                    let Sxx = 0, Sxy = 0, Sx = 0, Syy = 0, Sy = 0, Sn = 0;
+                    let Bx = 0, By = 0, Br = 0, maxE = 0;
+                    for (let k = 0; k < n; k++) {
+                        const ddx = pts[k].x - cx, ddy = pts[k].y - cy;
+                        const d = Math.hypot(ddx, ddy);
+                        if (d < 1e-6) continue;
+                        const ux = ddx / d, uy = ddy / d;
+                        const e = d + rad[k] - R;
+                        maxE = Math.max(maxE, Math.abs(e));
+                        Sxx += ux * ux; Sxy += ux * uy; Sx += ux;
+                        Syy += uy * uy; Sy += uy; Sn += 1;
+                        Bx += ux * e; By += uy * e; Br += e;
+                    }
+                    const M = [[Sxx, Sxy, Sx], [Sxy, Syy, Sy], [Sx, Sy, Sn]];
+                    const D = det3(M);
+                    if (maxE < 1e-3 || Math.abs(D) < 1e-9) break;
+                    const b = [Bx, By, Br];
+                    const solve = col => det3(M.map((row, i) => row.map((v, j) => j === col ? b[i] : v))) / D;
+                    cx += solve(0); cy += solve(1); R += solve(2);
+                }
+                return { cx: cx, cy: cy, R: R, pts: pts };
+            }
+
+            // Snap each selected object radially so its OUTER edge sits on the
+            // fitted ring; every object keeps its current angle from the centre.
+            function alignToCircle() {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const items = sel.getObjects().map(o => ({ o, r: o.getBoundingRect(true, true) }));
+                if (items.length < 2) return;
+                const ring = fitOuterRing(items);
+                items.forEach((it, k) => {
+                    const p = ring.pts[k];
+                    const ang = Math.atan2(p.y - ring.cy, p.x - ring.cx); // centre-coincident → pushed right
+                    const d = Math.max(ring.R - Math.max(it.r.width, it.r.height) / 2, 0);
+                    const dx = ring.cx + Math.cos(ang) * d - p.x;
+                    const dy = ring.cy + Math.sin(ang) * d - p.y;
+                    if (dx || dy) {
+                        it.o.set({ left: it.o.left + dx, top: it.o.top + dy });
+                        it.o.setCoords();
+                    }
+                });
+                refreshSelectionFrame();
+                canvas.requestRenderAll();
+                saveState();
+            }
+
+            // Like alignToCircle, but the angles are redistributed into equal
+            // steps around the ring. The current angular ORDER is kept and the
+            // first object (smallest angle) anchors the pattern, so a second
+            // click changes nothing.
+            function distributeOnCircle() {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const items = sel.getObjects().map(o => ({ o, r: o.getBoundingRect(true, true) }));
+                if (items.length < 2) return;
+                const ring = fitOuterRing(items);
+                const order = items.map((it, k) => ({
+                    it: it,
+                    p: ring.pts[k],
+                    ang: Math.atan2(ring.pts[k].y - ring.cy, ring.pts[k].x - ring.cx)
+                })).sort((a, b) => a.ang - b.ang);
+                const step = 2 * Math.PI / order.length;
+                order.forEach((w, idx) => {
+                    const ang = order[0].ang + idx * step;
+                    const d = Math.max(ring.R - Math.max(w.it.r.width, w.it.r.height) / 2, 0);
+                    const dx = ring.cx + Math.cos(ang) * d - w.p.x;
+                    const dy = ring.cy + Math.sin(ang) * d - w.p.y;
+                    if (dx || dy) {
+                        w.it.o.set({ left: w.it.o.left + dx, top: w.it.o.top + dy });
+                        w.it.o.setCoords();
+                    }
                 });
                 refreshSelectionFrame();
                 canvas.requestRenderAll();
