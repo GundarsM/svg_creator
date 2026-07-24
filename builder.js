@@ -911,6 +911,7 @@
                                 <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignToCircle()" title="Align to outer circle — snap each outer edge onto the common circle, keeping angles"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2"/><circle cx="12.8" cy="5.3" r="2"/><circle cx="12.8" cy="10.8" r="2"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="distributeOnCircle()" title="Space evenly on outer circle — equal angles, outer edges on the circle"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2"/><circle cx="12.8" cy="10.8" r="2"/><circle cx="3.2" cy="10.8" r="2"/></svg></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="distributeOnCircleGaps()" title="Equal gaps on outer circle — even edge-to-edge spacing between slots of mixed sizes"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2.4"/><circle cx="12.9" cy="10.4" r="1.4"/><circle cx="3.1" cy="10.4" r="1.4"/></svg></button>
                                 </div>
                             </div>
                         </div>
@@ -3959,6 +3960,64 @@
                 order.forEach((w, idx) => {
                     const ang = order[0].ang + idx * step;
                     const d = Math.max(ring.R - Math.max(w.it.r.width, w.it.r.height) / 2, 0);
+                    const dx = ring.cx + Math.cos(ang) * d - w.p.x;
+                    const dy = ring.cy + Math.sin(ang) * d - w.p.y;
+                    if (dx || dy) {
+                        w.it.o.set({ left: w.it.o.left + dx, top: w.it.o.top + dy });
+                        w.it.o.setCoords();
+                    }
+                });
+                refreshSelectionFrame();
+                canvas.requestRenderAll();
+                saveState();
+            }
+
+            // Like distributeOnCircle, but instead of equal ANGLE steps the
+            // slots get equal edge-to-edge GAPS along the ring — with mixed
+            // diameters that is what reads as "evenly spaced" to the eye.
+            // For a common gap g each adjacent pair's angle step follows from
+            // the law of cosines (chord between centres = r_i + r_j + g); the
+            // step sum is monotone in g, so bisect g until the steps close the
+            // full 360°. Order and anchor rules match distributeOnCircle, so a
+            // second click changes nothing.
+            function distributeOnCircleGaps() {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const items = sel.getObjects().map(o => ({ o, r: o.getBoundingRect(true, true) }));
+                if (items.length < 2) return;
+                const ring = fitOuterRing(items);
+                const order = items.map((it, k) => ({
+                    it: it,
+                    p: ring.pts[k],
+                    rad: Math.max(it.r.width, it.r.height) / 2,
+                    ang: Math.atan2(ring.pts[k].y - ring.cy, ring.pts[k].x - ring.cx)
+                })).sort((a, b) => a.ang - b.ang);
+                const n = order.length;
+                const dist = order.map(w => Math.max(ring.R - w.rad, 1e-6)); // centre distances
+                const stepsFor = (g) => {
+                    const steps = [];
+                    for (let k = 0; k < n; k++) {
+                        const a = dist[k], b = dist[(k + 1) % n];
+                        const chord = order[k].rad + order[(k + 1) % n].rad + g;
+                        let c = (a * a + b * b - chord * chord) / (2 * a * b);
+                        c = Math.max(-1, Math.min(1, c));
+                        steps.push(Math.acos(c));
+                    }
+                    return steps;
+                };
+                const total = (g) => stepsFor(g).reduce((s, v) => s + v, 0);
+                // Bisect the gap; negative = crowded ring, slots overlap as a best fit.
+                let lo = -2 * Math.min.apply(null, order.map(w => w.rad));
+                let hi = 4 * ring.R;
+                for (let i = 0; i < 60; i++) {
+                    const mid = (lo + hi) / 2;
+                    if (total(mid) < 2 * Math.PI) lo = mid; else hi = mid;
+                }
+                const steps = stepsFor((lo + hi) / 2);
+                let ang = order[0].ang; // first (smallest-angle) slot anchors the pattern
+                order.forEach((w, idx) => {
+                    if (idx > 0) ang += steps[idx - 1];
+                    const d = Math.max(ring.R - w.rad, 0);
                     const dx = ring.cx + Math.cos(ang) * d - w.p.x;
                     const dy = ring.cy + Math.sin(ang) * d - w.p.y;
                     if (dx || dy) {
