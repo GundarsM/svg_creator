@@ -1206,6 +1206,11 @@
 
                 canvas.getObjects().forEach(function(obj) {
                     if (obj === changedObject) return;
+                    // Coins keep their fixed look — a white slot with a black value
+                    // label — so never recolour a coin or its text via the board
+                    // material cascade (covers round coins AND special path coins
+                    // like the UK 20p/50p, plus their grouped labels).
+                    if (obj.shapeType === 'currency') return;
 
                     // Check if this object's centre point is inside changedObject's bounding rect
                     const center = obj.getCenterPoint();
@@ -1229,7 +1234,14 @@
                     function applyIfNotCircleOrEllipse(o) {
                         const isCircle = o.shapeType === 'circle' || o.shapeType === 'ellipse' ||
                                          o.type === 'circle' || o.type === 'ellipse';
-                        if (!isCircle) {
+                        if (isCircle) return;
+                        if (o.fill === 'transparent') {
+                            // Decorative border outline (e.g. the offset inner rect):
+                            // keep the fill transparent and only recolour the stroke,
+                            // mirroring applyFill's grouped-outline handling so a
+                            // standalone outline behaves like a grouped one.
+                            o.set('stroke', fillType === 'color' ? '#ffffff' : '#5c3316');
+                        } else {
                             o.set('fill', cascadeColor);
                         }
                     }
