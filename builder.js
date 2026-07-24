@@ -1987,23 +1987,25 @@
                     saveState();
                     updateCanvasHint();
 
-                    // Auto-center viewport on newly added object
+                    // If the new object lands (even partly) outside the visible
+                    // view, run "Fit to screen" (resetZoom centres the holder)
+                    // instead of panning. Deferred one frame so batch adds
+                    // (templates, arranged coins) trigger a single fit, and
+                    // skipped during undo/redo restores so history navigation
+                    // never yanks the user's viewport around.
                     var obj = e.target;
-                    if (obj) {
-                        var objCenter = obj.getCenterPoint();
-                        var zoom = canvas.getZoom();
-                        var vpt = canvas.viewportTransform;
-                        var margin = 50;
-                        var visibleLeft = -vpt[4] / zoom + margin;
-                        var visibleTop = -vpt[5] / zoom + margin;
-                        var visibleRight = visibleLeft + (canvas.getWidth() / zoom) - 2 * margin;
-                        var visibleBottom = visibleTop + (canvas.getHeight() / zoom) - 2 * margin;
-
-                        if (objCenter.x < visibleLeft || objCenter.x > visibleRight ||
-                            objCenter.y < visibleTop || objCenter.y > visibleBottom) {
-                            canvas.viewportTransform[4] = -(objCenter.x * zoom - canvas.getWidth() / 2);
-                            canvas.viewportTransform[5] = -(objCenter.y * zoom - canvas.getHeight() / 2);
-                            canvas.requestRenderAll();
+                    if (obj && !isUndoing && !isRedoing) {
+                        var vw = canvas.getWidth();
+                        var vh = canvas.getHeight();
+                        var r = obj.getBoundingRect(false, true); // screen coords
+                        if (r.left < 0 || r.top < 0 || r.left + r.width > vw || r.top + r.height > vh) {
+                            if (!canvas._autoFitPending) {
+                                canvas._autoFitPending = true;
+                                requestAnimationFrame(function() {
+                                    canvas._autoFitPending = false;
+                                    resetZoom();
+                                });
+                            }
                         }
                     }
                 });
@@ -3263,6 +3265,30 @@
                     if (r.left + r.width  > maxX) maxX = r.left + r.width;
                     if (r.top  + r.height > maxY) maxY = r.top + r.height;
                 });
+                // Keep the coin holder centred: grow the box to the smallest one
+                // SYMMETRIC around the holder's centre that still contains every
+                // object — the whole design stays visible AND the holder sits
+                // dead-centre in the view.
+                let holder = (typeof Coach !== 'undefined' && Coach.state) ? Coach.state.holderObj : null;
+                if (!holder || canvas.getObjects().indexOf(holder) === -1) {
+                    let bestA = -1;
+                    holder = null;
+                    objects.forEach(function(o) {
+                        if (o.shapeType === 'currency' || o.shapeType === 'fixture' ||
+                            o.type === 'text' || o.type === 'i-text') return;
+                        const a = o.getScaledWidth() * o.getScaledHeight();
+                        if (a > bestA) { bestA = a; holder = o; }
+                    });
+                }
+                if (holder) {
+                    const hr = holder.getBoundingRect(true, true);
+                    const hcx = hr.left + hr.width / 2, hcy = hr.top + hr.height / 2;
+                    const ex = Math.max(hcx - minX, maxX - hcx);
+                    const ey = Math.max(hcy - minY, maxY - hcy);
+                    minX = hcx - ex; maxX = hcx + ex;
+                    minY = hcy - ey; maxY = hcy + ey;
+                }
+
                 const bw = maxX - minX;
                 const bh = maxY - minY;
                 if (!(bw > 0) || !(bh > 0)) {
