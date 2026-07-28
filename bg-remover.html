@@ -163,6 +163,10 @@
       }
       #bg-remover-wrapper #after-canvas:active { cursor: grabbing; }
       #bg-remover-wrapper #after-canvas.brush-active { cursor: none; }
+      /* Touch devices: the canvases own their gestures — without this the
+         page scrolls/zooms instead of drawing rects, brushing or pinching. */
+      #bg-remover-wrapper #preview-canvas,
+      #bg-remover-wrapper #after-canvas { touch-action: none; }
       #bg-remover-wrapper #zoom-label {
         position: absolute;
         bottom: 6px;
@@ -251,12 +255,17 @@
     <!-- ZONE 3: Controls (hidden until image loaded) -->
     <div id="control-panel" class="mb-3 d-none">
 
+      <!-- CV load failure notice — a direct child of the control panel so it
+           stays visible after the automatic switch to Color Match hides the
+           smart-only controls (it used to live inside #controls-smart, where
+           the switch immediately hid it). -->
+      <div id="cv-error" class="d-none text-warning mb-2">
+        <i class="fa fa-exclamation-triangle me-1"></i>
+        Smart Removal engine failed to load. Use Color Match instead.
+      </div>
+
       <!-- Smart Removal controls -->
       <div id="controls-smart">
-        <div id="cv-error" class="d-none text-warning mb-2">
-          <i class="fa fa-exclamation-triangle me-1"></i>
-          Smart Removal engine failed to load. Use Color Match instead.
-        </div>
         <div class="row g-3">
           <div class="col-6 col-md-4">
             <div class="control-label">Iterations <span class="value-badge" id="val-iterations">3</span></div>
@@ -389,11 +398,11 @@
               <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Y</kbd> or <kbd>Ctrl + Shift + Z</kbd></td><td>Redo brush stroke</td></tr>
             </table>
 
-            <h5 style="font-size: 0.95em; margin-top: 16px;">Mouse Controls</h5>
+            <h5 style="font-size: 0.95em; margin-top: 16px;">Mouse &amp; Touch Controls</h5>
             <table style="font-size: 0.85em;">
               <tr><td style="padding: 2px 12px 2px 0;">Drag on image</td><td>Draw selection rectangle (Smart mode)</td></tr>
-              <tr><td style="padding: 2px 12px 2px 0;">Click on image</td><td>Pick removal color (Color Match mode)</td></tr>
-              <tr><td style="padding: 2px 12px 2px 0;">Scroll wheel</td><td>Zoom result image</td></tr>
+              <tr><td style="padding: 2px 12px 2px 0;">Click / tap on image</td><td>Pick removal color (Color Match mode)</td></tr>
+              <tr><td style="padding: 2px 12px 2px 0;">Scroll wheel or pinch</td><td>Zoom result image</td></tr>
               <tr><td style="padding: 2px 12px 2px 0;">Drag (no brush active) or Ctrl+drag</td><td>Pan result image</td></tr>
             </table>
           </div>
@@ -413,9 +422,8 @@ let stemName         = '';      // filename without extension, for download
 let pickedColor      = null;    // { r, g, b } — Color Match mode
 let grabRect         = null;    // { x, y, w, h } in canvas pixels — Smart Removal
 let cvReady          = false;   // true once OpenCV WASM is ready
-let lastResultBlob   = null;    // Blob (PNG) from last removal
+let cvFailTimer      = null;    // OpenCV load-timeout handle; cleared once ready
 let prevBeforeUrl    = null;    // object URL for before-img (revoked on replacement)
-let prevAfterUrl     = null;    // object URL for after-img (revoked on replacement)
 
   // Brush / zoom / pan state
   let activeBrush = null;  // 'erase' | 'restore' | null
@@ -424,10 +432,13 @@ let prevAfterUrl     = null;    // object URL for after-img (revoked on replacem
   let zoomLevel   = 1.0;   // 1.0–8.0; CSS scale applied to #after-canvas
   let panX        = 0;     // CSS translate offset in screen px
   let panY        = 0;
-  // Undo / redo history (ImageData snapshots)
-  let undoStack   = [];
-  let redoStack   = [];
-  const MAX_UNDO  = 20;
+  // Undo / redo history — per-stroke PATCHES ({x, y, data}) covering only the
+  // stroke's dirty rectangle, never full-canvas snapshots (a 12MP image costs
+  // ~48MB per full snapshot — a dozen strokes would kill a mobile tab).
+  let undoStack    = [];
+  let redoStack    = [];
+  const MAX_UNDO   = 20;
+  let strokeBounds = null; // dirty rect of the in-progress brush stroke
 
 // Drag state for rect drawing (Smart mode)
 let rectDrawing = false;
@@ -471,44 +482,77 @@ function deriveStemName(filename) {
 
 // === UPLOAD ZONE ===
 
+function showDropError(msg) {
+  document.getElementById('drop-error-text').textContent = msg;
+  document.getElementById('drop-error').classList.remove('d-none');
+}
+
 function handleImageLoad(file) {
   if (!['image/jpeg', 'image/png'].includes(file.type)) {
-    document.getElementById('drop-error').classList.remove('d-none');
+    showDropError('Please upload a JPG or PNG file.');
     return;
   }
   document.getElementById('drop-error').classList.add('d-none');
 
-  currentImageFile = file;
-  stemName = deriveStemName(file.name);
-  pickedColor = null;
-  grabRect    = null;
-  rectDrawing = false;
-  lastResultBlob = null;
-
-  // Reset color swatch
-  document.getElementById('color-swatch').style.background = 'transparent';
-  document.getElementById('color-hint').textContent = 'Click image to pick';
-
-  // Reset result area
-  document.getElementById('result-panels').classList.add('d-none');
-  if (prevBeforeUrl) { URL.revokeObjectURL(prevBeforeUrl); prevBeforeUrl = null; }
-  if (prevAfterUrl)  { URL.revokeObjectURL(prevAfterUrl);  prevAfterUrl  = null; }
-
   const img = new Image();
   const decodeUrl = URL.createObjectURL(file);
+
+  // ALL state changes happen inside onload: a file that fails to decode
+  // (truncated download, or a non-image renamed to .png — file.type only
+  // reflects the extension) must leave the tool exactly as it was, with an
+  // error message and a still-clickable upload zone. Setting
+  // currentImageFile before decoding used to permanently disable the
+  // drop-zone's click-to-browse after one bad file.
+  img.onerror = () => {
+    URL.revokeObjectURL(decodeUrl);
+    showDropError("Couldn't read that image — the file appears to be damaged.");
+  };
   img.onload = () => {
     URL.revokeObjectURL(decodeUrl); // free decode URL immediately after drawing
 
-    // Draw into processing canvas (natural size)
-    processingCanvas.width  = img.naturalWidth;
-    processingCanvas.height = img.naturalHeight;
-    processingCtx.drawImage(img, 0, 0);
+    currentImageFile = file;
+    stemName = deriveStemName(file.name);
+    pickedColor = null;
+    grabRect    = null;
+    rectDrawing = false;
 
-    // Draw into visible preview-canvas (same pixel dimensions; CSS limits display size)
+    // Drop brush history of the PREVIOUS image (patches referenced it)
+    undoStack = [];
+    redoStack = [];
+    strokeBounds = null;
+    document.getElementById('btn-undo').disabled = true;
+    document.getElementById('btn-redo').disabled = true;
+
+    // Reset color swatch
+    document.getElementById('color-swatch').style.background = 'transparent';
+    document.getElementById('color-hint').textContent = 'Click image to pick';
+
+    // Reset result area
+    document.getElementById('result-panels').classList.add('d-none');
+    if (prevBeforeUrl) { URL.revokeObjectURL(prevBeforeUrl); prevBeforeUrl = null; }
+
+    // Cap the working resolution: iOS Safari cannot rasterise canvases past
+    // ~16.7M pixels (toBlob yields null, drawImage silently no-ops) and
+    // processing cost grows with area — quietly downscale oversized photos.
+    const MAX_PIXELS = 16000000, MAX_EDGE = 4096;
+    let w = img.naturalWidth, h = img.naturalHeight;
+    const f = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)), MAX_EDGE / Math.max(w, h));
+    if (f < 1) {
+      w = Math.max(1, Math.round(w * f));
+      h = Math.max(1, Math.round(h * f));
+    }
+    processingCanvas.width  = w;
+    processingCanvas.height = h;
+    processingCtx.drawImage(img, 0, 0, w, h);
+
+    // Preview canvas capped at a 1000px long edge — CSS displays it ≤300px
+    // tall anyway, and a full-size copy doubled memory and re-blitted every
+    // pixel of a 12MP photo on each rect-drag mousemove.
     const pc = document.getElementById('preview-canvas');
-    pc.width  = img.naturalWidth;
-    pc.height = img.naturalHeight;
-    pc.getContext('2d').drawImage(img, 0, 0);
+    const pf = Math.min(1, 1000 / Math.max(w, h));
+    pc.width  = Math.max(1, Math.round(w * pf));
+    pc.height = Math.max(1, Math.round(h * pf));
+    pc.getContext('2d').drawImage(processingCanvas, 0, 0, pc.width, pc.height);
 
     // Show canvas, hide prompt
     document.getElementById('drop-zone').classList.add('has-image');
@@ -523,8 +567,8 @@ function handleImageLoad(file) {
       document.getElementById('result-area').classList.remove('d-none');
     }
 
-    // Crosshair cursor if already in color mode
-    document.getElementById('preview-canvas').classList.add('cursor-crosshair');
+    // Crosshair as the draw/pick affordance (rect drawing or colour picking)
+    pc.classList.add('cursor-crosshair');
 
     updateProcessButtonState();
   };
@@ -537,7 +581,14 @@ function initUploadZone() {
 
   // Only click-to-browse when no image is loaded (prevents triggering file dialog during rect/color interactions)
   dropZone.addEventListener('click', () => { if (!currentImageFile) fileInput.click(); });
-  dropZone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+  dropZone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // Space would also scroll the page
+      // Mirror the click path's guard: once an image is loaded, keyboard
+      // activation must not open the dialog mid rect/colour interaction.
+      if (!currentImageFile) fileInput.click();
+    }
+  });
   document.getElementById('btn-open-file').addEventListener('click', () => fileInput.click());
 
   dropZone.addEventListener('dragover', (e) => {
@@ -577,7 +628,6 @@ function initModeSelector() {
       grabRect    = null;
       pickedColor = null;
       rectDrawing = false;
-      lastResultBlob = null;
 
       // Reset color swatch
       document.getElementById('color-swatch').style.background = 'transparent';
@@ -586,7 +636,6 @@ function initModeSelector() {
       // Hide result panels; show result-area only in smart mode (for CV loading spinner)
       document.getElementById('result-panels').classList.add('d-none');
       if (prevBeforeUrl) { URL.revokeObjectURL(prevBeforeUrl); prevBeforeUrl = null; }
-      if (prevAfterUrl)  { URL.revokeObjectURL(prevAfterUrl);  prevAfterUrl  = null; }
 
       if (currentMode === 'smart' && currentImageFile) {
         document.getElementById('result-area').classList.remove('d-none');
@@ -609,11 +658,17 @@ function initModeSelector() {
 
 function onCvReady() {
   cvReady = true;
+  if (cvFailTimer) { clearTimeout(cvFailTimer); cvFailTimer = null; }
+  // Recover if the failure fallback fired first (very slow network): clear
+  // the notice and re-enable Smart mode.
+  document.getElementById('cv-error').classList.add('d-none');
+  document.getElementById('btn-mode-smart').disabled = false;
   document.getElementById('cv-loading').classList.add('d-none');
   updateProcessButtonState();
 }
 
 function waitForCv() {
+  if (cvReady) return;
   if (window.cv && typeof window.cv.Mat === 'function') {
     onCvReady();
   } else if (window.cv && typeof window.cv.then === 'function') {
@@ -626,13 +681,22 @@ function waitForCv() {
 
 function initOpenCv() {
   const script = document.getElementById('opencv-script');
-  script.addEventListener('load', waitForCv);
-  script.addEventListener('error', () => {
+  const fail = () => {
+    if (cvReady) return;
+    if (cvFailTimer) { clearTimeout(cvFailTimer); cvFailTimer = null; }
     document.getElementById('cv-error').classList.remove('d-none');
+    document.getElementById('cv-loading').classList.add('d-none');
     document.getElementById('btn-mode-smart').disabled = true;
     // Switch to color mode automatically
     document.getElementById('btn-mode-color').click();
-  });
+  };
+  script.addEventListener('load', waitForCv);
+  script.addEventListener('error', fail);
+  // The script tag is synchronous and may have FAILED before these listeners
+  // attached (ad blocker, offline) — no event would ever fire and the
+  // "Loading Smart Removal engine…" spinner would spin forever. The timeout
+  // backstops that race and stalled CDNs alike; onCvReady clears it.
+  cvFailTimer = setTimeout(fail, 20000);
   // If the script already loaded before DOMContentLoaded fired (cached), poll immediately
   if (window.cv) waitForCv();
 }
@@ -642,63 +706,69 @@ function initOpenCv() {
 function drawPreviewCanvas() {
   const pc  = document.getElementById('preview-canvas');
   const ctx = pc.getContext('2d');
-  ctx.drawImage(processingCanvas, 0, 0);
+  ctx.drawImage(processingCanvas, 0, 0, pc.width, pc.height);
 
-  // Scale for converting CSS pixels to canvas pixels
-  const scaleX = pc.width / pc.offsetWidth;
-  const scaleY = pc.height / pc.offsetHeight;
-  const lw = Math.max(1, scaleX * 2); // 2 CSS px in canvas units
+  // Rect coords live in PROCESSING-canvas pixels; the preview is a scaled
+  // copy, so scale down for the overlay. Line width: 2 CSS px.
+  const k  = pc.width / processingCanvas.width;
+  const lw = Math.max(1, (pc.width / Math.max(1, pc.offsetWidth)) * 2);
 
   if (rectDrawing) {
     ctx.save();
     ctx.strokeStyle = 'white';
     ctx.lineWidth = lw;
     ctx.setLineDash([lw * 4, lw * 2]);
-    ctx.strokeRect(rectX0, rectY0, rectX1 - rectX0, rectY1 - rectY0);
+    ctx.strokeRect(rectX0 * k, rectY0 * k, (rectX1 - rectX0) * k, (rectY1 - rectY0) * k);
     ctx.restore();
   } else if (grabRect) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255,200,50,0.9)';
     ctx.lineWidth = lw;
     ctx.setLineDash([lw * 4, lw * 2]);
-    ctx.strokeRect(grabRect.x, grabRect.y, grabRect.w, grabRect.h);
+    ctx.strokeRect(grabRect.x * k, grabRect.y * k, grabRect.w * k, grabRect.h * k);
     ctx.restore();
   }
 }
 
-function handleRectStart(e) {
+// CSS px → processing-canvas px. (The preview is scaled twice: canvas pixels
+// vs CSS display size, and preview pixels vs full processing pixels — going
+// straight to processing px keeps grabRect in the image's own coordinates.)
+function previewEventScale() {
   const pc = document.getElementById('preview-canvas');
-  if (!pc.offsetWidth) return; // canvas not yet visible
-  const scaleX = pc.width / pc.offsetWidth;
-  const scaleY = pc.height / pc.offsetHeight;
+  if (!pc.offsetWidth) return null; // canvas not yet visible
+  return {
+    x: processingCanvas.width  / pc.offsetWidth,
+    y: processingCanvas.height / pc.offsetHeight,
+  };
+}
+
+function handleRectStart(e) {
+  const s = previewEventScale();
+  if (!s) return;
   rectDrawing = true;
   grabRect = null;
-  rectX0 = e.offsetX * scaleX;
-  rectY0 = e.offsetY * scaleY;
+  rectX0 = e.offsetX * s.x;
+  rectY0 = e.offsetY * s.y;
   rectX1 = rectX0;
   rectY1 = rectY0;
 }
 
 function handleRectDraw(e) {
   if (!rectDrawing) return;
-  const pc = document.getElementById('preview-canvas');
-  if (!pc.offsetWidth) return;
-  const scaleX = pc.width / pc.offsetWidth;
-  const scaleY = pc.height / pc.offsetHeight;
-  rectX1 = e.offsetX * scaleX;
-  rectY1 = e.offsetY * scaleY;
+  const s = previewEventScale();
+  if (!s) return;
+  rectX1 = e.offsetX * s.x;
+  rectY1 = e.offsetY * s.y;
   drawPreviewCanvas();
 }
 
 function handleRectEnd(e) {
   if (!rectDrawing) return;
   rectDrawing = false;
-  const pc = document.getElementById('preview-canvas');
-  if (!pc.offsetWidth) { grabRect = null; updateProcessButtonState(); return; }
-  const scaleX = pc.width / pc.offsetWidth;
-  const scaleY = pc.height / pc.offsetHeight;
-  rectX1 = e.offsetX * scaleX;
-  rectY1 = e.offsetY * scaleY;
+  const s = previewEventScale();
+  if (!s) { grabRect = null; updateProcessButtonState(); return; }
+  rectX1 = e.offsetX * s.x;
+  rectY1 = e.offsetY * s.y;
   const x = Math.round(Math.max(0, Math.min(rectX0, rectX1)));
   const y = Math.round(Math.max(0, Math.min(rectY0, rectY1)));
   const w = Math.round(Math.min(Math.abs(rectX1 - rectX0), processingCanvas.width  - x));
@@ -735,25 +805,32 @@ function handleColorPick(e) {
 
 function initPreviewListeners() {
   const pc = document.getElementById('preview-canvas');
-  pc.addEventListener('mousedown', (e) => { if (currentMode === 'smart') handleRectStart(e); });
-  pc.addEventListener('mousemove', (e) => { if (currentMode === 'smart') handleRectDraw(e); });
-  pc.addEventListener('mouseup',   (e) => { if (currentMode === 'smart') handleRectEnd(e); });
-  pc.addEventListener('mouseleave',(e) => { if (currentMode === 'smart' && rectDrawing) handleRectEnd(e); });
-  pc.addEventListener('click',     (e) => { if (currentMode === 'color') handleColorPick(e); });
+  // Pointer events cover mouse, touch and stylus alike (the tool was
+  // mouse-only before — Smart Removal could not draw its rectangle on a
+  // phone at all). Pointer capture keeps the rect updating even when the
+  // finger/cursor wanders off the small preview, replacing the old
+  // mouseleave early-end.
+  pc.addEventListener('pointerdown', (e) => {
+    if (currentMode !== 'smart') return;
+    e.preventDefault();
+    try { pc.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
+    handleRectStart(e);
+  });
+  pc.addEventListener('pointermove',   (e) => { if (currentMode === 'smart') handleRectDraw(e); });
+  pc.addEventListener('pointerup',     (e) => { if (currentMode === 'smart') handleRectEnd(e); });
+  pc.addEventListener('pointercancel', (e) => { if (currentMode === 'smart') handleRectEnd(e); });
+  pc.addEventListener('click',         (e) => { if (currentMode === 'color') handleColorPick(e); });
 }
 
 // === RESULT DISPLAY & ACTIONS ===
 
   function displayResult(blob, sourceFile) {
-    lastResultBlob = blob;
-
     // Before image
     if (prevBeforeUrl) URL.revokeObjectURL(prevBeforeUrl);
     prevBeforeUrl = URL.createObjectURL(sourceFile);
     document.getElementById('before-img').src = prevBeforeUrl;
 
     // After: draw blob into canvas
-    if (prevAfterUrl) { URL.revokeObjectURL(prevAfterUrl); prevAfterUrl = null; }
     const ac  = document.getElementById('after-canvas');
     const url = URL.createObjectURL(blob);
     const img = new Image();
@@ -763,11 +840,12 @@ function initPreviewListeners() {
       ac.height = img.naturalHeight;
       ac.getContext('2d').drawImage(img, 0, 0);
     };
+    img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
 
     // Reset zoom/pan/history; default to erase brush
     isPainting = false; zoomLevel = 1.0; panX = 0; panY = 0;
-    undoStack = []; redoStack = [];
+    undoStack = []; redoStack = []; strokeBounds = null;
     document.getElementById('btn-undo').disabled = true;
     document.getElementById('btn-redo').disabled = true;
     ac.style.transform = '';
@@ -788,27 +866,39 @@ function initPreviewListeners() {
     const ac = document.getElementById('after-canvas');
     if (!ac.width) return;
     ac.toBlob(blob => {
+      if (!blob) return; // canvas over the browser's raster limit
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = stemName + '-no-bg.png';
       a.click();
-      URL.revokeObjectURL(url);
+      // Deferred revoke — revoking in the same task as click() is the classic
+      // race that produced empty downloads in some browsers.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
   }
 
   async function copyToClipboard() {
     const ac = document.getElementById('after-canvas');
     if (!ac.width) return;
-    document.getElementById('copy-error').classList.add('d-none');
-    ac.toBlob(async blob => {
+    const errEl = document.getElementById('copy-error');
+    errEl.classList.add('d-none');
+    const pngBlob = () => new Promise((resolve, reject) =>
+      ac.toBlob(b => b ? resolve(b) : reject(new Error('could not encode image')), 'image/png'));
+    try {
+      // Safari only allows clipboard.write() synchronously inside the user
+      // gesture, with deferred data as a PROMISE in the ClipboardItem — the
+      // old write-inside-toBlob-callback pattern threw NotAllowedError there.
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob() })]);
+    } catch (e1) {
       try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      } catch (e) {
-        document.getElementById('copy-error').textContent = 'Copy failed: ' + e.message;
-        document.getElementById('copy-error').classList.remove('d-none');
+        // Older Chromium: ClipboardItem values must be actual Blobs.
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': await pngBlob() })]);
+      } catch (e2) {
+        errEl.textContent = 'Copy failed: ' + e2.message;
+        errEl.classList.remove('d-none');
       }
-    }, 'image/png');
+    }
   }
 
 function initResultActions() {
@@ -885,6 +975,7 @@ function runColorMatch() {
   const tolerance  = parseInt(document.getElementById('ctrl-tolerance').value, 10);
   const feathering = parseInt(document.getElementById('ctrl-feathering').value, 10);
   const threshold  = tolerance * 4.41; // map 0–100 → 0–441 (max RGB distance)
+  const threshold2 = threshold * threshold; // compare squared — no sqrt per pixel
 
   const imageData = processingCtx.getImageData(
     0, 0, processingCanvas.width, processingCanvas.height
@@ -896,7 +987,7 @@ function runColorMatch() {
     const dr = data[i]   - pr;
     const dg = data[i+1] - pg;
     const db = data[i+2] - pb;
-    if (Math.sqrt(dr*dr + dg*dg + db*db) <= threshold) {
+    if (dr*dr + dg*dg + db*db <= threshold2) {
       data[i+3] = 0; // transparent
     }
   }
@@ -911,6 +1002,7 @@ function runColorMatch() {
   resultCanvas.getContext('2d').putImageData(imageData, 0, 0);
   resultCanvas.toBlob(blob => {
     setProcessLoading(false);
+    if (!blob) { alert('Could not encode the result image.'); return; }
     displayResult(blob, sourceFile);
   }, 'image/png');
 }
@@ -921,8 +1013,33 @@ function runGrabCut() {
   const sourceFile = currentImageFile; // capture before any async gap
   const iterations = parseInt(document.getElementById('ctrl-iterations').value, 10);
 
-  // Read original RGBA from processing canvas
-  const rgba = cv.imread(processingCanvas);
+  const W = processingCanvas.width, H = processingCanvas.height;
+
+  // Segment on a DOWNSCALED copy: GrabCut cost scales with pixel count — a
+  // 12MP photo froze the tab for tens of seconds at full resolution, while a
+  // ≤800px segmentation returns in well under a second with a visually
+  // identical mask (upscaled onto the full-resolution alpha below). Only the
+  // small copy ever crosses into OpenCV.
+  const SEG_MAX = 800;
+  const k  = Math.min(1, SEG_MAX / Math.max(W, H));
+  const sw = Math.max(1, Math.round(W * k));
+  const sh = Math.max(1, Math.round(H * k));
+  const segCanvas = document.createElement('canvas');
+  segCanvas.width  = sw;
+  segCanvas.height = sh;
+  segCanvas.getContext('2d').drawImage(processingCanvas, 0, 0, sw, sh);
+
+  // Scale the rect too, clamped to leave ≥1px of definite background on
+  // every side — GC_INIT_WITH_RECT models the background from the pixels
+  // OUTSIDE the rect, so a rect covering the whole image would fail.
+  let rx = Math.round(grabRect.x * k), ry = Math.round(grabRect.y * k);
+  let rw = Math.round(grabRect.w * k), rh = Math.round(grabRect.h * k);
+  rx = Math.max(1, Math.min(rx, sw - 3));
+  ry = Math.max(1, Math.min(ry, sh - 3));
+  rw = Math.max(1, Math.min(rw, sw - 1 - rx));
+  rh = Math.max(1, Math.min(rh, sh - 1 - ry));
+
+  const rgba = cv.imread(segCanvas);
 
   // Convert to BGR (3-channel) — GrabCut requires CV_8UC3, not RGBA
   const bgr = new cv.Mat();
@@ -931,36 +1048,51 @@ function runGrabCut() {
   const mask     = new cv.Mat();
   const bgdModel = new cv.Mat();
   const fgdModel = new cv.Mat();
-  const rect = new cv.Rect(grabRect.x, grabRect.y, grabRect.w, grabRect.h);
 
   try {
-    cv.grabCut(bgr, mask, rect, bgdModel, fgdModel, iterations, cv.GC_INIT_WITH_RECT);
+    cv.grabCut(bgr, mask, new cv.Rect(rx, ry, rw, rh), bgdModel, fgdModel,
+               iterations, cv.GC_INIT_WITH_RECT);
 
-    // Apply mask to the RGBA Mat: background pixels → alpha 0
-    for (let row = 0; row < rgba.rows; row++) {
-      for (let col = 0; col < rgba.cols; col++) {
-        const m = mask.ucharAt(row, col);
-        if (m === cv.GC_BGD || m === cv.GC_PR_BGD) {
-          rgba.ucharPtr(row, col)[3] = 0;
-        }
+    // Apply the (small) mask to the full-resolution alpha directly.
+    // mask.data is a plain Uint8Array view, so this loop stays in JS — the
+    // old per-pixel ucharAt/ucharPtr calls crossed the WASM boundary ~24M
+    // times on a large photo and allocated a typed array per pixel.
+    const md = mask.data;
+    const BGD = cv.GC_BGD, PR_BGD = cv.GC_PR_BGD;
+    const imageData = processingCtx.getImageData(0, 0, W, H);
+    const dd = imageData.data;
+    const colMap = new Int32Array(W); // full-res column → mask column
+    for (let x = 0; x < W; x++) colMap[x] = Math.min(sw - 1, (x * k) | 0);
+    for (let y = 0; y < H; y++) {
+      const mrow = Math.min(sh - 1, (y * k) | 0) * sw;
+      let di = y * W * 4 + 3;
+      for (let x = 0; x < W; x++, di += 4) {
+        const m = md[mrow + colMap[x]];
+        if (m === BGD || m === PR_BGD) dd[di] = 0;
       }
     }
 
-    // cv.imshow is synchronous — copies all pixels into canvas before returning.
-    // toBlob reads from canvas buffer (independent of Mat memory), so it is safe
-    // to delete Mats in finally even though toBlob is async.
+    // putImageData is synchronous; toBlob reads from the canvas buffer
+    // (independent of Mat memory), so deleting the Mats in finally is safe
+    // even though toBlob is async.
     const resultCanvas = document.createElement('canvas');
-    resultCanvas.width  = rgba.cols;
-    resultCanvas.height = rgba.rows;
-    cv.imshow(resultCanvas, rgba);
+    resultCanvas.width  = W;
+    resultCanvas.height = H;
+    resultCanvas.getContext('2d').putImageData(imageData, 0, 0);
     resultCanvas.toBlob(blob => {
       setProcessLoading(false);
+      if (!blob) { alert('Could not encode the result image.'); return; }
       displayResult(blob, sourceFile);
     }, 'image/png');
 
   } catch (err) {
     setProcessLoading(false);
-    alert('Smart Removal failed: ' + err.message);
+    // opencv.js throws numeric pointers for native exceptions — err.message
+    // would read "undefined" for those.
+    const msg = (typeof err === 'number' && cv.exceptionFromPtr)
+      ? cv.exceptionFromPtr(err).msg
+      : ((err && err.message) || String(err));
+    alert('Smart Removal failed: ' + msg);
   } finally {
     rgba.delete();
     bgr.delete();
@@ -994,23 +1126,52 @@ function initProcessButton() {
 
 // === BRUSH TOOLS ===
 
-  function applyBrush(ac, { x, y }) {
-    const ctx = ac.getContext('2d');
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.clip();
-
-    if (activeBrush === 'erase') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = 'black';
-      ctx.fill();
+  // Extend the in-progress stroke's dirty rect (canvas px) — the undo patch
+  // is cut to exactly this region when the stroke ends.
+  function trackStroke(x, y) {
+    const r = brushSize / 2 + 2;
+    if (!strokeBounds) {
+      strokeBounds = { x0: x - r, y0: y - r, x1: x + r, y1: y + r };
     } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.drawImage(processingCanvas, 0, 0, ac.width, ac.height);
+      if (x - r < strokeBounds.x0) strokeBounds.x0 = x - r;
+      if (y - r < strokeBounds.y0) strokeBounds.y0 = y - r;
+      if (x + r > strokeBounds.x1) strokeBounds.x1 = x + r;
+      if (y + r > strokeBounds.y1) strokeBounds.y1 = y + r;
     }
+  }
 
-    ctx.restore();
+  // Stamp the brush at `to`; when `from` is given, stamp interpolated circles
+  // along the segment — pointermove events on a fast swipe arrive much more
+  // than a brush-radius apart, which used to leave a dotted trail.
+  function applyBrush(ac, to, from) {
+    const ctx = ac.getContext('2d');
+    const pts = [];
+    if (from) {
+      const d = Math.hypot(to.x - from.x, to.y - from.y);
+      const n = Math.max(1, Math.ceil(d / Math.max(1, brushSize / 4)));
+      for (let i = 1; i <= n; i++) {
+        pts.push({ x: from.x + (to.x - from.x) * i / n,
+                   y: from.y + (to.y - from.y) * i / n });
+      }
+    } else {
+      pts.push(to);
+    }
+    pts.forEach(p => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, brushSize / 2, 0, Math.PI * 2);
+      ctx.clip();
+      if (activeBrush === 'erase') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'black';
+        ctx.fill();
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(processingCanvas, 0, 0, ac.width, ac.height);
+      }
+      ctx.restore();
+      trackStroke(p.x, p.y);
+    });
   }
 
   function initBrushTools() {
@@ -1077,9 +1238,26 @@ function initProcessButton() {
       cursor.style.display = 'block';
     }
 
-    // Undo / redo helpers
-    function saveUndoState() {
-      undoStack.push(ac.getContext('2d').getImageData(0, 0, ac.width, ac.height));
+    // Pre-stroke copy of the canvas — the undo patch is cut from it once the
+    // stroke's dirty rect is known (one reusable canvas, not a stack of
+    // full-resolution snapshots).
+    const preStroke = document.createElement('canvas');
+
+    function beginStroke() {
+      preStroke.width  = ac.width;
+      preStroke.height = ac.height;
+      preStroke.getContext('2d').drawImage(ac, 0, 0);
+      strokeBounds = null;
+    }
+    function endStroke() {
+      if (!strokeBounds) return;
+      const x = Math.max(0, Math.floor(strokeBounds.x0));
+      const y = Math.max(0, Math.floor(strokeBounds.y0));
+      const w = Math.min(ac.width,  Math.ceil(strokeBounds.x1)) - x;
+      const h = Math.min(ac.height, Math.ceil(strokeBounds.y1)) - y;
+      strokeBounds = null;
+      if (w <= 0 || h <= 0) return; // stroke never touched the canvas
+      undoStack.push({ x, y, data: preStroke.getContext('2d').getImageData(x, y, w, h) });
       if (undoStack.length > MAX_UNDO) undoStack.shift();
       redoStack = [];
       document.getElementById('btn-undo').disabled = false;
@@ -1087,15 +1265,19 @@ function initProcessButton() {
     }
     function applyUndo() {
       if (!undoStack.length) return;
-      redoStack.push(ac.getContext('2d').getImageData(0, 0, ac.width, ac.height));
-      ac.getContext('2d').putImageData(undoStack.pop(), 0, 0);
+      const p   = undoStack.pop();
+      const ctx = ac.getContext('2d');
+      redoStack.push({ x: p.x, y: p.y, data: ctx.getImageData(p.x, p.y, p.data.width, p.data.height) });
+      ctx.putImageData(p.data, p.x, p.y);
       document.getElementById('btn-undo').disabled = undoStack.length === 0;
       document.getElementById('btn-redo').disabled = false;
     }
     function applyRedo() {
       if (!redoStack.length) return;
-      undoStack.push(ac.getContext('2d').getImageData(0, 0, ac.width, ac.height));
-      ac.getContext('2d').putImageData(redoStack.pop(), 0, 0);
+      const p   = redoStack.pop();
+      const ctx = ac.getContext('2d');
+      undoStack.push({ x: p.x, y: p.y, data: ctx.getImageData(p.x, p.y, p.data.width, p.data.height) });
+      ctx.putImageData(p.data, p.x, p.y);
       document.getElementById('btn-undo').disabled = false;
       document.getElementById('btn-redo').disabled = redoStack.length === 0;
     }
@@ -1103,42 +1285,86 @@ function initProcessButton() {
     document.getElementById('btn-undo').addEventListener('click', applyUndo);
     document.getElementById('btn-redo').addEventListener('click', applyRedo);
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); applyUndo(); }
-      if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); applyRedo(); }
+      if (!(e.ctrlKey || e.metaKey)) return;    // metaKey: Cmd+Z on macOS
+      const k = e.key.toLowerCase();            // Shift/Caps Lock give 'Z'
+      if (k !== 'z' && k !== 'y') return;
+      // Don't hijack undo from the host page: act only when a result exists,
+      // and never while the user is typing in some other field on the
+      // (Squarespace) page this tool is injected into.
+      if (!ac.width) return;
+      if (e.target && e.target.closest &&
+          e.target.closest('input, textarea, select, [contenteditable]')) return;
+      e.preventDefault();
+      if (k === 'y' || e.shiftKey) applyRedo();
+      else applyUndo();
     });
 
-    // Pan state (local — only used in mouse handlers)
-    let panStart = null;
+    // Pointer interactions (mouse + touch + stylus — the old mouse-only
+    // handlers made the brush unusable on phones): one pointer paints or
+    // pans, a second finger switches to pinch-zoom.
+    let panStart    = null;
+    let lastPaintPt = null;
+    const pointers  = new Map(); // active pointers on the canvas
+    let pinch       = null;      // { dist, zoom } while pinching
 
-    // Canvas mouse events
-    ac.addEventListener('mousedown', (e) => {
+    ac.addEventListener('pointerdown', (e) => {
       if (!ac.width) return;
+      e.preventDefault();
+      try { ac.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        // Second finger: abandon painting/panning, start pinch-zoom.
+        const [a, b] = [...pointers.values()];
+        pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: zoomLevel };
+        if (isPainting) { isPainting = false; lastPaintPt = null; endStroke(); }
+        panStart = null;
+        return;
+      }
       if (e.ctrlKey || !activeBrush) {
         panStart = { x: e.clientX - panX, y: e.clientY - panY };
       } else {
-        saveUndoState();
+        beginStroke();
         isPainting = true;
-        applyBrush(ac, getCanvasCoords(e));
+        lastPaintPt = getCanvasCoords(e);
+        applyBrush(ac, lastPaintPt);
       }
     });
-    ac.addEventListener('mousemove', (e) => {
+    ac.addEventListener('pointermove', (e) => {
+      const pt = pointers.get(e.pointerId);
+      if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
+      if (pinch && pointers.size >= 2) {
+        const [a, b] = [...pointers.values()];
+        zoomLevel = Math.min(8.0, Math.max(1.0,
+          pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / pinch.dist));
+        applyTransform();
+        return;
+      }
       if (panStart) {
         panX = e.clientX - panStart.x;
         panY = e.clientY - panStart.y;
         applyTransform();
       } else if (activeBrush) {
-        updateBrushCursor(e);
-        if (isPainting) applyBrush(ac, getCanvasCoords(e));
+        if (e.pointerType === 'mouse') updateBrushCursor(e);
+        if (isPainting) {
+          const p = getCanvasCoords(e);
+          applyBrush(ac, p, lastPaintPt);
+          lastPaintPt = p;
+        }
       }
     });
-    ac.addEventListener('mouseup', () => { isPainting = false; panStart = null; });
-    ac.addEventListener('mouseleave', () => {
-      isPainting = false;
-      panStart = null;
-      cursor.style.display = 'none';
-    });
-    ac.addEventListener('mouseenter', (e) => {
-      if (activeBrush) updateBrushCursor(e);
+    const endPointer = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (isPainting) endStroke();
+      isPainting  = false;
+      lastPaintPt = null;
+      panStart    = null;
+    };
+    ac.addEventListener('pointerup', endPointer);
+    ac.addEventListener('pointercancel', endPointer);
+    ac.addEventListener('pointerleave', () => { cursor.style.display = 'none'; });
+    ac.addEventListener('pointerenter', (e) => {
+      if (activeBrush && e.pointerType === 'mouse') updateBrushCursor(e);
     });
 
     // Scroll-wheel zoom (attached to wrap so the whole checkerboard area responds)
