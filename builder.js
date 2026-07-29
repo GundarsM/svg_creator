@@ -912,6 +912,7 @@
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignToCircle()" title="Align to outer circle — snap each outer edge onto the common circle, keeping angles"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2"/><circle cx="12.8" cy="5.3" r="2"/><circle cx="12.8" cy="10.8" r="2"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="distributeOnCircle()" title="Space evenly on outer circle — equal angles, outer edges on the circle"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2"/><circle cx="12.8" cy="10.8" r="2"/><circle cx="3.2" cy="10.8" r="2"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="distributeOnCircleGaps()" title="Equal gaps on outer circle — even edge-to-edge spacing between slots of mixed sizes"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="2.5" r="2.4"/><circle cx="12.9" cy="10.4" r="1.4"/><circle cx="3.1" cy="10.4" r="1.4"/></svg></button>
+                                <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="distributeArcBtn" onclick="distributeOnArc()" title="Distribute on arc — first and last slot stay put, the rest spaced equally between them on the circular path"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M 3 12.5 A 5.5 5.5 0 1 1 13 12.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="12.5" r="2"/><circle cx="13" cy="12.5" r="2"/><circle cx="8" cy="2.5" r="1.5"/></svg></button>
                                 </div>
                             </div>
                         </div>
@@ -3838,8 +3839,10 @@
                 el.style.display = n >= 2 ? 'block' : 'none';
                 const distH = document.getElementById('distributeHBtn');
                 const distV = document.getElementById('distributeVBtn');
+                const distA = document.getElementById('distributeArcBtn');
                 if (distH) distH.disabled = n < 3; // nothing between first and last
                 if (distV) distV.disabled = n < 3;
+                if (distA) distA.disabled = n < 3;
             }
 
             // Rebuild the selection frame after programmatically moving its
@@ -4129,6 +4132,52 @@
                 updatePropertiesPanel();
                 updateAlignPanel();
                 updateGroupPanel();
+                saveState();
+            }
+
+            // Circular analogue of the linear distribute: the FIRST and LAST
+            // slot keep their angles (snapped radially onto the ring like the
+            // other circle tools), and the slots between them get equal
+            // angular steps along the arc. On a closed circle "first" and
+            // "last" are found from the largest angular gap between adjacent
+            // slots — the selection occupies the arc that is its complement.
+            function distributeOnArc() {
+                const sel = canvas.getActiveObject();
+                if (!sel || sel.type !== 'activeSelection') return;
+                const items = sel.getObjects().map(o => ({ o, r: o.getBoundingRect(true, true) }));
+                if (items.length < 3) return; // nothing between first and last
+                const ring = fitOuterRing(items);
+                const order = items.map((it, k) => ({
+                    it: it,
+                    p: ring.pts[k],
+                    rad: Math.max(it.r.width, it.r.height) / 2,
+                    ang: Math.atan2(ring.pts[k].y - ring.cy, ring.pts[k].x - ring.cx)
+                })).sort((a, b) => a.ang - b.ang);
+                const n = order.length;
+                // Largest gap between angular neighbours (incl. the wrap-around)
+                let gapIdx = n - 1;
+                let gapMax = order[0].ang + 2 * Math.PI - order[n - 1].ang;
+                for (let i = 0; i < n - 1; i++) {
+                    const g = order[i + 1].ang - order[i].ang;
+                    if (g > gapMax) { gapMax = g; gapIdx = i; }
+                }
+                // The slot just AFTER the gap is "first"; walk the arc from there.
+                const seq = order.slice(gapIdx + 1).concat(order.slice(0, gapIdx + 1));
+                let span = seq[n - 1].ang - seq[0].ang;
+                if (span <= 0) span += 2 * Math.PI; // arc crosses the ±180° seam
+                const step = span / (n - 1);
+                seq.forEach((w, idx) => {
+                    const ang = seq[0].ang + step * idx;
+                    const d = Math.max(ring.R - w.rad, 0);
+                    const dx = ring.cx + Math.cos(ang) * d - w.p.x;
+                    const dy = ring.cy + Math.sin(ang) * d - w.p.y;
+                    if (dx || dy) {
+                        w.it.o.set({ left: w.it.o.left + dx, top: w.it.o.top + dy });
+                        w.it.o.setCoords();
+                    }
+                });
+                refreshSelectionFrame();
+                canvas.requestRenderAll();
                 saveState();
             }
 
