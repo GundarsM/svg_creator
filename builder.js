@@ -3465,11 +3465,12 @@
                     }
 
                     // Images carry their engrave look in filters, not in `fill` (which
-                    // stays black), so show the engrave colour (brown/grey) when engraved
-                    // — matching how text behaves.
+                    // stays black), so show the tint colour when engraved — the user's
+                    // explicit pick if set, else the material engrave colour (brown/grey),
+                    // matching how text behaves.
                     if (obj.type === 'image' && typeof Coach !== 'undefined' &&
                         Coach.isEngraved && Coach.isEngraved(obj)) {
-                        fillValue = Coach.engraveColor();
+                        fillValue = obj._coachCustomTint || Coach.engraveColor();
                     }
 
                     // Set dropdown to closest match, or show the actual colour.
@@ -3597,7 +3598,21 @@
                 document.getElementById('fillColor').onchange = function() {
                     const fillValue = this.value;
                     const textColor = '#ffffff'; // White for plastic colors
-                    
+
+                    // Images have no fill, so the colour pick used to change
+                    // nothing. Tint the bitmap instead: remember the chosen
+                    // colour and re-run the engrave pipeline with it (the
+                    // custom tint wins over the material engrave colour and
+                    // survives material switches, like the fixture finish).
+                    if (obj.type === 'image') {
+                        if (fillValue === 'transparent') return; // meaningless for a bitmap
+                        if (typeof Coach !== 'undefined' && Coach.applyEngrave) {
+                            obj._coachCustomTint = fillValue;
+                            Coach.applyEngrave(obj, true);
+                        }
+                        return;
+                    }
+
                     // Handle multiple selections
                     if (obj.type === 'activeSelection') {
                         obj.forEachObject(function(o) {
@@ -4422,7 +4437,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot', '_coachCustomTint']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);
@@ -5491,7 +5506,7 @@
             'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
             '_coachEngrave', '_coachOrigFill', 'coachAspectLocked', '_coachClipped',
             'bendSourceText', 'bendAmount', 'bendFontFamily', '_coachOrigStroke',
-            'isTemplateSlot'
+            'isTemplateSlot', '_coachCustomTint'
         ];
 
         /* ── Coach.COUNTRY_OPTIONS ─────────────────────────────────────
@@ -6056,10 +6071,20 @@
         Coach._isEngraveFilter = function(f) {
             if (!f) return false;
             if (f._coachEngrave) return true;
+            // The runtime _coachEngrave flag does not survive save/resume, so
+            // also recognise our filters structurally. The Coach is the only
+            // thing that ever puts filters on images here, so claiming every
+            // Grayscale / RemoveColor / tint-mode BlendColor is safe — and a
+            // CUSTOM tint colour must match too, else a resumed re-engrave
+            // would stack a second tint on top of the old one.
             if (f.type === 'Grayscale') return true;
-            if (f.type === 'BlendColor' && f.color) {
-                const c = String(f.color).toLowerCase();
-                if (c === Coach.ENGRAVE_BROWN || c === Coach.ENGRAVE_GREY) return true;
+            if (f.type === 'RemoveColor') return true;
+            if (f.type === 'BlendColor') {
+                if (f.mode === 'tint') return true;
+                if (f.color) {
+                    const c = String(f.color).toLowerCase();
+                    if (c === Coach.ENGRAVE_BROWN || c === Coach.ENGRAVE_GREY) return true;
+                }
             }
             return false;
         };
@@ -6094,7 +6119,14 @@
                     }
                     const gray = new fabric.Image.filters.Grayscale();
                     gray._coachEngrave = true;
-                    const tint = new fabric.Image.filters.BlendColor({ color: color, mode: 'tint', alpha: Coach.ENGRAVE_ALPHA });
+                    // An explicitly picked tint (properties Colour on an image)
+                    // wins over the material engrave colour and survives
+                    // material switches — like the fixture finish choice.
+                    const tint = new fabric.Image.filters.BlendColor({
+                        color: obj._coachCustomTint || color,
+                        mode: 'tint',
+                        alpha: Coach.ENGRAVE_ALPHA
+                    });
                     tint._coachEngrave = true;
                     obj.filters.push(gray, tint);
                     obj._coachEngrave = true;
