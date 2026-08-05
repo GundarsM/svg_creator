@@ -827,6 +827,25 @@
                                     <i class="fas fa-redo"></i> 90°
                                 </button>
                             </div>
+                            <!-- Image crop — visible only while an image (or its crop frame) is selected -->
+                            <div id="cropSection" style="display:none; margin-top: 4px;">
+                                <div id="cropStartRow" style="display: flex; gap: 4px;">
+                                    <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="startCrop()" title="Crop the image — position the frame, then Apply">
+                                        <i class="fas fa-crop-alt"></i> Crop image
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="cropResetBtn" onclick="resetCrop()" title="Restore the full uncropped image">
+                                        <i class="fas fa-expand"></i> Reset
+                                    </button>
+                                </div>
+                                <div id="cropActiveRow" style="display: none; gap: 4px;">
+                                    <button class="btn btn-sm btn-success" style="flex: 1;" onclick="applyCrop()">
+                                        <i class="fas fa-check"></i> Apply crop
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="cancelCrop()">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
                             <button class="btn btn-danger w-100 mt-2" onclick="deleteSelected()">
                                 <i class="fas fa-trash"></i> Delete (Del)
                             </button>
@@ -1751,6 +1770,20 @@
                 ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
                     canvas.on(ev, updateAlignPanel);
                     canvas.on(ev, updateGroupPanel);
+                    canvas.on(ev, updateCropButtons);
+                });
+                // Leaving the crop frame (selecting something else, clicking
+                // empty canvas, or deleting the frame) aborts crop mode.
+                ['selection:updated', 'selection:cleared'].forEach(function(ev) {
+                    canvas.on(ev, function() {
+                        if (cropState && canvas.getActiveObject() !== cropState.rect) endCrop();
+                    });
+                });
+                canvas.on('object:removed', function(e) {
+                    if (cropState && e.target === cropState.rect) {
+                        cropState = null;
+                        updateCropButtons();
+                    }
                 });
                 canvas.on('object:modified', function(e) {
                     updatePropertiesPanel();
@@ -3827,6 +3860,141 @@
                 });
                 refreshSelectionFrame();
                 canvas.requestRenderAll();
+                saveState();
+            }
+
+            /* ── Image crop ───────────────────────────────────────────────
+               Crop mode drops a dashed frame over the selected image; the
+               user positions it with fabric's NORMAL selection handles (no
+               custom drag machinery), then Apply computes the framed region
+               in the image's own local space and applies it via fabric's
+               native cropX/cropY. Fully non-destructive: no re-encoding, the
+               engrave filters keep working, cropX/cropY serialize with
+               project saves, and Reset restores the full bitmap any time. */
+            let cropState = null; // { img, rect } while crop mode is active
+
+            function updateCropButtons() {
+                const section = document.getElementById('cropSection');
+                if (!section || !canvas) return;
+                const obj = canvas.getActiveObject();
+                const isImg = !!obj && obj.type === 'image';
+                const cropping = !!cropState;
+                section.style.display = (isImg || cropping) ? 'block' : 'none';
+                document.getElementById('cropStartRow').style.display  = cropping ? 'none' : 'flex';
+                document.getElementById('cropActiveRow').style.display = cropping ? 'flex' : 'none';
+                const resetBtn = document.getElementById('cropResetBtn');
+                if (resetBtn) {
+                    let cropped = false;
+                    if (isImg && obj._element) {
+                        const el = obj._element;
+                        cropped = (obj.cropX || 0) !== 0 || (obj.cropY || 0) !== 0 ||
+                                  obj.width  !== (el.naturalWidth  || el.width) ||
+                                  obj.height !== (el.naturalHeight || el.height);
+                    }
+                    resetBtn.disabled = !cropped;
+                }
+            }
+
+            function startCrop() {
+                const img = canvas.getActiveObject();
+                if (!img || img.type !== 'image' || cropState) return;
+                const br = img.getBoundingRect(true, true);
+                const rect = new fabric.Rect({
+                    left: br.left + br.width / 2,
+                    top:  br.top + br.height / 2,
+                    width: br.width, height: br.height,
+                    originX: 'center', originY: 'center',
+                    fill: 'rgba(52,71,52,0.15)',
+                    stroke: '#344734', strokeWidth: 1,
+                    strokeUniform: true, strokeDashArray: [6, 4],
+                    lockRotation: true,
+                    excludeFromExport: true // never serialized or exported
+                });
+                rect.shapeType = 'cropTool';
+                rect.setControlsVisibility({ mtr: false }); // no rotate handle
+                canvas.add(rect);
+                // Structural helper object — must not trigger the off-view auto-fit
+                if (canvas._autoFitQueue) canvas._autoFitQueue = [];
+                canvas.setActiveObject(rect);
+                cropState = { img: img, rect: rect };
+                canvas.requestRenderAll();
+                updateCropButtons();
+            }
+
+            // Remove the frame and leave crop mode. Keeps whatever the user
+            // selected meanwhile (the selection-change guard calls this).
+            function endCrop() {
+                if (!cropState) return;
+                const rect = cropState.rect;
+                cropState = null;
+                if (canvas.getActiveObject() === rect) canvas.discardActiveObject();
+                canvas.remove(rect);
+                canvas.requestRenderAll();
+                updateCropButtons();
+            }
+
+            function cancelCrop() {
+                if (!cropState) return;
+                const img = cropState.img;
+                endCrop();
+                canvas.setActiveObject(img);
+                canvas.requestRenderAll();
+            }
+
+            function applyCrop() {
+                if (!cropState) return;
+                const img = cropState.img, rect = cropState.rect;
+                // Frame corners → the image's LOCAL space (handles a rotated or
+                // flipped image; the crop is the local bounding box of the frame,
+                // clamped to the current visible extent).
+                const inv = fabric.util.invertTransform(img.calcTransformMatrix());
+                // Corners from the frame's geometry, NOT getCoords() — coords
+                // include the 1px stroke padding, which inflated the crop by
+                // half a pixel per side. Rotation is locked, so this is exact.
+                const rc = rect.getCenterPoint();
+                const hw = rect.width * rect.scaleX / 2, hh = rect.height * rect.scaleY / 2;
+                const pts = [
+                    new fabric.Point(rc.x - hw, rc.y - hh), new fabric.Point(rc.x + hw, rc.y - hh),
+                    new fabric.Point(rc.x + hw, rc.y + hh), new fabric.Point(rc.x - hw, rc.y + hh)
+                ].map(p => fabric.util.transformPoint(p, inv));
+                const w = img.width, h = img.height;
+                const lx0 = Math.max(-w / 2, Math.min(...pts.map(p => p.x)));
+                const ly0 = Math.max(-h / 2, Math.min(...pts.map(p => p.y)));
+                const lx1 = Math.min(w / 2, Math.max(...pts.map(p => p.x)));
+                const ly1 = Math.min(h / 2, Math.max(...pts.map(p => p.y)));
+                const m = img.calcTransformMatrix(); // BEFORE endCrop deselects
+                endCrop();
+                if (lx1 - lx0 < 2 || ly1 - ly0 < 2) { canvas.setActiveObject(img); return; }
+                const centre = fabric.util.transformPoint(
+                    new fabric.Point((lx0 + lx1) / 2, (ly0 + ly1) / 2), m);
+                img.set({
+                    cropX: (img.cropX || 0) + lx0 + w / 2,
+                    cropY: (img.cropY || 0) + ly0 + h / 2,
+                    width:  lx1 - lx0,
+                    height: ly1 - ly0
+                });
+                img.setPositionByOrigin(centre, 'center', 'center');
+                img.setCoords();
+                canvas.setActiveObject(img);
+                canvas.requestRenderAll();
+                updatePropertiesPanel();
+                updateCropButtons();
+                saveState();
+            }
+
+            function resetCrop() {
+                const img = canvas.getActiveObject();
+                if (!img || img.type !== 'image' || !img._element) return;
+                const el = img._element;
+                const natW = el.naturalWidth || el.width, natH = el.naturalHeight || el.height;
+                if (!natW || !natH) return;
+                const centre = img.getCenterPoint();
+                img.set({ cropX: 0, cropY: 0, width: natW, height: natH });
+                img.setPositionByOrigin(centre, 'center', 'center');
+                img.setCoords();
+                canvas.requestRenderAll();
+                updatePropertiesPanel();
+                updateCropButtons();
                 saveState();
             }
 
