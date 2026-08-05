@@ -3912,10 +3912,22 @@
                 });
                 rect.shapeType = 'cropTool';
                 rect.setControlsVisibility({ mtr: false }); // no rotate handle
+                // The frame inherits the image's Keep-proportions state: locked →
+                // proportional corner-only resize, unlocked → free resize with
+                // side handles. Set BEFORE selecting so the builder's aspect
+                // sync reads it; the right-panel toggle then works on the frame
+                // itself mid-crop. (No-op in the plain editor — no Coach.)
+                if (typeof Coach !== 'undefined' && Coach._effectiveLock) {
+                    rect.coachAspectLocked = Coach._effectiveLock(img);
+                }
                 canvas.add(rect);
                 // Structural helper object — must not trigger the off-view auto-fit
                 if (canvas._autoFitQueue) canvas._autoFitQueue = [];
                 canvas.setActiveObject(rect);
+                if (typeof Coach !== 'undefined' && Coach.applyAspectToObject) {
+                    Coach.applyAspectToObject(rect);
+                    canvas.uniformScaling = Coach._effectiveLock(rect);
+                }
                 cropState = { img: img, rect: rect };
                 canvas.requestRenderAll();
                 updateCropButtons();
