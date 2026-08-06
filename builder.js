@@ -9415,7 +9415,13 @@
                             return;
                         }
                         tintNudge.style.display = 'none';
-                        Coach.applyEngrave(t, !Coach.isEngraved(t));
+                        const on = !Coach.isEngraved(t);
+                        // 'Preview engraved look' means the MATERIAL engrave colour
+                        // (brown/grey): drop any custom colour picked in the
+                        // properties panel, else there was no way back to brown.
+                        // The custom state is re-entered only via the colour picker.
+                        if (on) delete t._coachCustomTint;
+                        Coach.applyEngrave(t, on);
                         syncTintLabel();
                     });
                     tintRow.appendChild(tintBtn);
