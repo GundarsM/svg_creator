@@ -9477,7 +9477,8 @@
                        When a country outline / image / shape extends past the
                        base shape, offer to cut the part that sticks out. The
                        button only shows while that state is observed. */
-                    el.appendChild(sectionLabel('Trim to the holder'));
+                    const trimLabel = sectionLabel('Trim to the holder');
+                    el.appendChild(trimLabel);
                     const trimNudge = mkEl('p', { className: 'small text-muted mb-1' });
                     trimNudge.textContent = 'If a shape spills over the edge of your holder, this cuts off the part that sticks out.';
                     el.appendChild(trimNudge);
@@ -9495,6 +9496,10 @@
                     const showTrimRow = function(show) {
                         if (show) trimRow.style.setProperty('display', 'flex', 'important');
                         else trimRow.style.setProperty('display', 'none', 'important');
+                        // The heading and explanation only make sense alongside the
+                        // button — hide the whole section while nothing overflows.
+                        trimLabel.style.display = show ? '' : 'none';
+                        trimNudge.style.display = show ? '' : 'none';
                     };
                     showTrimRow(false);   // shown only when excess is detected
 
