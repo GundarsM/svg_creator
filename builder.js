@@ -728,6 +728,16 @@
                (1 button → full width, 2 → halves, 3 → thirds, etc.).
                .coach-btns gives the same uniform buttons to togglable panels whose
                display is controlled inline (so we must NOT force display here). */
+            /* White section cards — group related controls inside a step,
+               matching the right panel's white .control-group boxes. */
+            #coach-body .coach-card {
+                background: #fff;
+                border-radius: 8px;
+                padding: 8px 10px;
+                margin-bottom: 8px;
+            }
+            #coach-body .coach-card > :last-child { margin-bottom: 0 !important; }
+
             #coach-body .coach-row {
                 display: flex !important;
                 flex-wrap: wrap;
@@ -8124,10 +8134,14 @@
                     };
 
                     occasions.forEach(label => btnGroup.appendChild(makeBtn(label)));
-                    el.appendChild(btnGroup);
+                    const occCard = mkEl('div', { className: 'coach-card' });
+                    occCard.appendChild(btnGroup);
+                    el.appendChild(occCard);
 
                     // Project name input
-                    el.appendChild(mkEl('label', {
+                    const nameCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(nameCard);
+                    nameCard.appendChild(mkEl('label', {
                         htmlFor: 'coach-project-name', className: 'form-label small mb-1',
                         textContent: 'Coin holders name (optional)'
                     }));
@@ -8142,10 +8156,10 @@
                     nameInput.addEventListener('input', () => {
                         Coach.state.projectName = nameInput.value;
                     });
-                    el.appendChild(nameInput);
+                    nameCard.appendChild(nameInput);
 
                     // ── Resume from a previously saved project file ──────────
-                    const loadWrap = mkEl('div', { className: 'mt-4 pt-3', style: 'border-top:1px solid rgba(255,255,255,0.2)' });
+                    const loadWrap = mkEl('div', { className: 'coach-card mt-3' });
 
                     loadWrap.appendChild(mkEl('p', {
                         className: 'small mb-2', style: 'opacity:0.85',
@@ -8297,6 +8311,8 @@
                         // which used to surface the offer and eat those parts.
                         if (h.shapeType !== 'imported') return;
                         if (Coach.countOutlines(h) <= 1 && !Coach.importedSiblings(h).length) return;
+                        const cleanCard = mkEl('div', { className: 'coach-card' });
+                        el.appendChild(cleanCard);
                         const row = mkEl('div', { className: 'coach-row mb-2' });
                         const btn = mkEl('button', {
                             type: 'button',
@@ -8309,16 +8325,18 @@
                             Coach.render();
                         });
                         row.appendChild(btn);
-                        el.appendChild(row);
-                        el.appendChild(mkEl('p', {
-                            className: 'small text-muted mb-3',
+                        cleanCard.appendChild(row);
+                        cleanCard.appendChild(mkEl('p', {
+                            className: 'small text-muted mb-0',
                             textContent: 'Your file has a few shapes in it — this keeps the biggest one and removes the rest.'
                         }));
                     }());
 
                     // ── 2. Base-shape picker (FIX H) ──────────────────────
+                    const shapeCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(shapeCard);
                     const shapeLabel = mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Choose a shape for your coin holder' });
-                    el.appendChild(shapeLabel);
+                    shapeCard.appendChild(shapeLabel);
 
                     const shapeGroup = mkEl('div', { className: 'coach-row mb-2' });
 
@@ -8356,7 +8374,7 @@
                     });
                     shapeGroup.appendChild(countryToggleBtn);
 
-                    el.appendChild(shapeGroup);
+                    shapeCard.appendChild(shapeGroup);
 
                     // ── Country / custom panel (hidden by default) ─────────
                     // Contains 6 country buttons + Upload SVG as the final button.
@@ -8447,7 +8465,7 @@
                     });
                     countryPanel.appendChild(svgBtn);
 
-                    el.appendChild(countryPanel);
+                    shapeCard.appendChild(countryPanel);
 
                     // ── 3. Size controls (FIX G) ───────────────────────────
                     // Size can be set before OR after picking a shape. Values are
@@ -8458,7 +8476,7 @@
                     const lockAspect = Coach.isAspectLocked(Coach.state.holderObj);
                     const scaleNow   = (cv() && canvas.scale) ? canvas.scale : 1;
 
-                    const sizeSection = mkEl('div', { className: 'mb-3' });
+                    const sizeSection = mkEl('div', { className: 'coach-card' });
                     sizeSection.appendChild(mkEl('label', { className: 'form-label small fw-semibold mb-1', textContent: 'Coin holder size (mm)' }));
 
                     const sizeRow = mkEl('div', { className: 'd-flex gap-2 align-items-end' });
@@ -8548,11 +8566,13 @@
                     }
 
                     // Render size BEFORE the base-shape picker (issue: size can come first)
-                    el.insertBefore(sizeSection, shapeLabel);
+                    el.insertBefore(sizeSection, shapeCard);
 
                     // ── 4. Ready layouts (subtle) ─────────────────────────
-                    const tmplLabel = mkEl('p', { className: 'small text-muted mt-3 mb-1', textContent: 'Or start from a ready-made template:' });
-                    el.appendChild(tmplLabel);
+                    const tmplCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(tmplCard);
+                    const tmplLabel = mkEl('p', { className: 'small text-muted mb-1', textContent: 'Or start from a ready-made template:' });
+                    tmplCard.appendChild(tmplLabel);
 
                     const tmplRow = mkEl('div', { className: 'coach-row' });
 
@@ -8570,7 +8590,7 @@
                         tmplRow.appendChild(tb);
                     });
 
-                    el.appendChild(tmplRow);
+                    tmplCard.appendChild(tmplRow);
                 },
             },
             {
@@ -8666,10 +8686,12 @@
                     const currentMaterial = Coach.state.material || null;
 
                     // ── Wood finishes (selected look = .btn.active CSS) ───
-                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Wood finishes' }));
+                    const woodCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(woodCard);
+                    woodCard.appendChild(mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Wood finishes' }));
 
                     const woodRow = mkEl('div', { className: 'coach-row mb-3' });
-                    el.appendChild(woodRow);
+                    woodCard.appendChild(woodRow);
 
                     [['Birch', 'birch'], ['Oak', 'oak'], ['Walnut', 'walnut']].forEach(([label, value]) => {
                         const btn = mkEl('button', {
@@ -8682,10 +8704,12 @@
                     });
 
                     // ── Plastic colour ────────────────────────────────────
-                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Plastic colour' }));
+                    const plasticCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(plasticCard);
+                    plasticCard.appendChild(mkEl('p', { className: 'small fw-semibold mb-2', textContent: 'Plastic colour' }));
 
                     const plasticRow = mkEl('div', { className: 'd-flex align-items-center flex-wrap gap-2 mb-2' });
-                    el.appendChild(plasticRow);
+                    plasticCard.appendChild(plasticRow);
 
                     // Use the SAME predefined palette as the main editor's #fillColor dropdown.
                     // Setting #fillColor to one of its real option values is what makes applyFill work —
@@ -8807,6 +8831,7 @@
                     const activeCurrency = Coach.state.coinCurrency || 'euro';
 
                     /* ── Currency tab buttons ──────────────────────────── */
+                    const coinsCard = mkEl('div', { className: 'coach-card' });
                     const tabRow = mkEl('div', { className: 'coach-row mb-3' });
                     Object.entries(CURRENCIES).forEach(([key, cur]) => {
                         const tab = mkEl('button', {
@@ -8820,7 +8845,8 @@
                         });
                         tabRow.appendChild(tab);
                     });
-                    el.appendChild(tabRow);
+                    el.appendChild(coinsCard);
+                    coinsCard.appendChild(tabRow);
 
                     /* ── Elliptical coin slot (pressed pennies) ──────────────
                        Pressed pennies are oval, so the engine's circular
@@ -8960,12 +8986,12 @@
                         // Register for "Add all"
                         rowControls.push({ coin: coin, qtyInput: qty });
                     });
-                    el.appendChild(denom);
+                    coinsCard.appendChild(denom);
 
                     /* ── Custom slot ───────────────────────────────────────
                        Circular currencies: label + diameter (mm).
                        Pressed Penny: label + X and Y dimensions (mm) → ellipse. */
-                    const customWrap = mkEl('div', { className: 'mt-1 mb-2' });
+                    const customWrap = mkEl('div', { className: 'coach-card' });
                     customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1 text-center', textContent: currency.elliptic ? 'Custom slot' : 'Custom coin' }));
                     const customRow = mkEl('div', { className: 'd-flex align-items-end justify-content-center gap-2' });
 
@@ -9052,14 +9078,16 @@
                         engineSave();
                     });
 
+                    const actionsCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(actionsCard);
                     const addAllWrap = mkEl('div', { className: 'coach-row coach-row-2 mb-3' });
                     addAllWrap.appendChild(addAllBtn);
                     addAllWrap.appendChild(delAllBtn);
-                    el.appendChild(addAllWrap);
+                    actionsCard.appendChild(addAllWrap);
 
                     /* ── Running tally ─────────────────────────────────── */
                     const tallyDiv = mkEl('div', { className: 'small text-muted text-center' });
-                    el.appendChild(tallyDiv);
+                    actionsCard.appendChild(tallyDiv);
 
                     function updateTally() {
                         const entries = Object.entries(Coach.state.coins).filter(([, n]) => n > 0);
@@ -9089,7 +9117,9 @@
                         textContent: 'Add a holder and some coins first.',
                         style: 'display:none'
                     });
-                    el.appendChild(nudge);
+                    const arrCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(arrCard);
+                    arrCard.appendChild(nudge);
 
                     // Layout buttons — max two per row
                     const btnRow = mkEl('div', { className: 'coach-row coach-row-2 mb-3' });
@@ -9117,10 +9147,10 @@
                     // Moving coins above the holder can push them out of view — fit then.
                     outsideBtn.addEventListener('click', () => Coach.fitIfNeeded());
                     btnRow.appendChild(outsideBtn);
-                    el.appendChild(btnRow);
+                    arrCard.appendChild(btnRow);
 
                     // Hint for the shape-conforming layout
-                    el.appendChild(mkEl('p', {
+                    arrCard.appendChild(mkEl('p', {
                         className: 'small text-muted mb-2',
                         textContent: "Arrange your coins to follow the holder's shape, then drag any coin to fine-tune."
                     }));
@@ -9521,6 +9551,12 @@
                         // button — hide the whole section while nothing overflows.
                         trimLabel.style.display = show ? '' : 'none';
                         trimNudge.style.display = show ? '' : 'none';
+                        // And the whole white card once cardify() has wrapped the
+                        // section — an empty box must not linger when hidden.
+                        const card = trimLabel.parentElement;
+                        if (card && card.classList && card.classList.contains('coach-card')) {
+                            card.style.display = show ? '' : 'none';
+                        }
                     };
                     showTrimRow(false);   // shown only when excess is detected
 
@@ -9574,6 +9610,26 @@
                         Coach._trimHandler = updateTrimBtn;
                         TRIM_EVENTS.forEach(function(ev) { canvas.on(ev, Coach._trimHandler); });
                     }
+                    // Group each labelled section into a white card: every
+                    // sectionLabel() div starts a card and the following siblings
+                    // join it (the intro before the first label stays on the
+                    // bubble background). Runs before updateTrimBtn so the trim
+                    // card's visibility is applied to the wrapped card.
+                    (function cardify() {
+                        const kids = [...el.children];
+                        let card = null;
+                        kids.forEach(node => {
+                            const isLabel = node.tagName === 'DIV' && node.classList.contains('fw-semibold') && node.classList.contains('small');
+                            if (isLabel) {
+                                card = mkEl('div', { className: 'coach-card' });
+                                el.insertBefore(card, node);
+                                card.appendChild(node);
+                            } else if (card) {
+                                card.appendChild(node);
+                            }
+                        });
+                    }());
+
                     syncTintLabel();
                     updateTrimBtn();
                     // Safety net: make sure coins are on top when this step opens,
@@ -9593,9 +9649,11 @@
                     const intro = mkEl('p', { className: 'mb-2', textContent: this.intro });
                     el.appendChild(intro);
 
+                    const fxCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(fxCard);
                     const nudge = mkEl('p', { className: 'small text-warning mb-2' });
                     nudge.style.display = 'none';
-                    el.appendChild(nudge);
+                    fxCard.appendChild(nudge);
 
                     const row = mkEl('div', { className: 'coach-row coach-row-2 mb-2' });
 
@@ -9638,11 +9696,13 @@
                     row.appendChild(addBtn);
                     row.appendChild(singleBtn);
                     row.appendChild(clearBtn);
-                    el.appendChild(row);
+                    fxCard.appendChild(row);
 
                     // Fixture finish: pick a colour swatch (same style as the plastic
                     // colour swatches in step 3).
-                    el.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture colour' }));
+                    const colourCard = mkEl('div', { className: 'coach-card' });
+                    el.appendChild(colourCard);
+                    colourCard.appendChild(mkEl('p', { className: 'small fw-semibold mb-1', textContent: 'Fixture colour' }));
                     const colorRow = mkEl('div', { className: 'd-flex align-items-center flex-wrap gap-2 mb-1' });
                     const current = Coach.fixtureColorKey();
                     const FIXTURE_SWATCHES = [
@@ -9673,7 +9733,7 @@
                         });
                         colorRow.appendChild(sw);
                     });
-                    el.appendChild(colorRow);
+                    colourCard.appendChild(colorRow);
                 },
             },
             {
@@ -9732,7 +9792,7 @@
                     }
 
                     /* ── Summary ────────────────────────────────────────── */
-                    const summaryDiv = mkEl('div', { className: 'mb-3 p-2 rounded', style: 'background:#f5f5f5; font-size:0.85rem;' });
+                    const summaryDiv = mkEl('div', { className: 'coach-card', style: 'font-size:0.85rem;' });
                     const ul = mkEl('ul', { className: 'mb-0 ps-3' });
                     const addItem = (label, value) =>
                         ul.appendChild(mkEl('li', { innerHTML: '<strong>' + label + ':</strong> ' + value }));
