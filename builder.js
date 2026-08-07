@@ -7986,8 +7986,9 @@
                 [yTop, yBot].forEach(yy => xs.forEach(xx => tryPlace(xx, yy)));
             } else if (type === 'circle' || type === 'circle-outline') {
                 // Circles keep their holes nearer the rim than the generic
-                // 12 mm inset — 8 mm, matching the UK circular template.
-                const CIRCLE_OFFSET = 8;
+                // 12 mm inset — 6 mm: with the 8 mm-diameter hole that leaves
+                // a 2 mm web of material between the hole edge and the rim.
+                const CIRCLE_OFFSET = 6;
                 const R = Math.min(hw, hh) / 2 - CIRCLE_OFFSET * scale;
                 if (R > 0) {
                     // start at top, rotated 30° clockwise, then every 60°
