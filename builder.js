@@ -8285,6 +8285,13 @@
                     (function maybeReduce() {
                         const h = Coach.state.holderObj;
                         if (!h) return;
+                        // Cleanup is for UPLOADED files only. Intentional multi-part
+                        // holders — a template board (group with its decorative inner
+                        // ring), a country with islands — must never be offered the
+                        // destructive keep-the-biggest-part. A resumed project
+                        // re-renders this step with the holder already in place,
+                        // which used to surface the offer and eat those parts.
+                        if (h.shapeType !== 'imported') return;
                         if (Coach.countOutlines(h) <= 1 && !Coach.importedSiblings(h).length) return;
                         const row = mkEl('div', { className: 'coach-row mb-2' });
                         const btn = mkEl('button', {
