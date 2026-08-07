@@ -7985,7 +7985,10 @@
                 const xs = [left + hw * (1 / 6), left + hw * (5 / 6)]; // 1/6 in from each side edge
                 [yTop, yBot].forEach(yy => xs.forEach(xx => tryPlace(xx, yy)));
             } else if (type === 'circle' || type === 'circle-outline') {
-                const R = Math.min(hw, hh) / 2 - OFFSET * scale;
+                // Circles keep their holes nearer the rim than the generic
+                // 12 mm inset — 8 mm, matching the UK circular template.
+                const CIRCLE_OFFSET = 8;
+                const R = Math.min(hw, hh) / 2 - CIRCLE_OFFSET * scale;
                 if (R > 0) {
                     // start at top, rotated 30° clockwise, then every 60°
                     for (let i = 0; i < 6; i++) {
