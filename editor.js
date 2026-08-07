@@ -149,6 +149,7 @@
                 display: block;
                 margin-bottom: 5px;
                 color: #333;
+                font-size: 0.85em; /* one size for every control label (T1) */
             }
             
             #design-tool-wrapper .shape-btn, 
@@ -688,16 +689,16 @@
                 <!-- Right Sidebar - Properties -->
                 <div class="sidebar-right">
                     <div class="tool-panel">
-                        <h3>Object Properties</h3>
+                        <h3>Selected item</h3>
                         <div id="propertiesPanel">
-                            <p class="text-muted">Select an object to edit its properties</p>
+                            <p class="text-muted">Click an item on the canvas to edit it</p>
                         </div>
 
                         <div class="property-panel" id="alignSection" style="display:none;">
                             <!-- Same structure as the X/Y rows: a white control-group card
                                  with a bold label and the button rows as its content. -->
                             <div class="control-group">
-                                <label style="white-space: nowrap; font-size: 0.85em; font-family: 'IvyMode', 'Times New Roman', serif;">Alignment:</label>
+                                <label style="white-space: nowrap;">Alignment:</label>
                                 <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('left')" title="Align left edges"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="9" height="4"/><rect x="3" y="9.5" width="6" height="4"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('centerh')" title="Align horizontal centres"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="7" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="10" height="4"/><rect x="5" y="9.5" width="6" height="4"/></svg></button>
@@ -722,7 +723,7 @@
                         </div>
                         <div class="property-panel" id="groupSection" style="display:none;">
                             <div class="control-group">
-                                <label style="white-space: nowrap; font-size: 0.85em; font-family: 'IvyMode', 'Times New Roman', serif;">Group:</label>
+                                <label style="white-space: nowrap;">Group:</label>
                                 <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="groupBtn" onclick="groupSelected()" title="Group the selected objects — they move and scale as one (Ctrl+G)"><i class="fas fa-object-group"></i> Group</button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="ungroupBtn" onclick="ungroupSelected()" title="Split the selected group back into separate objects (Ctrl+Shift+G)"><i class="fas fa-object-ungroup"></i> Ungroup</button>
@@ -733,11 +734,11 @@
                         <div class="property-panel" id="objectProperties" style="display:none;">
                             <div class="control-group" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">X:</label>
+                                    <label style="white-space: nowrap;">X:</label>
                                     <input type="number" id="posX" step="0.1">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Y:</label>
+                                    <label style="white-space: nowrap;">Y:</label>
                                     <input type="number" id="posY" step="0.1">
                                 </div>
                             </div>
@@ -753,11 +754,11 @@
                             </div>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner Roundness:</label>
+                                    <label style="white-space: nowrap;">Corner rounding:</label>
                                     <input type="number" id="cornerRadius" step="0.1" min="0">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Rotation:</label>
+                                    <label style="white-space: nowrap;">Rotation:</label>
                                     <input type="number" id="objRotation" step="1">
                                 </div>
                             </div>
@@ -772,7 +773,7 @@
                             </div>
                             <div class="control-group" style="display: flex; gap: 8px; align-items: flex-start;">
                                 <div style="flex: 1;" id="fillColorGroup">
-                                    <label>Color:</label>
+                                    <label>Colour:</label>
                                     <select id="fillColor" class="form-select" style="font-family: monospace;">
                                         <option value="#000000" style="background: #000000; color: white;">⬛ Black</option>
                                         <option value="#FFFFFF" style="background: #FFFFFF; color: black; border: 1px solid #ccc;">⬜ White</option>
@@ -786,7 +787,7 @@
                                     </select>
                                 </div>
                                 <div style="flex: 1;" id="strokeColorGroup">
-                                    <label>Outline:</label>
+                                    <label>Border:</label>
                                     <div class="color-picker-group">
                                         <input type="color" id="strokeColor">
                                         <input type="number" id="strokeWidth" min="0" max="20" step="0.1" placeholder="Width">
@@ -810,18 +811,18 @@
                                 </select>
                                 <label class="mt-2">Font Size:</label>
                                 <input type="number" id="fontSize" min="8" max="200">
-                                <label class="mt-2">Text Content:</label>
+                                <label class="mt-2">Text:</label>
                                 <input type="text" id="textContent">
                             </div>
                             <button class="btn btn-success w-100 mt-3" onclick="duplicateSelected()">
-                                <i class="fas fa-copy"></i> Duplicate (Ctrl+D)
+                                <i class="fas fa-copy"></i> Make a copy
                             </button>
                             <div style="display: flex; gap: 4px; margin-top: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorHorizontal()">
-                                    <i class="fas fa-arrows-alt-h"></i> Mirror H
+                                    <i class="fas fa-arrows-alt-h"></i> Flip H
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="mirrorVertical()">
-                                    <i class="fas fa-arrows-alt-v"></i> Mirror V
+                                    <i class="fas fa-arrows-alt-v"></i> Flip V
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="rotate90()">
                                     <i class="fas fa-redo"></i> 90°
@@ -851,12 +852,12 @@
                             </button>
                         </div>
                         
-                        <h3 class="mt-4">Actions</h3>
-                        <button class="btn btn-warning w-100 mb-2" onclick="clearCanvas()">
-                            <i class="fas fa-sync-alt"></i> Start Over
-                        </button>
+                        <h3 class="mt-4">Finish up</h3>
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn">
                             <i class="fas fa-download"></i> Download as SVG
+                        </button>
+                        <button class="btn btn-warning w-100 mb-2" onclick="clearCanvas()">
+                            <i class="fas fa-sync-alt"></i> Start Over
                         </button>
                     </div>
                 </div>

@@ -151,6 +151,7 @@
                 display: block;
                 margin-bottom: 5px;
                 color: #333;
+                font-size: 0.85em; /* one size for every control label (T1) */
             }
             
             #design-tool-wrapper .shape-btn, 
@@ -618,6 +619,12 @@
                 font-family: 'Athelas', Georgia, serif;
             }
 
+            /* The Coach panel's title is a heading — IvyMode like its peer
+               panel headings (Selected item / Finish up), not the body serif. */
+            #coach-bubble #coach-title {
+                font-family: 'IvyMode', 'Times New Roman', serif !important;
+            }
+
             /* …but Font Awesome icons must keep their own font, otherwise the
                blanket rule above forces them to serif and they show as tofu
                squares. Weights are left to FA's own .fas/.far rules. */
@@ -671,7 +678,9 @@
                 border-color: #cfe3cf !important;
             }
 
-            /* Download (btn-success) and Quote (btn-primary) — theme green variants */
+            /* Download (btn-success) keeps Bootstrap green; Quote/primary keeps
+               Bootstrap blue so btn-primary is ONE colour everywhere (right
+               panel, review step and the resume prompt). */
             #coach-bubble .btn-success {
                 background: #198754 !important;
                 color: #fff !important;
@@ -682,13 +691,13 @@
                 border-color: #157347 !important;
             }
             #coach-bubble .btn-primary {
-                background: #344734 !important;
+                background: #0d6efd !important;
                 color: #fff !important;
-                border-color: #344734 !important;
+                border-color: #0d6efd !important;
             }
             #coach-bubble .btn-primary:hover {
-                background: #2a3a2a !important;
-                border-color: #2a3a2a !important;
+                background: #0b5ed7 !important;
+                border-color: #0b5ed7 !important;
             }
 
             /* Back / Next footer nav buttons — equal, compact, yellow accent */
@@ -893,7 +902,7 @@
                             <!-- Same structure as the X/Y rows: a white control-group card
                                  with a bold label and the button rows as its content. -->
                             <div class="control-group">
-                                <label style="white-space: nowrap; font-size: 0.85em; font-family: 'IvyMode', 'Times New Roman', serif;">Alignment:</label>
+                                <label style="white-space: nowrap;">Alignment:</label>
                                 <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('left')" title="Align left edges"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="9" height="4"/><rect x="3" y="9.5" width="6" height="4"/></svg></button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" onclick="alignSelected('centerh')" title="Align horizontal centres"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="7" y="0.5" width="2" height="15"/><rect x="3" y="2.5" width="10" height="4"/><rect x="5" y="9.5" width="6" height="4"/></svg></button>
@@ -918,7 +927,7 @@
                         </div>
                         <div class="property-panel" id="groupSection" style="display:none;">
                             <div class="control-group">
-                                <label style="white-space: nowrap; font-size: 0.85em; font-family: 'IvyMode', 'Times New Roman', serif;">Group:</label>
+                                <label style="white-space: nowrap;">Group:</label>
                                 <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="groupBtn" onclick="groupSelected()" title="Group the selected objects — they move and scale as one (Ctrl+G)"><i class="fas fa-object-group"></i> Group</button>
                                 <button class="btn btn-sm btn-outline-secondary" style="flex: 1;" id="ungroupBtn" onclick="ungroupSelected()" title="Split the selected group back into separate objects (Ctrl+Shift+G)"><i class="fas fa-object-ungroup"></i> Ungroup</button>
@@ -929,11 +938,11 @@
                         <div class="property-panel" id="objectProperties" style="display:none;">
                             <div class="control-group" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">X:</label>
+                                    <label style="white-space: nowrap;">X:</label>
                                     <input type="number" id="posX" step="0.1">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Y:</label>
+                                    <label style="white-space: nowrap;">Y:</label>
                                     <input type="number" id="posY" step="0.1">
                                 </div>
                             </div>
@@ -953,11 +962,11 @@
                                     onclick="Coach.toggleSelectedAspectLock()">🔓 Resize freely</button>
                             <div class="control-group" id="cornerRadiusRotationGroup" style="display: flex; gap: 8px;">
                                 <div style="flex: 1;" id="cornerRadiusGroup">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Corner rounding:</label>
+                                    <label style="white-space: nowrap;">Corner rounding:</label>
                                     <input type="number" id="cornerRadius" step="0.1" min="0">
                                 </div>
                                 <div style="flex: 1;">
-                                    <label style="white-space: nowrap; font-size: 0.85em;">Rotation:</label>
+                                    <label style="white-space: nowrap;">Rotation:</label>
                                     <input type="number" id="objRotation" step="1">
                                 </div>
                             </div>
@@ -8511,7 +8520,8 @@
                         const lockBtn = mkEl('button', {
                             type: 'button',
                             id: 'coach-aspect-left',
-                            className: 'btn btn-sm',
+                            // Same yellow as its right-panel twin (#coach-aspect-right)
+                            className: 'btn btn-sm coach-btn-yellow',
                             textContent: lockAspect ? '🔒 Keep proportions' : '🔓 Resize freely'
                         });
                         lockBtn.addEventListener('click', () => Coach.toggleHolderAspectLock());
@@ -9463,7 +9473,7 @@
                         outNudge.textContent = 'Could not build the outline \u2014 is the offset too large for the holder?';
                         outNudge.style.display = ok ? 'none' : '';
                     });
-                    const remOutBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove outline' });
+                    const remOutBtn = mkEl('button', { type: 'button', className: 'btn btn-sm coach-btn-red', textContent: 'Remove outline' });
                     remOutBtn.addEventListener('click', () => {
                         Coach.removeHolderOutlines();
                         outNudge.style.display = 'none';
@@ -9485,7 +9495,7 @@
                     const trimRow = mkEl('div', { className: 'coach-row mt-1' });
                     const trimBtn = mkEl('button', {
                         type: 'button',
-                        className: 'btn btn-sm coach-btn-yellow',
+                        className: 'btn btn-sm coach-btn-red',
                         textContent: 'Remove excess'
                     });
                     trimRow.appendChild(trimBtn);
@@ -9605,7 +9615,7 @@
                         nudge.style.display = 'none';
                     });
 
-                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm btn-outline-light', textContent: 'Remove all fixtures' });
+                    const clearBtn = mkEl('button', { type: 'button', className: 'btn btn-sm coach-btn-red', textContent: 'Remove all fixtures' });
                     clearBtn.addEventListener('click', () => {
                         if (!cv()) return;
                         canvas.getObjects().filter(o => o.shapeType === 'fixture').forEach(o => canvas.remove(o));
