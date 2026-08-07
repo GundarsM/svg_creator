@@ -10,6 +10,10 @@
         <!-- External Libraries -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
         <!-- Bootstrap loaded inside a CSS layer so Squarespace's own (unlayered) styles always win -->
+        <!-- Declare the coach-overrides layer BEFORE bootstrap: for !important
+             declarations earlier layers win, letting card spacing overrides beat
+             Bootstrap's !important margin utilities (mt-2, mb-3, ...). -->
+        <style>@layer coach-overrides, bootstrap;</style>
         <style>@import url("https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css") layer(bootstrap);</style>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -736,7 +740,12 @@
                 padding: 8px 10px;
                 margin-bottom: 8px;
             }
-            #coach-body .coach-card > :last-child { margin-bottom: 0 !important; }
+            /* Layered (coach-overrides is declared before bootstrap), so these
+               !importants outrank Bootstrap's !important margin utilities. */
+            @layer coach-overrides {
+                #coach-body .coach-card > :first-child { margin-top: 0 !important; }
+                #coach-body .coach-card > :last-child { margin-bottom: 0 !important; }
+            }
 
             #coach-body .coach-row {
                 display: flex !important;
@@ -8992,8 +9001,8 @@
                        Circular currencies: label + diameter (mm).
                        Pressed Penny: label + X and Y dimensions (mm) → ellipse. */
                     const customWrap = mkEl('div', { className: 'coach-card' });
-                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1 text-center', textContent: currency.elliptic ? 'Custom slot' : 'Custom coin' }));
-                    const customRow = mkEl('div', { className: 'd-flex align-items-end justify-content-center gap-2' });
+                    customWrap.appendChild(mkEl('div', { className: 'small fw-semibold mb-1', textContent: currency.elliptic ? 'Custom slot' : 'Custom coin' }));
+                    const customRow = mkEl('div', { className: 'd-flex align-items-end gap-2 flex-wrap' });
 
                     const labelWrap = mkEl('div');
                     labelWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Label' }));
@@ -9023,16 +9032,39 @@
                             const x = parseFloat(customX.value);
                             const y = parseFloat(customY.value);
                             if (!x || x <= 0 || !y || y <= 0) return;
-                            addCoins({ value: customLabel.value.trim() || ('Penny ' + x + '×' + y), x: x, y: y }, 1);
+                            addCoins({ value: customLabel.value.trim() || ('Penny ' + x + '×' + y), x: x, y: y }, parseInt(customQty.value, 10) || 0);
                         };
                     } else {
                         const customDia = numInput('Size (mm)', '64px');
                         addCustom = () => {
                             const d = parseFloat(customDia.value);
                             if (!d || d <= 0) return;
-                            addCoins({ value: customLabel.value.trim() || 'Coin', diameter: d }, 1);
+                            addCoins({ value: customLabel.value.trim() || 'Coin', diameter: d }, parseInt(customQty.value, 10) || 0);
                         };
                     }
+                    // Quantity stepper — same interaction as the denomination rows.
+                    const qtyWrap = mkEl('div');
+                    qtyWrap.appendChild(mkEl('label', { className: 'form-label small mb-0', textContent: 'Qty' }));
+                    const qtyRow = mkEl('div', { className: 'd-flex align-items-center gap-1' });
+                    const customQty = mkEl('input', {
+                        type: 'number', min: '0', step: '1', value: '1',
+                        className: 'form-control form-control-sm text-center px-1'
+                    });
+                    customQty.style.width = '44px';
+                    const setCustomQty = (v) => {
+                        if (isNaN(v) || v < 0) v = 0;
+                        customQty.value = v;
+                    };
+                    const cMinus = mkEl('button', { type: 'button', className: 'btn btn-sm px-2 py-0', textContent: '−' });
+                    cMinus.addEventListener('click', () => setCustomQty((parseInt(customQty.value, 10) || 0) - 1));
+                    const cPlus = mkEl('button', { type: 'button', className: 'btn btn-sm px-2 py-0', textContent: '+' });
+                    cPlus.addEventListener('click', () => setCustomQty((parseInt(customQty.value, 10) || 0) + 1));
+                    qtyRow.appendChild(cMinus);
+                    qtyRow.appendChild(customQty);
+                    qtyRow.appendChild(cPlus);
+                    qtyWrap.appendChild(qtyRow);
+                    customRow.appendChild(qtyWrap);
+
                     const customAdd = mkEl('button', { type: 'button', className: 'btn btn-sm', textContent: 'Add' });
                     customAdd.addEventListener('click', addCustom);
                     customRow.appendChild(customAdd);
@@ -9052,7 +9084,7 @@
                     const addAllBtn = mkEl('button', {
                         type: 'button',
                         className: 'btn btn-sm coach-btn-yellow',
-                        textContent: 'Add all selected above'
+                        textContent: 'Add all selected below'
                     });
                     addAllBtn.addEventListener('click', () => {
                         rowControls.forEach(({ coin, qtyInput }) =>
@@ -9079,7 +9111,9 @@
                     });
 
                     const actionsCard = mkEl('div', { className: 'coach-card' });
-                    el.appendChild(actionsCard);
+                    // Sits ABOVE the currency picker so the bulk actions are in
+                    // reach without scrolling past every denomination row.
+                    el.insertBefore(actionsCard, coinsCard);
                     const addAllWrap = mkEl('div', { className: 'coach-row coach-row-2 mb-3' });
                     addAllWrap.appendChild(addAllBtn);
                     addAllWrap.appendChild(delAllBtn);
@@ -9173,7 +9207,7 @@
                     el.appendChild(mkEl('p', { className: 'text-muted small mb-3', textContent: 'All optional — add what you like, or move on.' }));
 
                     /* ── Helper: section label ───────────────────────── */
-                    const sectionLabel = (text) => mkEl('div', { className: 'fw-semibold small mb-1 mt-2', textContent: text });
+                    const sectionLabel = (text) => mkEl('div', { className: 'fw-semibold small mb-1', textContent: text });
 
                     /* Capture the next non-coin object added and size it to the holder. */
                     function captureAndSize(mode, engraveFill) {
