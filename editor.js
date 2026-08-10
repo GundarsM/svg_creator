@@ -2990,16 +2990,49 @@
                                 if (objects && objects.length > 0) {
                                     const importedObjects = [];
                                     
-                                    // Add each object separately (not grouped)
-                                    objects.forEach((obj, index) => {
-                                        // Position and scale each object
+                                    // Add each object separately (not grouped), PRESERVING
+                                    // the file's own layout. The old code dropped every
+                                    // element at (100,100)+index·10, which scrambled any
+                                    // multi-element file (CorelDRAW/Illustrator exports) —
+                                    // only single-path SVGs survived. Instead: scale each
+                                    // element's position AND size by the same factor about
+                                    // the SVG origin (relative geometry intact), then shift
+                                    // the whole batch so its joint bounding box lands
+                                    // centred on the canvas.
+                                    //
+                                    // Real-world sizing: CorelDRAW & friends declare a
+                                    // physical page (width="120mm"), which fabric bakes
+                                    // into the parsed coordinates at 96 dpi. Recover the
+                                    // document's true mm width and map it to canvas px so
+                                    // the file arrives at its declared size; without
+                                    // physical units, one SVG user unit stays = 1 mm.
+                                    let unitScale = scale;
+                                    const rootTag = (svgString.match(/<svg[^>]*>/i) || [''])[0];
+                                    const wAttr = /\bwidth\s*=\s*["']\s*([\d.eE+-]+)\s*(mm|cm|in|pt|pc)\s*["']/i.exec(rootTag);
+                                    if (wAttr && options && options.width > 0) {
+                                        const UNIT_MM = { mm: 1, cm: 10, in: 25.4, pt: 25.4 / 72, pc: 25.4 / 6 };
+                                        const docMm = parseFloat(wAttr[1]) * UNIT_MM[wAttr[2].toLowerCase()];
+                                        if (docMm > 0) unitScale = (docMm * scale) / options.width;
+                                    }
+                                    objects.forEach((obj) => {
                                         obj.set({
-                                            left: 100 + (index * 10 * scale), // Slight offset for visibility
-                                            top: 100,
-                                            scaleX: scale,
-                                            scaleY: scale
+                                            left: (obj.left || 0) * unitScale,
+                                            top: (obj.top || 0) * unitScale,
+                                            scaleX: (obj.scaleX || 1) * unitScale,
+                                            scaleY: (obj.scaleY || 1) * unitScale
                                         });
-                                        
+                                        obj.setCoords();
+                                    });
+                                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                                    objects.forEach((obj) => {
+                                        const b = obj.getBoundingRect(true, true);
+                                        minX = Math.min(minX, b.left); minY = Math.min(minY, b.top);
+                                        maxX = Math.max(maxX, b.left + b.width); maxY = Math.max(maxY, b.top + b.height);
+                                    });
+                                    const shiftX = canvas.width / 2 - (minX + maxX) / 2;
+                                    const shiftY = canvas.height / 2 - (minY + maxY) / 2;
+                                    objects.forEach((obj) => {
+                                        obj.set({ left: obj.left + shiftX, top: obj.top + shiftY });
                                         obj.shapeType = 'imported';
                                         obj.setCoords();
                                         canvas.add(obj);
