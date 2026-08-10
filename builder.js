@@ -1100,6 +1100,9 @@
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
                             <i class="fas fa-download"></i> Download your design
                         </button>
+                        <button class="btn btn-info w-100 mb-2" id="previewImageBtn" onclick="downloadPreviewImage()" disabled title="Save a JPG snapshot of the design — the holder plus a 10 mm margin">
+                            <i class="fas fa-image"></i> Download preview image
+                        </button>
                         <button class="btn btn-secondary w-100 mb-2" id="saveProjectBtn" onclick="Coach.persist.exportToFile()" disabled>
                             <i class="fas fa-floppy-disk"></i> Save project to a file
                         </button>
@@ -5042,6 +5045,91 @@
                 return result;
             }
             
+            // ── Preview image (JPG) ─────────────────────────────────────
+            // Snapshot of the design as shown in the designer, cropped to the
+            // coin holder's bounding box plus a 10 mm margin on every side —
+            // not the whole sheet. Composited onto white so the JPG has no
+            // black bars where the margin runs past the canvas edge.
+            function downloadPreviewImage() {
+                if (!canvas || !canvas.getObjects().length) return;
+                const scale = canvas.scale || 1;
+
+                // The holder: the Coach-tracked one when available, else the
+                // largest non-coin/non-fixture/non-text object; with none, the
+                // whole design's bounding box (same rule as zoomAboutHolder).
+                let holder = (typeof Coach !== 'undefined' && Coach.state) ? Coach.state.holderObj : null;
+                if (!holder || canvas.getObjects().indexOf(holder) === -1) {
+                    let bestA = -1;
+                    holder = null;
+                    canvas.getObjects().forEach(function(o) {
+                        if (o.shapeType === 'currency' || o.shapeType === 'fixture' ||
+                            o.type === 'text' || o.type === 'i-text') return;
+                        const a = o.getScaledWidth() * o.getScaledHeight();
+                        if (a > bestA) { bestA = a; holder = o; }
+                    });
+                }
+                let r;
+                if (holder) {
+                    r = holder.getBoundingRect(true, true); // scene coords
+                } else {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    canvas.getObjects().forEach(function(o) {
+                        const b = o.getBoundingRect(true, true);
+                        minX = Math.min(minX, b.left); minY = Math.min(minY, b.top);
+                        maxX = Math.max(maxX, b.left + b.width); maxY = Math.max(maxY, b.top + b.height);
+                    });
+                    r = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+                }
+
+                const marginPx = 10 * scale;
+                const left = r.left - marginPx, top = r.top - marginPx;
+                const w = r.width + 2 * marginPx, h = r.height + 2 * marginPx;
+                if (!(w > 0) || !(h > 0)) return;
+
+                // Render at identity viewport (current zoom/pan must not affect
+                // the shot) with no selection handles baked in; ~1600 px long side.
+                const active = canvas.getActiveObject();
+                canvas.discardActiveObject();
+                const vpt = canvas.viewportTransform.slice();
+                canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                let png;
+                try {
+                    png = canvas.toDataURL({
+                        format: 'png',
+                        left: left, top: top, width: w, height: h,
+                        multiplier: Math.min(4, Math.max(1, 1600 / Math.max(w, h))),
+                        enableRetinaScaling: false
+                    });
+                } finally {
+                    canvas.setViewportTransform(vpt);
+                    if (active && active.type !== 'activeSelection') canvas.setActiveObject(active);
+                    canvas.requestRenderAll();
+                }
+                if (!png) return;
+
+                // PNG → white-backed JPG (margin areas past the sheet edge are
+                // transparent in the PNG and would turn black in a direct JPG).
+                const img = new Image();
+                img.onload = function() {
+                    const out = document.createElement('canvas');
+                    out.width = img.width;
+                    out.height = img.height;
+                    const ctx = out.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, out.width, out.height);
+                    ctx.drawImage(img, 0, 0);
+                    const base = (typeof Coach !== 'undefined' && Coach.persist && Coach.persist._fileBase)
+                        ? Coach.persist._fileBase() : 'design';
+                    const a = document.createElement('a');
+                    a.href = out.toDataURL('image/jpeg', 0.92);
+                    a.download = base + '-preview.jpg';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                };
+                img.src = png;
+            }
+
             // Export SVG with text converted to paths
             async function exportSVG() {
                 try {
@@ -6823,7 +6911,7 @@
         Coach.updateActionButtons = function() {
             if (!cv()) return;
             const has = canvas.getObjects().length > 0;
-            ['clearBtn', 'downloadBtn', 'saveProjectBtn', 'coachQuoteBtn'].forEach(function(id) {
+            ['clearBtn', 'downloadBtn', 'previewImageBtn', 'saveProjectBtn', 'coachQuoteBtn'].forEach(function(id) {
                 const b = document.getElementById(id);
                 if (b) b.disabled = !has;
             });
@@ -10051,6 +10139,11 @@
                     btnRow.appendChild(mkActionBtn('Download your design', 'fas fa-download',
                         '#198754', '#fff', '#198754', function() {
                             if (typeof exportSVG === 'function') Promise.resolve(exportSVG()).catch(function() {});
+                        }));
+
+                    btnRow.appendChild(mkActionBtn('Download preview image', 'fas fa-image',
+                        '#0dcaf0', '#333', '#0dcaf0', function() {
+                            if (typeof downloadPreviewImage === 'function') downloadPreviewImage();
                         }));
 
                     btnRow.appendChild(mkActionBtn('Save project to a file', 'fas fa-floppy-disk',
