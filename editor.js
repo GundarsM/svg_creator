@@ -4494,7 +4494,13 @@
                 
                 // Calculate scale ratio
                 const scaleRatio = newScale / oldScale;
-                
+
+                // Bulk rebuild, not user additions: suppress the per-object
+                // saveState/auto-fit/capture handlers while re-adding (the
+                // preset-size handler below does the same), then record ONE
+                // undo state at the end.
+                isRedoing = true;
+
                 // Clear the canvas
                 canvas.clear();
                 
@@ -4542,9 +4548,11 @@
                     obj.setCoords();
                     canvas.add(obj);
                 });
-                
+
+                isRedoing = false;
                 canvas.requestRenderAll();
                 updateCanvasInfo();
+                saveState();
             }
             
             // Custom size input listeners are on toolbar elements (customWidthToolbar, customHeightToolbar)

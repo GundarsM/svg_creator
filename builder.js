@@ -4913,7 +4913,13 @@
                 
                 // Calculate scale ratio
                 const scaleRatio = newScale / oldScale;
-                
+
+                // Bulk rebuild, not user additions: suppress the per-object
+                // saveState/auto-fit/capture handlers while re-adding (the
+                // preset-size handler below does the same), then record ONE
+                // undo state at the end.
+                isRedoing = true;
+
                 // Clear the canvas
                 canvas.clear();
                 
@@ -4961,9 +4967,11 @@
                     obj.setCoords();
                     canvas.add(obj);
                 });
-                
+
+                isRedoing = false;
                 canvas.requestRenderAll();
                 updateCanvasInfo();
+                saveState();
             }
             
             // Custom size input listeners are on toolbar elements (customWidthToolbar, customHeightToolbar)
@@ -5797,6 +5805,19 @@
                             };
                             window.clearCanvas._coachWrapped = true;
                         }
+                        // Undo/redo restore objects through object:added — drop any
+                        // pending one-shot capture first so a trap left by a
+                        // cancelled picker can't grab and resize a restored object.
+                        ['undo', 'redo'].forEach(function(fn) {
+                            if (typeof window[fn] === 'function' && !window[fn]._coachWrapped) {
+                                const orig = window[fn];
+                                window[fn] = function() {
+                                    Coach.cancelAllCaptures();
+                                    return orig.apply(this, arguments);
+                                };
+                                window[fn]._coachWrapped = true;
+                            }
+                        });
                         Coach.updateActionButtons();
                         Coach.persist.boot();
                     } else if (tries >= MAX_TRIES) {
@@ -6198,6 +6219,9 @@
 
             /* Restore canvas + state from a saved payload */
             resume(saved) {
+                // A pending one-shot capture must never seize the objects that
+                // loadFromJSON streams in — it would resize whatever loads first.
+                Coach.cancelAllCaptures();
                 canvas.loadFromJSON(saved.canvasJSON, function() {
                     Coach.reapplyMaterials();
                     Coach.reapplyFixtureLocks();
@@ -7079,6 +7103,12 @@
             Coach.cancelCapture(slot);
             const handler = (e) => {
                 const obj = e.target;
+                // Objects streamed in by undo/redo or a bulk canvas rebuild are
+                // RESTORES, not new additions — never capture one. A stale armed
+                // capture (upload clicked, then the file picker cancelled) would
+                // otherwise seize the first restored object, re-tag it as the
+                // holder and resize it to the step-2 stored size.
+                if (typeof isUndoing !== 'undefined' && (isUndoing || isRedoing)) return;
                 if (obj && filter && !filter(obj)) return; // not ours — stay armed
                 Coach.cancelCapture(slot);
                 onCapture(obj);
