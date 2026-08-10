@@ -814,6 +814,7 @@
                                 <input type="number" id="fontSize" min="8" max="200">
                                 <label class="mt-2">Text:</label>
                                 <input type="text" id="textContent">
+                                <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" id="allCapsBtn" onclick="toggleAllCaps()" title="Switch the text between ALL CAPS and its normal capitalisation">Aa Normal caps</button>
                             </div>
                             <button class="btn btn-success w-100 mt-3" onclick="duplicateSelected()">
                                 <i class="fas fa-copy"></i> Make a copy
@@ -1769,6 +1770,18 @@
                     updatePropertiesPanel();
                 });
                 canvas.on('selection:cleared', clearPropertiesPanel);
+                // ALL CAPS text: re-apply after inline (double-click) editing —
+                // whatever was left in the box becomes the new source casing
+                // and is shown upper-cased again.
+                canvas.on('text:editing:exited', function(e) {
+                    const t = e.target;
+                    if (t && t.capsMode) {
+                        t.capsSourceText = t.text;
+                        t.set('text', (t.text || '').toUpperCase());
+                        t.setCoords();
+                        canvas.requestRenderAll();
+                    }
+                });
                 // Alignment section: shown only while 2+ objects are selected.
                 ['selection:created', 'selection:updated', 'selection:cleared'].forEach(function(ev) {
                     canvas.on(ev, updateAlignPanel);
@@ -3182,7 +3195,15 @@
                     document.getElementById('textPropsGroup').style.display = 'block';
                     document.getElementById('fontFamily').value = obj.fontFamily || 'Roboto';
                     document.getElementById('fontSize').value = Math.round(obj.fontSize / scale);
-                    document.getElementById('textContent').value = obj.text;
+                    // While ALL CAPS is on the field shows the original casing,
+                    // so edits keep the typed capitalisation for toggling back.
+                    document.getElementById('textContent').value =
+                        (obj.capsMode && obj.capsSourceText !== undefined) ? obj.capsSourceText : obj.text;
+                    const capsBtn = document.getElementById('allCapsBtn');
+                    if (capsBtn) {
+                        capsBtn.textContent = obj.capsMode ? 'AA All caps' : 'Aa Normal caps';
+                        capsBtn.setAttribute('aria-pressed', obj.capsMode ? 'true' : 'false');
+                    }
                 } else {
                     document.getElementById('textPropsGroup').style.display = 'none';
                 }
@@ -3497,11 +3518,39 @@
                     };
                     
                     document.getElementById('textContent').onchange = function() {
-                        obj.set('text', this.value);
+                        if (obj.capsMode) {
+                            // ALL CAPS on: the field edits the original casing,
+                            // the canvas shows it upper-cased.
+                            obj.capsSourceText = this.value;
+                            obj.set('text', this.value.toUpperCase());
+                        } else {
+                            obj.set('text', this.value);
+                        }
                         obj.setCoords();
                         canvas.requestRenderAll();
                     };
                 }
+            }
+
+            // Toggle the selected text between ALL CAPS and its original casing.
+            // The original text lives in capsSourceText (serialised with saves)
+            // so switching back restores the exact capitalisation that was typed.
+            function toggleAllCaps() {
+                const obj = canvas.getActiveObject();
+                if (!obj || (obj.type !== 'i-text' && obj.type !== 'text')) return;
+                if (obj.capsMode) {
+                    if (obj.capsSourceText !== undefined) obj.set('text', obj.capsSourceText);
+                    obj.capsMode = false;
+                    delete obj.capsSourceText;
+                } else {
+                    obj.capsSourceText = obj.text;
+                    obj.set('text', (obj.text || '').toUpperCase());
+                    obj.capsMode = true;
+                }
+                obj.setCoords();
+                canvas.requestRenderAll();
+                updatePropertiesPanel();
+                saveState();
             }
             
             // Delete selected object(s)
@@ -4134,6 +4183,8 @@
                             if (obj.bendSourceText) cloned.bendSourceText = obj.bendSourceText;
                             if (obj.bendAmount) cloned.bendAmount = obj.bendAmount;
                             if (obj.bendFontFamily) cloned.bendFontFamily = obj.bendFontFamily;
+                            if (obj.capsMode) cloned.capsMode = obj.capsMode;
+                            if (obj.capsSourceText !== undefined) cloned.capsSourceText = obj.capsSourceText;
                             
                             cloned.setCoords();
                             canvas.add(cloned);
@@ -4176,6 +4227,8 @@
                         if (activeObject.bendSourceText) cloned.bendSourceText = activeObject.bendSourceText;
                         if (activeObject.bendAmount) cloned.bendAmount = activeObject.bendAmount;
                         if (activeObject.bendFontFamily) cloned.bendFontFamily = activeObject.bendFontFamily;
+                        if (activeObject.capsMode) cloned.capsMode = activeObject.capsMode;
+                        if (activeObject.capsSourceText !== undefined) cloned.capsSourceText = activeObject.capsSourceText;
                         
                         cloned.setCoords();
                         canvas.add(cloned);
@@ -4248,7 +4301,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot', 'capsMode', 'capsSourceText']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);
