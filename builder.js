@@ -1162,6 +1162,7 @@
                             <table style="font-size: 0.85em;">
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected items</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected items</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Arrow keys</kbd></td><td>Nudge selected items by 0.1 mm</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + G</kbd></td><td>Group selected items</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Shift + G</kbd></td><td>Ungroup the selected group</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>C</kbd></td><td>Align horizontal centres (multiple items selected)</td></tr>
@@ -1295,7 +1296,11 @@
             
             // History management
             let history = [];
-            let historyStep = 0;
+            // Index of the CURRENT state in `history` (−1 = nothing saved yet;
+            // saveState++ lands the first state at 0). Starting at 0 made the
+            // pointer sit one past the end, so the first Undo press re-loaded
+            // the state the canvas was already in — a visible no-op.
+            let historyStep = -1;
             let isRedoing = false;
             let isUndoing = false;
             
@@ -5578,6 +5583,7 @@
                 }
 
                 // Setup keyboard shortcuts
+                let nudgeTimer = null; // debounce: one undo state per arrow-key burst
                 document.addEventListener('keydown', function(e) {
                     // Prevent actions if user is typing in an input field
                     const activeElement = document.activeElement;
@@ -5595,6 +5601,31 @@
                         if (isTyping) return; // Allow normal behavior in input fields
                         e.preventDefault();
                         duplicateSelected();
+                    }
+
+                    // Nudge: arrow keys move the selection by 0.1 mm.
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+                        e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        if (isTyping) return; // arrows keep their caret role in inputs
+                        const nudgeObj = canvas.getActiveObject();
+                        if (nudgeObj) {
+                            e.preventDefault(); // don't scroll the page while nudging
+                            const stepPx = 0.1 * (canvas.scale || 1);
+                            nudgeObj.set({
+                                left: nudgeObj.left + (e.key === 'ArrowLeft' ? -stepPx : e.key === 'ArrowRight' ? stepPx : 0),
+                                top:  nudgeObj.top  + (e.key === 'ArrowUp'   ? -stepPx : e.key === 'ArrowDown'  ? stepPx : 0)
+                            });
+                            nudgeObj.setCoords();
+                            canvas.requestRenderAll();
+                            // Held/repeated presses coalesce into ONE undo state
+                            // (and one autosave/panel refresh) at the end of the
+                            // burst — the modified event drives all three.
+                            if (nudgeTimer) clearTimeout(nudgeTimer);
+                            nudgeTimer = setTimeout(function() {
+                                nudgeTimer = null;
+                                canvas.fire('object:modified', { target: nudgeObj });
+                            }, 400);
+                        }
                     }
 
                     // Group / Ungroup: Ctrl+G / Ctrl+Shift+G
