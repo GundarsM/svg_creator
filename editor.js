@@ -3215,28 +3215,48 @@
                 
                 document.getElementById('objWidth').onchange = function() {
                     const newWidth = parseFloat(this.value) * scale * conversionFactor;
+                    const oldScaleX = obj.scaleX || 1;
+                    let newScaleX;
                     if (obj.type === 'circle') {
-                        obj.set('scaleX', newWidth / (obj.radius * 2));
+                        newScaleX = newWidth / (obj.radius * 2);
                     } else if (obj.type === 'ellipse') {
-                        obj.set('scaleX', newWidth / (obj.rx * 2));
+                        newScaleX = newWidth / (obj.rx * 2);
                     } else {
-                        obj.set('scaleX', newWidth / obj.width);
+                        newScaleX = newWidth / obj.width;
+                    }
+                    obj.set('scaleX', newScaleX);
+                    // Keep proportions: a typed width change scales the height
+                    // too (the lock already governed corner drags, but the
+                    // inputs bypassed it).
+                    if (typeof Coach !== 'undefined' && Coach._effectiveLock &&
+                        Coach._effectiveLock(obj) && oldScaleX) {
+                        obj.set('scaleY', (obj.scaleY || 1) * (newScaleX / oldScaleX));
                     }
                     obj.setCoords();
                     canvas.requestRenderAll();
+                    updatePropertiesPanel(); // sync the other dimension field
                 };
                 
                 document.getElementById('objHeight').onchange = function() {
                     const newHeight = parseFloat(this.value) * scale * conversionFactor;
+                    const oldScaleY = obj.scaleY || 1;
+                    let newScaleY;
                     if (obj.type === 'circle') {
-                        obj.set('scaleY', newHeight / (obj.radius * 2));
+                        newScaleY = newHeight / (obj.radius * 2);
                     } else if (obj.type === 'ellipse') {
-                        obj.set('scaleY', newHeight / (obj.ry * 2));
+                        newScaleY = newHeight / (obj.ry * 2);
                     } else {
-                        obj.set('scaleY', newHeight / obj.height);
+                        newScaleY = newHeight / obj.height;
+                    }
+                    obj.set('scaleY', newScaleY);
+                    // Keep proportions: a typed height change scales the width too.
+                    if (typeof Coach !== 'undefined' && Coach._effectiveLock &&
+                        Coach._effectiveLock(obj) && oldScaleY) {
+                        obj.set('scaleX', (obj.scaleX || 1) * (newScaleY / oldScaleY));
                     }
                     obj.setCoords();
                     canvas.requestRenderAll();
+                    updatePropertiesPanel(); // sync the other dimension field
                 };
                 
                 document.getElementById('objRotation').onchange = function() {
