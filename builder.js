@@ -1041,7 +1041,18 @@
                                 <input type="number" id="fontSize" min="8" max="200">
                                 <label class="mt-2">Text:</label>
                                 <input type="text" id="textContent">
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" id="allCapsBtn" onclick="toggleAllCaps()" title="Switch the text between ALL CAPS and its normal capitalisation">Aa Normal caps</button>
+                                <label class="mt-2">Capitalisation:</label>
+                                <div id="textCaseGroup" style="display: flex; gap: 4px;">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="flex: 1;" data-case="none" onclick="setTextCase('none')" title="Exactly as typed">Aa</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="flex: 1;" data-case="lower" onclick="setTextCase('lower')" title="all lowercase">aa</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="flex: 1;" data-case="title" onclick="setTextCase('title')" title="Capitalise Each Word">Aa Aa</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="flex: 1;" data-case="upper" onclick="setTextCase('upper')" title="ALL CAPS">AA</button>
+                                </div>
+                                <label class="mt-2">Letter spacing:</label>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <input type="range" id="letterSpacing" min="-100" max="800" step="10" value="0" style="flex: 1; padding: 0;">
+                                    <span id="letterSpacingVal" style="min-width: 2.6em; text-align: right; font-size: 0.85em;">0</span>
+                                </div>
                             </div>
                             <button class="btn btn-success w-100 mt-3" onclick="duplicateSelected()">
                                 <i class="fas fa-copy"></i> Make a copy
@@ -2036,14 +2047,15 @@
                     updatePropertiesPanel();
                 });
                 canvas.on('selection:cleared', clearPropertiesPanel);
-                // ALL CAPS text: re-apply after inline (double-click) editing —
-                // whatever was left in the box becomes the new source casing
-                // and is shown upper-cased again.
+                // Case-transformed text: re-apply after inline (double-click)
+                // editing — whatever was left in the box becomes the new source
+                // casing and is shown transformed again.
                 canvas.on('text:editing:exited', function(e) {
                     const t = e.target;
-                    if (t && t.capsMode) {
+                    const mode = t ? textCaseOf(t) : 'none';
+                    if (mode !== 'none') {
                         t.capsSourceText = t.text;
-                        t.set('text', (t.text || '').toUpperCase());
+                        t.set('text', applyTextCase(t.text, mode));
                         t.setCoords();
                         canvas.requestRenderAll();
                     }
@@ -3600,15 +3612,17 @@
                     document.getElementById('textPropsGroup').style.display = 'block';
                     document.getElementById('fontFamily').value = obj.fontFamily || 'Roboto';
                     document.getElementById('fontSize').value = Math.round(obj.fontSize / scale);
-                    // While ALL CAPS is on the field shows the original casing,
-                    // so edits keep the typed capitalisation for toggling back.
+                    // While a case transform is on the field shows the original
+                    // casing, so edits keep the typed capitalisation.
+                    const caseMode = textCaseOf(obj);
                     document.getElementById('textContent').value =
-                        (obj.capsMode && obj.capsSourceText !== undefined) ? obj.capsSourceText : obj.text;
-                    const capsBtn = document.getElementById('allCapsBtn');
-                    if (capsBtn) {
-                        capsBtn.textContent = obj.capsMode ? 'AA All caps' : 'Aa Normal caps';
-                        capsBtn.setAttribute('aria-pressed', obj.capsMode ? 'true' : 'false');
-                    }
+                        (caseMode !== 'none' && obj.capsSourceText !== undefined) ? obj.capsSourceText : obj.text;
+                    document.querySelectorAll('#textCaseGroup button').forEach(function(b) {
+                        b.classList.toggle('active', b.dataset.case === caseMode);
+                    });
+                    const spacingNow = Math.round(obj.charSpacing || 0);
+                    document.getElementById('letterSpacing').value = spacingNow;
+                    document.getElementById('letterSpacingVal').textContent = String(spacingNow);
                 } else {
                     document.getElementById('textPropsGroup').style.display = 'none';
                 }
@@ -3937,35 +3951,64 @@
                     };
                     
                     document.getElementById('textContent').onchange = function() {
-                        if (obj.capsMode) {
-                            // ALL CAPS on: the field edits the original casing,
-                            // the canvas shows it upper-cased.
+                        const mode = textCaseOf(obj);
+                        if (mode !== 'none') {
+                            // A case transform is on: the field edits the original
+                            // casing, the canvas shows it transformed.
                             obj.capsSourceText = this.value;
-                            obj.set('text', this.value.toUpperCase());
+                            obj.set('text', applyTextCase(this.value, mode));
                         } else {
                             obj.set('text', this.value);
                         }
                         obj.setCoords();
                         canvas.requestRenderAll();
                     };
+
+                    document.getElementById('letterSpacing').oninput = function() {
+                        obj.set('charSpacing', parseInt(this.value, 10) || 0);
+                        document.getElementById('letterSpacingVal').textContent = this.value;
+                        obj.setCoords();
+                        canvas.requestRenderAll();
+                    };
+                    // Save one undo step when the slider is released, not per tick.
+                    document.getElementById('letterSpacing').onchange = function() {
+                        saveState();
+                    };
                 }
             }
 
-            // Toggle the selected text between ALL CAPS and its original casing.
-            // The original text lives in capsSourceText (serialised with saves)
-            // so switching back restores the exact capitalisation that was typed.
-            function toggleAllCaps() {
+            // ── Text case transforms ─────────────────────────────────────
+            // The original typed text lives in capsSourceText (serialised with
+            // saves) so switching case is always lossless. textCase holds the
+            // active transform ('lower' | 'title' | 'upper'; absent = as typed);
+            // the legacy capsMode flag from earlier saves reads as 'upper'.
+            function applyTextCase(str, mode) {
+                str = str || '';
+                if (mode === 'upper') return str.toUpperCase();
+                if (mode === 'lower') return str.toLowerCase();
+                if (mode === 'title') return str.replace(/\S+/g, function(w) {
+                    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+                });
+                return str;
+            }
+
+            function textCaseOf(obj) {
+                return obj.textCase || (obj.capsMode ? 'upper' : 'none');
+            }
+
+            function setTextCase(mode) {
                 const obj = canvas.getActiveObject();
                 if (!obj || (obj.type !== 'i-text' && obj.type !== 'text')) return;
-                if (obj.capsMode) {
-                    if (obj.capsSourceText !== undefined) obj.set('text', obj.capsSourceText);
-                    obj.capsMode = false;
+                if (obj.capsSourceText === undefined) obj.capsSourceText = obj.text;
+                if (!mode || mode === 'none') {
+                    obj.set('text', obj.capsSourceText);
+                    delete obj.textCase;
                     delete obj.capsSourceText;
                 } else {
-                    obj.capsSourceText = obj.text;
-                    obj.set('text', (obj.text || '').toUpperCase());
-                    obj.capsMode = true;
+                    obj.set('text', applyTextCase(obj.capsSourceText, mode));
+                    obj.textCase = mode;
                 }
+                delete obj.capsMode; // legacy flag superseded by textCase
                 obj.setCoords();
                 canvas.requestRenderAll();
                 updatePropertiesPanel();
@@ -4602,7 +4645,7 @@
                             if (obj.bendSourceText) cloned.bendSourceText = obj.bendSourceText;
                             if (obj.bendAmount) cloned.bendAmount = obj.bendAmount;
                             if (obj.bendFontFamily) cloned.bendFontFamily = obj.bendFontFamily;
-                            if (obj.capsMode) cloned.capsMode = obj.capsMode;
+                            if (obj.textCase) cloned.textCase = obj.textCase;
                             if (obj.capsSourceText !== undefined) cloned.capsSourceText = obj.capsSourceText;
                             
                             cloned.setCoords();
@@ -4646,7 +4689,7 @@
                         if (activeObject.bendSourceText) cloned.bendSourceText = activeObject.bendSourceText;
                         if (activeObject.bendAmount) cloned.bendAmount = activeObject.bendAmount;
                         if (activeObject.bendFontFamily) cloned.bendFontFamily = activeObject.bendFontFamily;
-                        if (activeObject.capsMode) cloned.capsMode = activeObject.capsMode;
+                        if (activeObject.textCase) cloned.textCase = activeObject.textCase;
                         if (activeObject.capsSourceText !== undefined) cloned.capsSourceText = activeObject.capsSourceText;
                         
                         cloned.setCoords();
@@ -4720,7 +4763,7 @@
             function saveState() {
                 if (isUndoing || isRedoing) return;
                 
-                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot', '_coachCustomTint', 'capsMode', 'capsSourceText']));
+                const json = JSON.stringify(canvas.toJSON(['shapeType', 'countryName', 'realWidth', 'realHeight', 'realRadius', 'realRx', 'realRy', 'realFontSize', 'realCornerRadius', 'currencyType', 'coinValue', 'realDiameter', 'bendSourceText', 'bendAmount', 'bendFontFamily', 'isTemplateSlot', '_coachCustomTint', 'textCase', 'capsSourceText']));
                 
                 // Remove any states after current step (when user does new action after undo)
                 history = history.slice(0, historyStep + 1);
@@ -4927,7 +4970,23 @@
                         const ascenderPx = font.ascender / font.unitsPerEm * fontSize * scale;
                         lines.forEach(function(line, lineIndex) {
                             const baselineY = ascenderPx + lineIndex * lineHeightPx;
-                            const pathData = font.getPath(line, 0, baselineY, fontSize * scale).toPathData(2);
+                            // fabric charSpacing is 1/1000 em added after each glyph;
+                            // when set, lay the glyphs out one by one so the exported
+                            // vectors match the spaced canvas text.
+                            const spacingPx = ((obj.charSpacing || 0) / 1000) * fontSize * scale;
+                            let pathData;
+                            if (spacingPx) {
+                                const parts = [];
+                                let penX = 0;
+                                for (const ch of line) {
+                                    const glyphPath = font.getPath(ch, penX, baselineY, fontSize * scale).toPathData(2);
+                                    if (glyphPath) parts.push(glyphPath);
+                                    penX += font.getAdvanceWidth(ch, fontSize * scale) + spacingPx;
+                                }
+                                pathData = parts.join(' ');
+                            } else {
+                                pathData = font.getPath(line, 0, baselineY, fontSize * scale).toPathData(2);
+                            }
                             if (!pathData) return;
 
                             // Use relative coordinates (0, offset) - the group carries the absolute position.
@@ -5789,7 +5848,7 @@
             'currencyType', 'coinValue', 'realDiameter', 'materialType', 'coachHolderId',
             '_coachEngrave', '_coachOrigFill', 'coachAspectLocked', '_coachClipped',
             'bendSourceText', 'bendAmount', 'bendFontFamily', '_coachOrigStroke',
-            'isTemplateSlot', '_coachCustomTint', 'capsMode', 'capsSourceText'
+            'isTemplateSlot', '_coachCustomTint', 'textCase', 'capsSourceText'
         ];
 
         /* ── Coach.COUNTRY_OPTIONS ─────────────────────────────────────
