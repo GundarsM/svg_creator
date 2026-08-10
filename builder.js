@@ -20,7 +20,7 @@
         <!-- Google Fonts replacement for system fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Anton&family=Cormorant+Garamond:wght@400;700&family=EB+Garamond:wght@400;700&family=Inconsolata:wght@400;700&family=Josefin+Sans:wght@400;700&family=Lora:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Patrick+Hand&family=PT+Sans:wght@400;700&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Anton&family=Cormorant+Garamond:wght@400;700&family=EB+Garamond:wght@400;700&family=Inconsolata:wght@400;700&family=Josefin+Sans:wght@400;700&family=Lora:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Patrick+Hand&family=PT+Sans:wght@400;700&family=Roboto:wght@400;700;900&family=Varela+Round&display=swap" rel="stylesheet">
 
         <style>
             /* Prevent Bootstrap from affecting Squarespace sections */
@@ -1029,6 +1029,7 @@
                                     <option value="Inconsolata">Inconsolata</option>
                                     <option value="Open Sans">Open Sans</option>
                                     <option value="Nunito">Nunito</option>
+                                    <option value="Varela Round">Varela Round</option>
                                     <option value="Josefin Sans">Josefin Sans</option>
                                     <option value="Anton">Anton</option>
                                     <option value="Patrick Hand">Patrick Hand</option>
@@ -1249,6 +1250,7 @@
                 'Inconsolata':          'https://cdn.jsdelivr.net/npm/@fontsource/inconsolata@5.0.8/files/inconsolata-latin-400-normal.woff',
                 'Open Sans':            'https://cdn.jsdelivr.net/npm/@fontsource/open-sans@5.0.12/files/open-sans-latin-400-normal.woff',
                 'Nunito':               'https://cdn.jsdelivr.net/npm/@fontsource/nunito@5.0.8/files/nunito-latin-400-normal.woff',
+                'Varela Round':         'https://cdn.jsdelivr.net/npm/@fontsource/varela-round@5.0.8/files/varela-round-latin-400-normal.woff',
                 'Josefin Sans':         'https://cdn.jsdelivr.net/npm/@fontsource/josefin-sans@5.0.8/files/josefin-sans-latin-400-normal.woff',
                 'Anton':                'https://cdn.jsdelivr.net/npm/@fontsource/anton@5.0.8/files/anton-latin-400-normal.woff',
                 'Patrick Hand':         'https://cdn.jsdelivr.net/npm/@fontsource/patrick-hand@5.0.8/files/patrick-hand-latin-400-normal.woff',
