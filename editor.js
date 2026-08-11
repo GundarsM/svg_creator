@@ -901,6 +901,7 @@
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>Remove selected objects</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + D</kbd></td><td>Duplicate selected objects</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Arrow keys</kbd></td><td>Nudge selected objects by 0.1 mm</td></tr>
+                                <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Arrow keys</kbd></td><td>Nudge selected objects by 0.5 mm</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + G</kbd></td><td>Group selected objects</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>Ctrl + Shift + G</kbd></td><td>Ungroup the selected group</td></tr>
                                 <tr><td style="padding: 2px 12px 2px 0;"><kbd>C</kbd></td><td>Align horizontal centres (multiple objects selected)</td></tr>
@@ -5170,14 +5171,15 @@
                         duplicateSelected();
                     }
 
-                    // Nudge: arrow keys move the selection by 0.1 mm.
+                    // Nudge: arrow keys move the selection by 0.1 mm,
+                    // Ctrl + arrow by 0.5 mm.
                     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
                         e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                         if (isTyping) return; // arrows keep their caret role in inputs
                         const nudgeObj = canvas.getActiveObject();
                         if (nudgeObj) {
                             e.preventDefault(); // don't scroll the page while nudging
-                            const stepPx = 0.1 * (canvas.scale || 1);
+                            const stepPx = (e.ctrlKey || e.metaKey ? 0.5 : 0.1) * (canvas.scale || 1);
                             nudgeObj.set({
                                 left: nudgeObj.left + (e.key === 'ArrowLeft' ? -stepPx : e.key === 'ArrowRight' ? stepPx : 0),
                                 top:  nudgeObj.top  + (e.key === 'ArrowUp'   ? -stepPx : e.key === 'ArrowDown'  ? stepPx : 0)
