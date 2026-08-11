@@ -1100,7 +1100,7 @@
                         <button class="btn btn-success w-100 mb-2" id="downloadBtn" disabled>
                             <i class="fas fa-download"></i> Download your design
                         </button>
-                        <button class="btn btn-info w-100 mb-2" id="previewImageBtn" onclick="downloadPreviewImage()" disabled title="Save a JPG snapshot of the design — the holder plus a 10 mm margin">
+                        <button class="btn btn-info w-100 mb-2" id="previewImageBtn" onclick="downloadPreviewImage()" disabled title="Save a 4:3 JPG snapshot of the design — the holder plus a 10 mm margin">
                             <i class="fas fa-image"></i> Download preview image
                         </button>
                         <button class="btn btn-secondary w-100 mb-2" id="saveProjectBtn" onclick="Coach.persist.exportToFile()" disabled>
@@ -5129,9 +5129,21 @@
                 }
 
                 const marginPx = 10 * scale;
-                const left = r.left - marginPx, top = r.top - marginPx;
-                const w = r.width + 2 * marginPx, h = r.height + 2 * marginPx;
+                let left = r.left - marginPx, top = r.top - marginPx;
+                let w = r.width + 2 * marginPx, h = r.height + 2 * marginPx;
                 if (!(w > 0) || !(h > 0)) return;
+
+                // Fixed 4:3 frame: grow the short side (never crop) so the
+                // holder + margin always fits, kept centred in the frame.
+                if (w / h > 4 / 3) {
+                    const nh = w * 3 / 4;
+                    top -= (nh - h) / 2;
+                    h = nh;
+                } else {
+                    const nw = h * 4 / 3;
+                    left -= (nw - w) / 2;
+                    w = nw;
+                }
 
                 // Render at identity viewport (current zoom/pan must not affect
                 // the shot) with no selection handles baked in; ~1600 px long side.
