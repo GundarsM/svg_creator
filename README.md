@@ -96,6 +96,8 @@ https://formsubmit.co/hillspringcrafts@gmail.com
 
 FormSubmit forwards the submission as an email to that address. No server, no API key, and no account login required — it activates automatically on first submission.
 
+If FormSubmit fails (outage, CORS error, timeout), the tool resends the same request to a small **Google Apps Script** web app running in the shop's Gmail account, which e-mails it with the design files attached and `[backup]` in the subject. The script is in `apps-script/quote-backup/Code.gs`; the setup steps are in `docs/quote-backup-setup.md`.
+
 ### Hosting
 
 The tool is a single self-contained HTML file (`editor.js`) injected into a **Squarespace** page via the Page Header Code Injection field. All dependencies are loaded from external CDNs at runtime — nothing needs to be hosted separately.

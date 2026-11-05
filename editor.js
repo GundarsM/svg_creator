@@ -930,6 +930,8 @@
                         </div>
                         <div class="modal-body">
                             <form id="quoteForm" method="POST" enctype="multipart/form-data">
+                                <!-- Honeypot: invisible to people, bots tend to fill it; a non-empty value is dropped silently. -->
+                                <input type="text" id="quoteHoney" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute; left:-10000px; width:1px; height:1px; opacity:0;">
                                 <div class="mb-3">
                                     <label class="form-label">Design Name *</label>
                                     <input type="text" class="form-control" id="projectName" name="project_name" required placeholder="e.g. Anniversary coin holder">
@@ -1747,6 +1749,29 @@
                     'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '") 11 11, crosshair';
             })();
 
+            // ── Supersampled rendering ──────────────────────────────────
+            // Some GPUs/drivers rasterise canvas shapes with coarse or no
+            // anti-aliasing: text stays smooth but circle edges turn into
+            // staircases. Rendering the canvas at up to 2× the device
+            // resolution and letting the browser scale it down to its CSS
+            // size averages every 2×2 block, which smooths those edges on
+            // such machines and sharpens them everywhere else. Fabric treats
+            // the ratio exactly like a HiDPI screen: pointer maths, object
+            // caches, SVG export and the preview JPG are unaffected. Capped
+            // so a huge canvas (A1) does not balloon the backing store.
+            // Call before the canvas is created and before every resize.
+            const SUPERSAMPLE = 2;
+            const MAX_BACKING_PIXELS = 6 * 1024 * 1024;
+            function applySupersampling(pixelWidth, pixelHeight) {
+                const dpr = window.devicePixelRatio || 1;
+                const byArea = Math.sqrt(MAX_BACKING_PIXELS / Math.max(1, pixelWidth * pixelHeight));
+                fabric.devicePixelRatio = Math.max(dpr, Math.min(dpr * SUPERSAMPLE, 3, byArea));
+            }
+            // Object caches grow with the pixel ratio; lift Fabric's default
+            // 2 MP cache cap so a zoomed-in holder still gets a sharp cache.
+            fabric.perfLimitSizeTotal = 8 * 1024 * 1024;
+            fabric.maxCacheSideLimit = 8192;
+
             // Initialize canvas
             function initCanvas() {
                 const size = canvasSizes[currentCanvasSize];
@@ -1760,6 +1785,7 @@
                 const pixelWidth = size.width * scale;
                 const pixelHeight = size.height * scale;
                 
+                applySupersampling(pixelWidth, pixelHeight);
                 canvas = new fabric.Canvas('designCanvas', {
                     width: pixelWidth,
                     height: pixelHeight,
@@ -4511,6 +4537,7 @@
                 canvas.clear();
                 
                 // Resize the canvas
+                applySupersampling(newPixelWidth, newPixelHeight);
                 canvas.setWidth(newPixelWidth);
                 canvas.setHeight(newPixelHeight);
                 canvas.backgroundColor = '#ffffff';
@@ -4941,6 +4968,116 @@
                 }
             }
             
+            // ===== QUOTE DELIVERY (FormSubmit primary, Google Apps Script backup) =====
+            // Quote requests go to FormSubmit first. If that call fails for any reason
+            // (network error, CORS block, HTTP error, timeout) the same request is
+            // resent to a Google Apps Script web app that e-mails it from the shop's
+            // Gmail account. Setup guide: docs/quote-backup-setup.md
+            // This block is identical in editor.js and builder.js. Keep it that way.
+            const QUOTE_DELIVERY = {
+                primaryUrl: 'https://formsubmit.co/hillspringcrafts@gmail.com',
+                // Paste the Apps Script web-app URL here (it ends in /exec). Until the
+                // value starts with https://script.google.com/ the backup is skipped and
+                // a FormSubmit failure is reported to the customer as before.
+                backupUrl: 'https://script.google.com/macros/s/AKfycbx29sTxORfuVQkryqCuohXugx4pSE8F-Px56Bb8rKLp5JIHHmxHlScugmwhnqPrVXY/exec',
+                primaryTimeoutMs: 15000,
+                backupTimeoutMs: 30000,
+                subject: 'New Design Quote Request - HillSpring Crafts'
+            };
+
+            function quoteBackupConfigured() {
+                return typeof QUOTE_DELIVERY.backupUrl === 'string' &&
+                       QUOTE_DELIVERY.backupUrl.indexOf('https://script.google.com/') === 0;
+            }
+
+            // fetch() that gives up after `ms` milliseconds (rejects with an AbortError).
+            async function fetchWithTimeout(url, options, ms) {
+                const controller = new AbortController();
+                const timer = setTimeout(function() { controller.abort(); }, ms);
+                try {
+                    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+                } finally {
+                    clearTimeout(timer);
+                }
+            }
+
+            // Primary channel: FormSubmit takes a multipart form post.
+            async function sendQuoteViaFormSubmit(fields, files) {
+                const formData = new FormData();
+                formData.append('_subject', QUOTE_DELIVERY.subject);
+                formData.append('_captcha', 'false');
+                formData.append('_template', 'table');
+                Object.keys(fields).forEach(function(key) { formData.append(key, fields[key]); });
+                files.forEach(function(entry) { formData.append(entry.field, entry.file, entry.file.name); });
+                const response = await fetchWithTimeout(QUOTE_DELIVERY.primaryUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
+                }, QUOTE_DELIVERY.primaryTimeoutMs);
+                if (!response.ok) throw new Error('FormSubmit responded with HTTP ' + response.status);
+            }
+
+            // Backup channel: the Apps Script web app takes a JSON body sent as text/plain.
+            // That keeps it a "simple" request with no CORS preflight, which is what lets
+            // the browser follow the redirect Google answers with. Files travel inside
+            // the JSON as base64. The script always answers HTTP 200, so success is
+            // judged from the JSON body ({ ok: true }).
+            async function sendQuoteViaAppsScript(fields, files) {
+                const encoded = [];
+                for (const entry of files) {
+                    encoded.push({
+                        field: entry.field,
+                        name: entry.file.name,
+                        type: entry.file.type || 'application/octet-stream',
+                        content: await fileToBase64(entry.file)
+                    });
+                }
+                const payload = Object.assign({}, fields, { subject: QUOTE_DELIVERY.subject, files: encoded });
+                const response = await fetchWithTimeout(QUOTE_DELIVERY.backupUrl, {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    redirect: 'follow'
+                }, QUOTE_DELIVERY.backupTimeoutMs);
+                if (!response.ok) throw new Error('Backup responded with HTTP ' + response.status);
+                let result = null;
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    throw new Error('Backup returned a non-JSON response (is the deployment set to "Anyone"?)');
+                }
+                if (!result || result.ok !== true) {
+                    throw new Error('Backup rejected the request: ' + (result && result.error ? result.error : 'unknown error'));
+                }
+            }
+
+            async function fileToBase64(file) {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                let binary = '';
+                const chunk = 0x8000;
+                for (let i = 0; i < bytes.length; i += chunk) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+                }
+                return btoa(binary);
+            }
+
+            // Try FormSubmit; on any failure resend the same request to the backup.
+            // `onFallback` (optional) is called once when the backup is about to be used.
+            // Resolves with the channel that delivered: 'formsubmit' or 'backup'.
+            async function sendQuoteRequest(fields, files, onFallback) {
+                try {
+                    await sendQuoteViaFormSubmit(fields, files);
+                    return 'formsubmit';
+                } catch (primaryError) {
+                    console.warn('FormSubmit delivery failed:', primaryError);
+                    if (!quoteBackupConfigured()) throw primaryError;
+                    if (typeof onFallback === 'function') onFallback(primaryError);
+                    await sendQuoteViaAppsScript(fields, files);
+                    return 'backup';
+                }
+            }
+            // ===== END QUOTE DELIVERY =====
+
             // Handle quote form submission
             function setupQuoteFormHandler() {
                 const form = document.getElementById('quoteForm');
@@ -4966,48 +5103,43 @@
                         if (infoMessage) infoMessage.style.display = 'none';
 
                         try {
-                            // Create FormData
-                            const formData = new FormData();
-                            formData.append('_subject', 'New Design Quote Request - HillSpring Crafts');
-                            formData.append('_captcha', 'false');
-                            formData.append('_template', 'table');
-                            formData.append('project_name', document.getElementById('projectName').value);
-                            formData.append('first_name', document.getElementById('firstName').value);
-                            formData.append('last_name', document.getElementById('lastName').value);
-                            formData.append('email', document.getElementById('userEmail').value);
-                            formData.append('notes', document.getElementById('userNotes').value);
-                            formData.append('preferred_material', document.getElementById('preferredMaterial').value);
+                            // Collect the fields once; sendQuoteRequest() packages them for
+                            // whichever channel ends up delivering (see QUOTE DELIVERY above).
+                            const honeyInput = document.getElementById('quoteHoney');
+                            const fields = {
+                                project_name: document.getElementById('projectName').value,
+                                first_name: document.getElementById('firstName').value,
+                                last_name: document.getElementById('lastName').value,
+                                email: document.getElementById('userEmail').value,
+                                notes: document.getElementById('userNotes').value,
+                                preferred_material: document.getElementById('preferredMaterial').value,
+                                _honey: honeyInput ? honeyInput.value : ''
+                            };
 
                             // Add file if present
+                            const files = [];
                             const fileInput = document.getElementById('designFileInput');
                             if (fileInput && fileInput.files.length > 0) {
-                                formData.append('attachment', fileInput.files[0]);
+                                files.push({ field: 'attachment', file: fileInput.files[0] });
                             }
 
-                            // Submit to FormSubmit
-                            const response = await fetch('https://formsubmit.co/hillspringcrafts@gmail.com', {
-                                method: 'POST',
-                                body: formData,
-                                headers: {
-                                    'Accept': 'application/json'
-                                }
+                            // FormSubmit first; the Google Apps Script backup if that fails.
+                            const channel = await sendQuoteRequest(fields, files, function() {
+                                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Still sending...';
                             });
+                            console.info('Quote request delivered via ' + channel);
 
-                            if (response.ok) {
-                                // Success
-                                formMessages.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Quote request sent successfully! We\'ll get back to you within 24 hours.</div>';
-                                form.reset();
+                            // Success
+                            formMessages.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Quote request sent successfully! We\'ll get back to you within 24 hours.</div>';
+                            form.reset();
 
-                                // Close modal after 3 seconds
-                                setTimeout(function() {
-                                    const modal = bootstrap.Modal.getInstance(document.getElementById('quoteModal'));
-                                    if (modal) modal.hide();
-                                    formMessages.innerHTML = '';
-                                    if (infoMessage) infoMessage.style.display = 'block';
-                                }, 3000);
-                            } else {
-                                throw new Error('Submission failed');
-                            }
+                            // Close modal after 3 seconds
+                            setTimeout(function() {
+                                const modal = bootstrap.Modal.getInstance(document.getElementById('quoteModal'));
+                                if (modal) modal.hide();
+                                formMessages.innerHTML = '';
+                                if (infoMessage) infoMessage.style.display = 'block';
+                            }, 3000);
 
                         } catch (error) {
                             console.error('Form submission error:', error);
@@ -5050,6 +5182,7 @@
                     var scaleRatio = newScale / oldScale;
                     isRedoing = true;
                     canvas.clear();
+                    applySupersampling(newPixelWidth, newPixelHeight);
                     canvas.setWidth(newPixelWidth);
                     canvas.setHeight(newPixelHeight);
                     canvas.backgroundColor = '#ffffff';

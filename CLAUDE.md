@@ -10,6 +10,7 @@ Four self-contained browser tools for [HillSpring Crafts](https://hillspringcraf
 - **builder.js** — Guided coin-holder builder: an **engine copied from editor.js (now with intentional builder-only modifications — see maintenance note)** plus an additive scripted "Coach" overlay (`#coach-bubble`) that walks a customer through 7 steps (occasion → holder → material → coins → arrange → personalize → review) while the full editor stays editable. No AI/backend. Auto-saves to `localStorage`.
 - **converter.html** — Image to vector SVG converter
 - **bg-remover.html** — AI background remover with brush touch-up
+- **apps-script/quote-backup/Code.gs** — Google Apps Script web app that receives quote requests when FormSubmit fails. Not injected anywhere; it is pasted into the shop's Google account by hand (see `docs/quote-backup-setup.md`). Keep the repo copy in sync with what is deployed.
 
 > **builder.js maintenance:** the region below the `<!-- ===== ENGINE (verbatim copy of editor.js) ===== -->` marker started as a copy of `editor.js` but has intentionally diverged (Coach-bubble markup replaces the engine sidebar, quote footer removed, instructions rewritten, Coach-aware guards, builder-only fixes). Do NOT re-paste editor.js over it — that breaks the builder. Engine changes must be applied surgically to BOTH files at the matching locations; full reconciliation is a separate future project. The appended `COACH` region (Coach `<style>` rules, the `#coach-bubble` markup, and the `Coach` `<script>`) remains hand-maintained. The Coach drives existing engine globals and reads the global Fabric `canvas`; it never modifies engine internals.
 
@@ -51,7 +52,8 @@ Each file scopes its CSS under a wrapper ID (`#design-tool-wrapper`, `#converter
 - **No automated tests** — verify changes by opening the HTML file directly in a browser
 - **editor.js is named `.js`** but is actually a complete HTML document — this is intentional for the Squarespace injection workflow
 - **kbd elements** require `display: inline-block` in bg-remover and converter because Squarespace hides `kbd` by default. They also need explicit `background` and `color` overrides since Bootstrap's kbd styling (`#212529` bg, white text) may not apply correctly inside Squarespace
-- **Quote submissions** in editor.js go to FormSubmit.co (`hillspringcrafts@gmail.com`) via `fetch()` — no backend needed
+- **Quote submissions** (editor.js and builder.js) go to FormSubmit.co (`hillspringcrafts@gmail.com`) via `fetch()` first. If that fails for any reason (network/CORS error, HTTP error, 15 s timeout) the same request is resent to the Google Apps Script backup, which e-mails it from the shop Gmail with `[backup]` in the subject. The delivery code is the `QUOTE DELIVERY` block directly above `setupQuoteFormHandler()` and must stay byte-identical in both files; the backup URL goes in `QUOTE_DELIVERY.backupUrl` (placeholder `PASTE_APPS_SCRIPT_URL_HERE` = backup disabled). The backup call must remain a CORS "simple request" (`text/plain` body, no custom headers) because Apps Script answers with a redirect and cannot handle a preflight
+- **Supersampled canvas rendering** (editor.js and builder.js): `applySupersampling()` sets `fabric.devicePixelRatio` to up to 2× the device ratio (capped at 3 and by backing-store area) right before the canvas is created and before every resize, so the browser downsamples the canvas and shape edges stay smooth even on GPUs that rasterise canvas paths with little or no anti-aliasing. Fabric treats it exactly like a HiDPI screen; the SVG export, the preview JPG and the Coach's silhouette masks pass `enableRetinaScaling: false` and are unaffected. Keep the block identical in both files
 - **SVG export** in editor.js uses opentype.js to convert text to vector paths so exported SVGs are font-independent
 
 ## Docs
@@ -59,3 +61,6 @@ Each file scopes its CSS under a wrapper ID (`#design-tool-wrapper`, `#converter
 Implementation plans and design specs live in `docs/superpowers/`:
 - `docs/superpowers/plans/` — step-by-step implementation plans (created by superpowers:writing-plans)
 - `docs/superpowers/specs/` — design specifications (created by superpowers:brainstorming)
+
+Operational guides:
+- `docs/quote-backup-setup.md` — how to deploy the Apps Script quote backup and wire its URL into both tools
