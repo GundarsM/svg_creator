@@ -1012,7 +1012,15 @@
                 'Cormorant Garamond':   'https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5.0.8/files/cormorant-garamond-latin-400-normal.woff'
             };
 
-            // Cache of loaded opentype.Font objects — avoids re-fetching per export session
+            // Bold cuts for the families the tool draws in bold (coin labels and
+            // template captions). Bold text in any other family exports with the
+            // regular cut from FONT_URLS.
+            const FONT_URLS_BOLD = {
+                'Roboto':               'https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.8/files/roboto-latin-700-normal.woff',
+                'Josefin Sans':         'https://cdn.jsdelivr.net/npm/@fontsource/josefin-sans@5.0.8/files/josefin-sans-latin-700-normal.woff'
+            };
+
+            // Cache of loaded opentype.Font objects keyed by file URL — avoids re-fetching per export session
             const fontBinaryCache = {};
 
             // Fallback font key used when an unknown fontFamily is encountered
@@ -4591,22 +4599,142 @@
             // Custom size input listeners are on toolbar elements (customWidthToolbar, customHeightToolbar)
             
             // Load an opentype.Font object, using cache to avoid repeat fetches.
-            async function loadFont(fontFamily) {
+            // fontWeight is optional: 'bold' (or a numeric weight of 600+) picks
+            // the bold cut when FONT_URLS_BOLD lists one, else the regular cut.
+            async function loadFont(fontFamily, fontWeight) {
                 const key = FONT_URLS[fontFamily] ? fontFamily : FONT_FALLBACK;
-                if (fontBinaryCache[key]) return fontBinaryCache[key];
                 if (!FONT_URLS[key]) {
                     throw new Error('Font not found and fallback missing: ' + key);
                 }
+                const isBold = fontWeight === 'bold' || fontWeight === 'bolder' || parseInt(fontWeight, 10) >= 600;
+                const url = (isBold && FONT_URLS_BOLD[key]) || FONT_URLS[key];
+                if (fontBinaryCache[url]) return fontBinaryCache[url];
                 if (key !== fontFamily) {
                     console.warn('No font URL for "' + fontFamily + '" - using fallback "' + key + '"');
                 }
-                const font = await opentype.load(FONT_URLS[key]);
-                fontBinaryCache[key] = font;
+                const font = await opentype.load(url);
+                fontBinaryCache[url] = font;
                 return font;
             }
 
-            // Convert all text objects on the canvas to fabric.Path vector objects.
-            // Returns array of { original, converted } - converted is null for non-text objects.
+            function isTextObject(obj) {
+                return !!obj && (obj.type === 'i-text' || obj.type === 'text');
+            }
+
+            // True when a group holds a text object at any depth (coin labels,
+            // user-grouped captions, ...).
+            function groupContainsText(group) {
+                return group.getObjects().some(function(o) {
+                    return isTextObject(o) || (o.type === 'group' && groupContainsText(o));
+                });
+            }
+
+            // Build the vector stand-in for one text object: a single fabric.Path
+            // holding the outlines of every line, laid out exactly where Fabric
+            // paints the text on the canvas. Fabric's text box does not use font
+            // metrics at all: each line box is fontSize × lineHeight × 1.13 and
+            // the baseline sits 22.2% up from the bottom of the (lineHeight-free)
+            // line box, so the same formulas put the opentype outlines on the
+            // canvas baselines. The path carries the text's angle, scale, flips and
+            // opacity and is placed so that its local origin coincides with the
+            // text's centre, so it drops into the exact place the text occupied —
+            // on the canvas, or inside a group (whose children are positioned
+            // relative to the group centre). Returns null when the text has no
+            // outlines (empty / whitespace only).
+            async function textToPathObject(obj) {
+                const font = await loadFont(obj.fontFamily || 'Roboto', obj.fontWeight);
+                const scale = canvas.scale;
+                const sizePx = (obj.realFontSize || (obj.fontSize / scale)) * scale;
+                const lines = (obj.text || '').split('\n');
+                // opentype's 'tracking' is in 1/1000 em — the unit of Fabric's charSpacing
+                const renderOpts = { kerning: true, tracking: obj.charSpacing || 0 };
+
+                // Horizontal layout (Fabric's rules with opentype's measurements):
+                // the block is as wide as its widest line and every line is aligned
+                // inside it; x = 0 is the text centre. Fabric's measureLine() does
+                // not count the spacing after the last character; opentype's
+                // advance does, so take it off again.
+                const spacingPx = sizePx * (obj.charSpacing || 0) / 1000;
+                const lineWidths = lines.map(function(line) {
+                    return line ? font.getAdvanceWidth(line, sizePx, renderOpts) - spacingPx : 0;
+                });
+                const blockWidth = Math.max.apply(null, lineWidths);
+                const align = obj.textAlign || 'left';
+
+                // Vertical layout (Fabric's rules); y = 0 is the text centre.
+                const lineHeightMult = obj.lineHeight || 1.16;
+                const lineBox = sizePx * lineHeightMult * (obj._fontSizeMult || 1.13);      // getHeightOfLine()
+                const blockHeight = lineBox * (lines.length - 1) + lineBox / lineHeightMult; // calcTextHeight()
+                const baselineInBox = (lineBox / lineHeightMult) * (1 - (obj._fontSizeFraction || 0.222));
+
+                let pathData = '';
+                lines.forEach(function(line, i) {
+                    if (!line) return;
+                    let penX = -blockWidth / 2;
+                    if (align === 'center' || align === 'justify-center') {
+                        penX += (blockWidth - lineWidths[i]) / 2;
+                    } else if (align === 'right' || align === 'justify-right') {
+                        penX += blockWidth - lineWidths[i];
+                    }
+                    const baselineY = -blockHeight / 2 + i * lineBox + baselineInBox;
+                    const d = font.getPath(line, penX, baselineY, sizePx, renderOpts).toPathData(2);
+                    if (d) pathData += (pathData ? ' ' : '') + d;
+                });
+                if (!pathData) return null;
+
+                const path = new fabric.Path(pathData, {
+                    fill: obj.fill || '#000000',
+                    stroke: obj.stroke || null,
+                    strokeWidth: obj.strokeWidth || 0,
+                    opacity: obj.opacity,
+                    angle: obj.angle || 0,
+                    scaleX: obj.scaleX,
+                    scaleY: obj.scaleY,
+                    flipX: !!obj.flipX,
+                    flipY: !!obj.flipY,
+                    originX: 'center',
+                    originY: 'center'
+                });
+                // Fabric positions a Path by the centre of its outline bounding box
+                // (pathOffset, in path coordinates), not by the path origin. Map that
+                // centre through the text's scale/flip/rotation and offset it from
+                // the text's centre, so path (0,0) lands exactly on the text centre.
+                const po = path.pathOffset;
+                const off = fabric.util.rotateVector(
+                    { x: po.x * obj.scaleX * (obj.flipX ? -1 : 1), y: po.y * obj.scaleY * (obj.flipY ? -1 : 1) },
+                    fabric.util.degreesToRadians(obj.angle || 0));
+                const centre = obj.getCenterPoint();
+                path.setPositionByOrigin(new fabric.Point(centre.x + off.x, centre.y + off.y), 'center', 'center');
+                path.setCoords();
+                return path;
+            }
+
+            // Swap every text inside a group (at any depth) for its vector
+            // stand-in. Children are replaced in place rather than via
+            // remove()/add() — add() would append (changing the z-order) and
+            // addWithUpdate() would recompute the group bounds and shift it.
+            async function replaceTextInGroup(group) {
+                const children = group.getObjects();
+                for (let i = 0; i < children.length; i++) {
+                    const child = children[i];
+                    if (isTextObject(child)) {
+                        const converted = await textToPathObject(child);
+                        if (!converted) continue;
+                        converted.group = group;
+                        delete child.group;
+                        group._objects[i] = converted;
+                    } else if (child.type === 'group') {
+                        await replaceTextInGroup(child);
+                    }
+                }
+                group.dirty = true;
+            }
+
+            // Convert all text objects on the canvas to fabric.Path vector objects,
+            // including text nested inside groups (coin labels, grouped captions).
+            // Returns array of { original, converted } - converted is null for objects
+            // without any text, which the caller clones as they are. Text with no
+            // outlines (empty) is left out of the result and so of the export.
             async function convertTextToPathObjects() {
                 const objects = canvas.getObjects();
                 const result = [];
@@ -4614,90 +4742,163 @@
                 for (let i = 0; i < objects.length; i++) {
                     const obj = objects[i];
 
-                    if (obj.type === 'i-text' || obj.type === 'text') {
-                        const font = await loadFont(obj.fontFamily || 'Roboto');
-                        const scale = canvas.scale;
-                        const fontSize = (obj.realFontSize || (obj.fontSize / scale));
-                        const lines = (obj.text || '').split('\n');
-
-                        // Full line height: ascender + descender magnitude + lineGap
-                        const lineHeightPx = (font.ascender - font.descender + (font.lineGap || 0))
-                                              / font.unitsPerEm * fontSize * scale;
-
-                        const pathObjects = [];
-                        const ascenderPx = font.ascender / font.unitsPerEm * fontSize * scale;
-                        lines.forEach(function(line, lineIndex) {
-                            const baselineY = ascenderPx + lineIndex * lineHeightPx;
-                            // fabric charSpacing is 1/1000 em added after each glyph;
-                            // when set, lay the glyphs out one by one so the exported
-                            // vectors match the spaced canvas text.
-                            const spacingPx = ((obj.charSpacing || 0) / 1000) * fontSize * scale;
-                            let pathData;
-                            if (spacingPx) {
-                                const parts = [];
-                                let penX = 0;
-                                for (const ch of line) {
-                                    const glyphPath = font.getPath(ch, penX, baselineY, fontSize * scale).toPathData(2);
-                                    if (glyphPath) parts.push(glyphPath);
-                                    penX += font.getAdvanceWidth(ch, fontSize * scale) + spacingPx;
-                                }
-                                pathData = parts.join(' ');
-                            } else {
-                                pathData = font.getPath(line, 0, baselineY, fontSize * scale).toPathData(2);
-                            }
-                            if (!pathData) return;
-
-                            // Use relative coordinates (0, offset) - the group carries the absolute position.
-                            // Do NOT set left/top to obj.left/obj.top here; that would double-offset when
-                            // fabric.Group recomputes child positions relative to the group's own centre.
-                            const fabricPath = new fabric.Path(pathData, {
-                                left: 0,
-                                top: lineIndex * lineHeightPx,
-                                fill: obj.fill || '#000000',
-                                stroke: obj.stroke || null,
-                                strokeWidth: obj.strokeWidth || 0,
-                                opacity: 1,
-                                originX: 'center',
-                                originY: 'top',
-                                scaleX: 1,
-                                scaleY: 1
-                            });
-                            pathObjects.push(fabricPath);
+                    if (isTextObject(obj)) {
+                        const converted = await textToPathObject(obj);
+                        if (converted) result.push({ original: obj, converted: converted });
+                    } else if (obj.type === 'group' && groupContainsText(obj)) {
+                        // Work on a clone so the live canvas keeps its editable text.
+                        // realFontSize / materialType are custom props; carry them over so
+                        // nested text converts like top-level text and pattern fills get
+                        // the right flat export colour.
+                        const clone = await new Promise(function(resolve) {
+                            obj.clone(resolve, ['realFontSize', 'materialType']);
                         });
-
-                        // Wrap all lines in a group (or use the single path directly)
-                        // The group carries the absolute canvas position from the original text object.
-                        if (pathObjects.length === 1) {
-                            pathObjects[0].set({
-                                left: obj.left,
-                                top: obj.top,
-                                angle: obj.angle,
-                                opacity: obj.opacity,
-                                originX: obj.originX,
-                                originY: obj.originY,
-                                scaleX: obj.scaleX,
-                                scaleY: obj.scaleY
-                            });
-                            result.push({ original: obj, converted: pathObjects[0] });
-                        } else if (pathObjects.length > 1) {
-                            const group = new fabric.Group(pathObjects, {
-                                left: obj.left,
-                                top: obj.top,
-                                originX: obj.originX,
-                                originY: obj.originY,
-                                angle: obj.angle,
-                                opacity: obj.opacity,
-                                scaleX: obj.scaleX,
-                                scaleY: obj.scaleY
-                            });
-                            result.push({ original: obj, converted: group });
-                        }
+                        await replaceTextInGroup(clone);
+                        result.push({ original: obj, converted: clone });
                     } else {
                         result.push({ original: obj, converted: null });
                     }
                 }
 
                 return result;
+            }
+
+            // ── CorelDRAW-safe images and fills ──────────────────────────
+            // Checked in CorelDRAW on 2026-11-12: Fabric's default image markup
+            // (<g transform="matrix(…)"><image x="-w/2" y="-h/2" …>) imports as a
+            // dot in the wrong place, and SVG <pattern> fills import as white.
+            // A plain <image x y width height> with no transform, or an <image>
+            // carrying its own transform attribute, imports correctly, and PNG
+            // transparency is honoured. So for export every image is baked into
+            // an axis-aligned bitmap and written in one of those two forms, and
+            // every pattern fill becomes a flat colour. The live canvas is never
+            // touched — this all runs on the clones that go to the export canvas.
+
+            // Flat export colour per material: the base colours of createWoodPattern()
+            const EXPORT_MATERIAL_COLORS = { birch: '#f5e6d3', oak: '#c19a6b', walnut: '#5c4033' };
+
+            // Mean colour of a pattern's source bitmap — fallback for a pattern
+            // whose object carries no known materialType.
+            function averagePatternColor(pattern) {
+                try {
+                    const src = pattern.source;
+                    if (!src || !(src.width || src.naturalWidth)) return null;
+                    const c = document.createElement('canvas');
+                    c.width = c.height = 8;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(src, 0, 0, 8, 8);
+                    const px = ctx.getImageData(0, 0, 8, 8).data;
+                    let r = 0, g = 0, b = 0, n = 0;
+                    for (let i = 0; i < px.length; i += 4) {
+                        if (px[i + 3] < 128) continue;
+                        r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
+                    }
+                    if (!n) return null;
+                    const hex = function(v) { return ('0' + Math.round(v / n).toString(16)).slice(-2); };
+                    return '#' + hex(r) + hex(g) + hex(b);
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            // Replace a pattern fill / stroke on one object with a flat colour.
+            function flattenPatternFills(obj) {
+                ['fill', 'stroke'].forEach(function(prop) {
+                    const v = obj[prop];
+                    if (!v || typeof v !== 'object' || v.type !== 'pattern') return;
+                    obj.set(prop, EXPORT_MATERIAL_COLORS[obj.materialType] || averagePatternColor(v) || EXPORT_MATERIAL_COLORS.birch);
+                });
+            }
+
+            // toSVG for a baked image. Top level: plain x/y/width/height, no
+            // transform. Inside a group: the transform sits on the <image> itself
+            // (the group's own <g transform> still wraps it), never on a wrapper <g>.
+            function bakedImageToSVG(reviver) {
+                const f = function(n) { return fabric.util.toFixed(n, fabric.Object.NUM_FRACTION_DIGITS); };
+                const href = this.getSvgSrc(true);
+                let markup;
+                if (this.group) {
+                    const m = this.calcOwnMatrix();
+                    markup = '<image transform="matrix(' + m.map(f).join(' ') + ')" x="' + f(-this.width / 2) +
+                        '" y="' + f(-this.height / 2) + '" width="' + f(this.width) + '" height="' + f(this.height) +
+                        '" xlink:href="' + href + '"/>\n';
+                } else {
+                    const r = this.getBoundingRect(true, true);
+                    markup = '<image x="' + f(r.left) + '" y="' + f(r.top) + '" width="' + f(r.width) +
+                        '" height="' + f(r.height) + '" xlink:href="' + href + '"/>\n';
+                }
+                return reviver ? reviver(markup) : markup;
+            }
+
+            // Bake one image (a clone, top level or inside a group) into an
+            // axis-aligned bitmap with its filters, crop, clip path, rotation,
+            // flips, scale and opacity applied, at the source's own resolution
+            // (longest side capped at 4096 px), and return the replacement object.
+            function bakeImageForExport(img) {
+                if (img.visible === false) return img;
+                const box = img.getBoundingRect(true, true); // own-space box, parent coordinates
+                const w = Math.ceil(box.width), h = Math.ceil(box.height); // toCanvasElement's element size
+                if (!w || !h) return img;
+                const native = 1 / Math.max(1e-6, Math.min(Math.abs(img.scaleX || 1), Math.abs(img.scaleY || 1)));
+                const mult = Math.max(1, Math.min(native, 4096 / Math.max(w, h)));
+                const el = img.toCanvasElement({ multiplier: mult, enableRetinaScaling: false });
+                if (!el || !el.width || !el.height) return img;
+                // toCanvasElement centres the object in the element, so the bitmap
+                // centre is the object's centre (= the centre of its bounding box).
+                const baked = new fabric.Image(el, {
+                    left: box.left + box.width / 2,
+                    top: box.top + box.height / 2,
+                    originX: 'center',
+                    originY: 'center',
+                    scaleX: w / el.width,
+                    scaleY: h / el.height
+                });
+                baked.toSVG = bakedImageToSVG;
+                baked.setCoords();
+                return baked;
+            }
+
+            // Make one export-canvas object (already a clone) CorelDRAW-safe:
+            // images baked, pattern fills flattened, groups walked recursively
+            // with children replaced in place (z-order and bounds untouched).
+            function prepareObjectForExport(obj) {
+                if (obj.type === 'image') return bakeImageForExport(obj);
+                if (obj.type === 'group') {
+                    const children = obj.getObjects();
+                    for (let i = 0; i < children.length; i++) {
+                        const replaced = prepareObjectForExport(children[i]);
+                        if (replaced !== children[i]) {
+                            replaced.group = obj;
+                            delete children[i].group;
+                            obj._objects[i] = replaced;
+                        }
+                    }
+                    obj.dirty = true;
+                }
+                flattenPatternFills(obj);
+                return obj;
+            }
+
+            // Assemble the throw-away canvas the SVG is generated from: text as
+            // vector paths, images as baked bitmaps, pattern fills as flat colours.
+            // Both the download and the quote attachment go through here.
+            async function buildExportCanvas() {
+                const tempCanvas = new fabric.StaticCanvas(null, {
+                    width: canvas.width,
+                    height: canvas.height
+                });
+                const convertedObjects = await convertTextToPathObjects();
+                for (let item of convertedObjects) {
+                    let obj = item.converted;
+                    if (!obj) {
+                        // Clone non-text objects; materialType picks the flat export colour
+                        obj = await new Promise(function(resolve) {
+                            item.original.clone(resolve, ['materialType']);
+                        });
+                    }
+                    tempCanvas.add(prepareObjectForExport(obj));
+                }
+                return tempCanvas;
             }
             
             // ── Preview image (JPG) ─────────────────────────────────────
@@ -4806,30 +5007,9 @@
                         return;
                     }
                     
-                    // Create a temporary canvas for export with converted text
-                    const tempCanvas = new fabric.StaticCanvas(null, {
-                        width: canvas.width,
-                        height: canvas.height
-                    });
-                    
-                    // Convert text objects to vector paths for font-independent SVG export
-                    const convertedObjects = await convertTextToPathObjects();
-
-                    // Add all objects to temp canvas
-                    for (let item of convertedObjects) {
-                        if (item.converted) {
-                            // Add converted vector path instead of text
-                            tempCanvas.add(item.converted);
-                        } else {
-                            // Clone and add non-text objects
-                            const cloned = await new Promise((resolve) => {
-                                item.original.clone(function(clone) {
-                                    resolve(clone);
-                                });
-                            });
-                            tempCanvas.add(cloned);
-                        }
-                    }
+                    // Throw-away canvas with text as paths, images as baked bitmaps
+                    // and pattern fills as flat colours (see buildExportCanvas)
+                    const tempCanvas = await buildExportCanvas();
 
                     const svgData = tempCanvas.toSVG({
                         width: canvas.realWidth + 'mm',
@@ -4903,28 +5083,9 @@
             async function showQuoteForm() {
                 // First generate and prepare SVG file with text converted
                 try {
-                    // Create a temporary canvas for export with converted text
-                    const tempCanvas = new fabric.StaticCanvas(null, {
-                        width: canvas.width,
-                        height: canvas.height
-                    });
-                    
-                    // Convert text objects to vector paths for font-independent SVG export
-                    const convertedObjects = await convertTextToPathObjects();
-
-                    // Add all objects to temp canvas
-                    for (let item of convertedObjects) {
-                        if (item.converted) {
-                            tempCanvas.add(item.converted);
-                        } else {
-                            const cloned = await new Promise((resolve) => {
-                                item.original.clone(function(clone) {
-                                    resolve(clone);
-                                });
-                            });
-                            tempCanvas.add(cloned);
-                        }
-                    }
+                    // Throw-away canvas with text as paths, images as baked bitmaps
+                    // and pattern fills as flat colours (see buildExportCanvas)
+                    const tempCanvas = await buildExportCanvas();
 
                     const svgData = tempCanvas.toSVG({
                         width: canvas.realWidth + 'mm',

@@ -53,7 +53,7 @@ The assistant only guides — at every step the full editor canvas and toolbar s
 - Object property panel (fill, stroke, opacity, font, size, rotation)
 
 **Export**
-- Download as SVG — text is converted to vector paths so the file is font-independent
+- Download as SVG — all text, including coin labels and text inside groups, is converted to vector paths so the file is font-independent; images are embedded as plain positioned PNGs with their edits baked in, and wood textures become flat colours, so the file opens correctly in CorelDRAW
 - Request a Quote — submits the design and customer details by email
 
 ## Squarespace Setup
@@ -84,7 +84,7 @@ To deploy the **guided builder**, paste the full contents of `builder.js` into t
 
 Loaded from **Google Fonts** (display in UI) and **jsDelivr / Fontsource** (WOFF files fetched at export time so text is embedded as paths in the SVG):
 
-Anton, Cormorant Garamond, EB Garamond, Inconsolata, Josefin Sans, Lora, Nunito, Open Sans, Patrick Hand, PT Sans, Roboto
+Anton, Cormorant Garamond, EB Garamond, Inconsolata, Josefin Sans, Lora, Nunito, Open Sans, Patrick Hand, PT Sans, Roboto. Roboto and Josefin Sans are also fetched in their bold (700) cut, because coin labels and template captions are drawn bold.
 
 ### Quote Request / Email
 
