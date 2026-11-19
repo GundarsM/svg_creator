@@ -1780,6 +1780,210 @@
             fabric.perfLimitSizeTotal = 8 * 1024 * 1024;
             fabric.maxCacheSideLimit = 8192;
 
+            // ── RECTANGLE CORNERS ────────────────────────────────────────
+            // Fabric keeps a rectangle's corner radius (rx / ry) in the
+            // rectangle's own unscaled coordinates, and resizing only changes
+            // scaleX / scaleY, so the corners were stretched along with the
+            // rectangle: a wider rectangle got wider, elliptical corners.
+            // Here the radius is taken out of the scaling. For rectangles made
+            // by the tool (and any rectangle whose Corner R was typed in) rx is
+            // the radius as drawn, in canvas px, whatever the scale of the
+            // rectangle or of a group / multi-selection around it. Other
+            // rectangles (imported artwork) keep Fabric's rule that the radius
+            // grows with the artwork, but both axes use the same radius, so
+            // they are circular too. Stored rx / ry are never rewritten: the
+            // correction is applied while drawing and while writing SVG, so
+            // every way of resizing is covered without its own fix.
+            // Keep this block identical in editor.js and builder.js.
+            const FIXED_CORNER_SHAPES = { 'rectangle': true, 'rectangle-outline': true, 'holderOutline': true };
+
+            function hasFixedCorner(rect) {
+                return !!rect.fixedCorner || FIXED_CORNER_SHAPES[rect.shapeType] === true;
+            }
+
+            // Length of the rectangle's own x and y axis on the canvas.
+            function rectAxisScale(rect) {
+                const m = rect.calcTransformMatrix();
+                return { x: Math.hypot(m[0], m[1]) || 1, y: Math.hypot(m[2], m[3]) || 1 };
+            }
+
+            // The radius that was asked for, in canvas px (what Corner R shows).
+            function rectSetRadius(rect) {
+                if (hasFixedCorner(rect)) return rect.rx || rect.ry || 0;
+                return (rect.rx || 0) * rectAxisScale(rect).x;
+            }
+
+            // The radius the corners are drawn with: at most half the shorter side.
+            function rectCornerRadius(rect) {
+                const s = rectAxisScale(rect);
+                return Math.max(0, Math.min(rectSetRadius(rect), rect.width * s.x / 2, rect.height * s.y / 2));
+            }
+
+            // Run draw() with rx / ry swapped for the pair that gives a circular
+            // corner of that radius. A rectangle that was authored with two
+            // different radii (imported artwork) is left exactly as it is.
+            function withRoundCorners(rect, draw) {
+                const rx = rect.rx, ry = rect.ry;
+                if ((!rx && !ry) || (!hasFixedCorner(rect) && rx !== ry)) return draw();
+                const s = rectAxisScale(rect), r = rectCornerRadius(rect);
+                rect.rx = r / s.x;
+                rect.ry = r / s.y;
+                try { return draw(); } finally { rect.rx = rx; rect.ry = ry; }
+            }
+
+            (function() {
+                const proto = fabric.Rect.prototype;
+                const render = proto._render, toSVG = proto._toSVG, toObject = proto.toObject;
+                proto._render = function(ctx) {
+                    const self = this;
+                    withRoundCorners(this, function() { render.call(self, ctx); });
+                };
+                proto._toSVG = function() {
+                    const self = this, args = arguments;
+                    return withRoundCorners(this, function() { return toSVG.apply(self, args); });
+                };
+                // The marker travels with every copy (clone, save, undo), also
+                // where the caller's property list leaves shapeType out.
+                proto.toObject = function() {
+                    const object = toObject.apply(this, arguments);
+                    if (hasFixedCorner(this)) object.fixedCorner = true;
+                    return object;
+                };
+                // Redraw a rectangle while it is being resized. Fabric would
+                // otherwise stretch its cached picture until the mouse is released.
+                proto.noScaleCache = false;
+            })();
+
+            // The same while a group that holds a rounded rectangle is resized.
+            function hasRoundedRect(o) {
+                if (o.type === 'rect') return !!(o.rx || o.ry);
+                return typeof o.getObjects === 'function' && o.getObjects().some(hasRoundedRect);
+            }
+            function refreshCornersWhileScaling(e) {
+                const target = e && e.target;
+                if (target && target.type === 'group' && hasRoundedRect(target)) target.dirty = true;
+            }
+
+            // ── WEB FONT LOADING ─────────────────────────────────────────
+            // The Google Fonts stylesheet only declares the families; the
+            // browser downloads a font file the first time something draws
+            // with it. Fabric measures text immediately and caches character
+            // widths per family, so text measured before its file arrives is
+            // drawn in a fallback font and keeps a wrong bounding box for the
+            // rest of the session. This block (1) asks for the right file
+            // whenever Fabric measures a text object, (2) drops the stale
+            // widths and re-measures every text object of a family when one
+            // of its files lands, and (3) fetches the whole picker list in
+            // the background so a font pick is normally instant.
+            // Keep this block identical in editor.js and builder.js.
+            const fontFacesHandled = (typeof WeakSet === 'function') ? new WeakSet() : null;
+            let fontRequests = {};      // 'spec|characters' -> true once asked for
+            let fontRequestCount = 0;
+
+            // Clear Fabric's cached widths for these families and re-measure
+            // every text object that uses one of them (also inside groups).
+            function remeasureFontFamilies(families) {
+                if (!families.length) return;
+                const wanted = {};
+                families.forEach(function(family) {
+                    wanted[family.toLowerCase()] = true;
+                    fabric.util.clearFabricFontCache(family);
+                });
+                if (!canvas) return;
+                const active = canvas.getActiveObject();
+                let touched = false, activeTouched = false;
+                (function walk(objects, parents) {
+                    objects.forEach(function(o) {
+                        if (o.type === 'i-text' || o.type === 'text') {
+                            if (!wanted[String(o.fontFamily || '').toLowerCase()]) return;
+                            o.initDimensions();
+                            o.dirty = true;
+                            o.setCoords();
+                            parents.forEach(function(p) { p.dirty = true; });
+                            touched = true;
+                            if (o === active) activeTouched = true;
+                        } else if (typeof o.getObjects === 'function') {
+                            walk(o.getObjects(), parents.concat([o]));
+                        }
+                    });
+                })(canvas.getObjects(), []);
+                if (!touched) return;
+                canvas.requestRenderAll();
+                // Size fields follow the new box, unless a value is being typed
+                const focus = document.activeElement;
+                const typing = focus && (focus.tagName === 'INPUT' || focus.tagName === 'TEXTAREA');
+                if (activeTouched && !typing && typeof updatePropertiesPanel === 'function') updatePropertiesPanel();
+            }
+
+            // Font files that have just become available: re-measure once per file.
+            function handleLoadedFontFaces(faces) {
+                const families = [];
+                Array.prototype.forEach.call(faces || [], function(face) {
+                    if (!face || face.status !== 'loaded') return;
+                    if (fontFacesHandled) {
+                        if (fontFacesHandled.has(face)) return;
+                        fontFacesHandled.add(face);
+                    }
+                    const family = String(face.family || '').replace(/["']/g, '').trim();
+                    if (family && families.indexOf(family) === -1) families.push(family);
+                });
+                remeasureFontFamilies(families);
+            }
+
+            // Ask the browser for the file(s) of this family/weight/style that
+            // cover `text` (Google Fonts splits a family into per-script files,
+            // so accented or Cyrillic letters live in a different file).
+            function ensureFontLoaded(family, weight, style, text) {
+                if (!family || typeof document === 'undefined' || !document.fonts || !document.fonts.load) return;
+                const spec = ((style === 'italic' || style === 'oblique') ? style + ' ' : '') +
+                             (weight || 'normal') + ' 16px "' + String(family).replace(/["\\]/g, '') + '"';
+                const seen = {};
+                const chars = Array.from(String(text || 'Aa')).filter(function(ch) {
+                    if (seen[ch] || !ch.trim()) return false;
+                    seen[ch] = true;
+                    return true;
+                }).sort().join('') || 'Aa';
+                const key = spec + '|' + chars;
+                if (fontRequests[key]) return;
+                if (++fontRequestCount > 500) { fontRequests = {}; fontRequestCount = 1; }
+                fontRequests[key] = true;
+                const retryLater = function() { delete fontRequests[key]; };
+                try {
+                    document.fonts.load(spec, chars).then(function(faces) {
+                        handleLoadedFontFaces(faces);
+                        if (Array.prototype.some.call(faces || [], function(f) { return f.status !== 'loaded'; })) retryLater();
+                    }, retryLater);
+                } catch (e) { retryLater(); }
+            }
+
+            // Every measurement of a text object (creation, font / text /
+            // weight change, typing, project load, undo) also requests its font.
+            (function() {
+                const measure = fabric.Text.prototype.initDimensions;
+                fabric.Text.prototype.initDimensions = function() {
+                    const result = measure.apply(this, arguments);
+                    if (!this.__skipDimension) ensureFontLoaded(this.fontFamily, this.fontWeight, this.fontStyle, this.text);
+                    return result;
+                };
+            })();
+
+            // Catches files the browser fetched on its own (first canvas draw).
+            if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) {
+                document.fonts.addEventListener('loadingdone', function(e) { handleLoadedFontFaces(e.fontfaces); });
+            }
+
+            // Background preload of the font picker list (regular cut) and the
+            // bold cuts the tool itself draws with (coin labels, captions).
+            function preloadCanvasFonts() {
+                const picker = document.getElementById('fontFamily');
+                Array.prototype.forEach.call(picker ? picker.options : [], function(option) {
+                    ensureFontLoaded(option.value, 'normal');
+                });
+                Object.keys(FONT_URLS_BOLD).forEach(function(family) { ensureFontLoaded(family, 'bold'); });
+            }
+            if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(preloadCanvasFonts, { timeout: 2000 });
+            else setTimeout(preloadCanvasFonts, 500);
+
             // Initialize canvas
             function initCanvas() {
                 const size = canvasSizes[currentCanvasSize];
@@ -1856,6 +2060,7 @@
                         updateCropButtons();
                     }
                 });
+                canvas.on('object:scaling', refreshCornersWhileScaling);
                 canvas.on('object:modified', function(e) {
                     updatePropertiesPanel();
                     saveState();
@@ -3272,7 +3477,7 @@
                 // Corner radius for rectangles
                 if (obj.type === 'rect') {
                     document.getElementById('cornerRadiusGroup').style.display = 'block';
-                    const currentRadius = obj.rx || 0;
+                    const currentRadius = rectSetRadius(obj);
                     document.getElementById('cornerRadius').value = ((currentRadius / scale) * conversionFactor).toFixed(2);
                 } else {
                     document.getElementById('cornerRadiusGroup').style.display = 'none';
@@ -3584,6 +3789,7 @@
                 if (obj.type === 'rect') {
                     document.getElementById('cornerRadius').onchange = function() {
                         const newRadius = parseFloat(this.value) * scale * conversionFactor;
+                        obj.fixedCorner = true; // a typed radius is an absolute size from here on
                         obj.set({
                             'rx': newRadius,
                             'ry': newRadius
@@ -3595,9 +3801,11 @@
                 
                 if (obj.type === 'i-text' || obj.type === 'text') {
                     document.getElementById('fontFamily').onchange = function() {
+                        if (obj.fontFamily === this.value) return;
                         obj.set('fontFamily', this.value);
                         obj.setCoords();
                         canvas.requestRenderAll();
+                        saveState();
                     };
                     
                     document.getElementById('fontSize').onchange = function() {
@@ -3605,6 +3813,7 @@
                         obj.realFontSize = parseFloat(this.value);
                         obj.setCoords();
                         canvas.requestRenderAll();
+                        saveState();
                     };
                     
                     document.getElementById('textContent').onchange = function() {
@@ -4858,6 +5067,36 @@
                 return baked;
             }
 
+            // A resized rectangle carries its size in scaleX / scaleY. Write it
+            // as a plain <rect> with its real width and height and one corner
+            // radius, so neither a stretched matrix nor an rx different from ry
+            // reaches CorelDRAW. Left alone when the scale cannot simply be
+            // folded in (gradient paint, clip path, skew, a stroke that scales);
+            // the corners are then still written correctly by Rect's _toSVG.
+            function bakeRectScaleForExport(rect) {
+                if (rect.type !== 'rect' || (!rect.rx && !rect.ry)) return;
+                const sx = Math.abs(rect.scaleX || 1), sy = Math.abs(rect.scaleY || 1);
+                if (sx === 1 && sy === 1) return;
+                const flat = function(paint) { return !paint || typeof paint === 'string'; };
+                if (rect.skewX || rect.skewY || rect.clipPath || !flat(rect.fill) || !flat(rect.stroke)) return;
+                if (rect.stroke && rect.strokeWidth > 0 && !rect.strokeUniform) return;
+                const centre = rect.getCenterPoint();
+                let rx = rect.rx, ry = rect.ry;
+                if (!hasFixedCorner(rect)) {
+                    if (rx === ry) { rx = ry = rx * sx; } else { rx = rx * sx; ry = ry * sy; }
+                }
+                rect.set({
+                    width: rect.width * sx,
+                    height: rect.height * sy,
+                    scaleX: rect.scaleX < 0 ? -1 : 1,
+                    scaleY: rect.scaleY < 0 ? -1 : 1,
+                    rx: rx,
+                    ry: ry
+                });
+                rect.setPositionByOrigin(centre, 'center', 'center');
+                rect.setCoords();
+            }
+
             // Make one export-canvas object (already a clone) CorelDRAW-safe:
             // images baked, pattern fills flattened, groups walked recursively
             // with children replaced in place (z-order and bounds untouched).
@@ -4876,6 +5115,7 @@
                     obj.dirty = true;
                 }
                 flattenPatternFills(obj);
+                bakeRectScaleForExport(obj);
                 return obj;
             }
 

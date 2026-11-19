@@ -15,7 +15,7 @@ The tool lets users compose a design from coins, country outlines, shapes, text,
 3. **Pick the material** — wood finish or plastic colour
 4. **Add coins** — currency, denominations, and quantities at real-world diameters
 5. **Arrange** — tidy coins into a grid / circle / rows *inside the holder shape*
-6. **Personalize** — engraving text, country outline, shapes, or an uploaded logo (optional)
+6. **Personalize** — engraving text, a country outline or your own uploaded SVG shape, shapes, or an uploaded logo (optional)
 7. **Review & request** — plain-language summary, then Download SVG or Request a Quote (pre-filled)
 
 The assistant only guides — at every step the full editor canvas and toolbar stay editable, the customer can jump between steps freely, and progress auto-saves to the browser (`localStorage`) with a **Start over** option. No AI and no backend; it is deployed exactly like the other tools.
